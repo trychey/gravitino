@@ -23,6 +23,7 @@ import com.datastrato.gravitino.meta.SchemaVersion;
 import com.datastrato.gravitino.storage.RandomIdGenerator;
 import com.datastrato.gravitino.storage.memory.TestMemoryEntityStore;
 import com.datastrato.gravitino.storage.memory.TestMemoryEntityStore.InMemoryEntityStore;
+import com.datastrato.gravitino.utils.IsolatedClassLoader;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -467,5 +468,41 @@ public class TestCatalogManager {
     Assertions.assertTrue(testProps.containsKey(ID_KEY));
     StringIdentifier StringId = StringIdentifier.fromString(testProps.get(ID_KEY));
     Assertions.assertEquals(StringId.toString(), testProps.get(ID_KEY));
+  }
+
+  @Test
+  void testReuseClassLoader() {
+
+    CatalogManager customCatalogManager =
+        new CatalogManager(config, entityStore, new RandomIdGenerator());
+    // Clear all possible class loaders.
+    NameIdentifier ident = NameIdentifier.of("metalake", "test31");
+    Map<String, String> props = ImmutableMap.of("provider", "test");
+    String comment = "comment";
+
+    customCatalogManager.createCatalog(ident, Catalog.Type.RELATIONAL, provider, comment, props);
+    IsolatedClassLoader cl1 =
+        customCatalogManager.catalogCache.getIfPresent(ident).getClassLoader();
+
+    // Test alter name;
+    CatalogChange change = CatalogChange.rename("test32");
+    customCatalogManager.alterCatalog(ident, change);
+    Catalog catalog =
+        customCatalogManager.loadCatalog(NameIdentifier.of(ident.namespace(), "test32"));
+    Assertions.assertEquals("test32", catalog.name());
+    IsolatedClassLoader cl2 =
+        customCatalogManager
+            .catalogCache
+            .getIfPresent(NameIdentifier.of(ident.namespace(), "test32"))
+            .getClassLoader();
+    Assertions.assertTrue(cl1 == cl2);
+
+    // Test alter comment;
+    NameIdentifier ident1 = NameIdentifier.of(ident.namespace(), "test32");
+    CatalogChange change1 = CatalogChange.updateComment("comment1");
+    customCatalogManager.alterCatalog(ident1, change1);
+    IsolatedClassLoader cl3 =
+        customCatalogManager.catalogCache.getIfPresent(ident1).getClassLoader();
+    Assertions.assertTrue(cl1 == cl3);
   }
 }
