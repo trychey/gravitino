@@ -2,9 +2,8 @@
 Copyright 2024 Datastrato Pvt Ltd.
 This software is licensed under the Apache License version 2.
 """
-
 from dataclasses import dataclass, field
-from typing import List
+from typing import Optional, List
 
 from dataclasses_json import config
 
@@ -15,8 +14,7 @@ from gravitino.name_identifier import NameIdentifier
 @dataclass
 class EntityListResponse(BaseResponse):
     """Represents a response containing a list of catalogs."""
-
-    _idents: List[NameIdentifier] = field(metadata=config(field_name="identifiers"))
+    _idents: List[NameIdentifier] = field(metadata=config(field_name='identifiers'))
 
     def identifiers(self) -> List[NameIdentifier]:
         return self._idents

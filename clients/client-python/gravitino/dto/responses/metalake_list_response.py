@@ -2,7 +2,6 @@
 Copyright 2024 Datastrato Pvt Ltd.
 This software is licensed under the Apache License version 2.
 """
-
 from dataclasses import dataclass, field
 from typing import List
 
@@ -16,7 +15,7 @@ from gravitino.dto.responses.base_response import BaseResponse
 class MetalakeListResponse(BaseResponse):
     """Represents a response containing a list of metalakes."""
 
-    _metalakes: List[MetalakeDTO] = field(metadata=config(field_name="metalakes"))
+    _metalakes: List[MetalakeDTO] = field(metadata=config(field_name='metalakes'))
 
     def metalakes(self) -> List[MetalakeDTO]:
         return self._metalakes

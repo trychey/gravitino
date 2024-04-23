@@ -2,9 +2,8 @@
 Copyright 2024 Datastrato Pvt Ltd.
 This software is licensed under the Apache License version 2.
 """
-
 from dataclasses import dataclass, field
-from typing import List
+from typing import Optional, List
 
 from dataclasses_json import config
 
@@ -15,10 +14,7 @@ from gravitino.rest.rest_message import RESTRequest
 @dataclass
 class FilesetUpdatesRequest(RESTRequest):
     """Request to represent updates to a fileset."""
-
-    _updates: List[FilesetUpdateRequest] = field(
-        metadata=config(field_name="updates"), default_factory=list
-    )
+    _updates: List[FilesetUpdateRequest] = field(metadata=config(field_name='updates'), default_factory=list)
 
     def validate(self):
         if not self._updates:

@@ -2,7 +2,6 @@
 Copyright 2024 Datastrato Pvt Ltd.
 This software is licensed under the Apache License version 2.
 """
-
 from dataclasses import dataclass, field
 from typing import List
 
@@ -15,10 +14,7 @@ from gravitino.rest.rest_message import RESTRequest
 @dataclass
 class SchemaUpdatesRequest(RESTRequest):
     """Represents a request to update a schema."""
-
-    _updates: List[SchemaUpdateRequest] = field(
-        metadata=config(field_name="updates"), default_factory=list
-    )
+    _updates: List[SchemaUpdateRequest] = field(metadata=config(field_name='updates'), default_factory=list)
 
     def __init__(self, updates: List[SchemaUpdateRequest]):
         self._updates = updates

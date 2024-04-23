@@ -2,7 +2,6 @@
 Copyright 2024 Datastrato Pvt Ltd.
 This software is licensed under the Apache License version 2.
 """
-
 from typing import List, Dict
 
 from gravitino.api.catalog import Catalog
@@ -31,7 +30,6 @@ class GravitinoClient(GravitinoClientBase):
 
     It uses an underlying {@link RESTClient} to send HTTP requests and receive responses from the API.
     """
-
     _metalake: GravitinoMetalake
 
     def __init__(self, uri: str, metalake_name: str):
@@ -68,17 +66,8 @@ class GravitinoClient(GravitinoClientBase):
     def load_catalog(self, ident: NameIdentifier) -> Catalog:
         return self.get_metalake().load_catalog(ident)
 
-    def create_catalog(
-        self,
-        ident: NameIdentifier,
-        type: Catalog.Type,
-        provider: str,
-        comment: str,
-        properties: Dict[str, str],
-    ) -> Catalog:
-        return self.get_metalake().create_catalog(
-            ident, type, provider, comment, properties
-        )
+    def create_catalog(self, ident: NameIdentifier, type: Catalog.Type, provider: str, comment: str, properties: Dict[str, str]) -> Catalog:
+        return self.get_metalake().create_catalog(ident, type, provider, comment, properties)
 
     def alter_catalog(self, ident: NameIdentifier, *changes: CatalogChange):
         return self.get_metalake().alter_catalog(ident, *changes)
