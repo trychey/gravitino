@@ -4,16 +4,23 @@
  */
 package com.datastrato.gravitino.filesystem.hadoop;
 
+import static com.datastrato.gravitino.filesystem.hadoop.GravitinoVirtualFileSystemConfiguration.DOT;
+import static com.datastrato.gravitino.filesystem.hadoop.GravitinoVirtualFileSystemConfiguration.SLASH;
+import static com.datastrato.gravitino.filesystem.hadoop.GravitinoVirtualFileSystemConfiguration.UNDER_SCORE;
+
 import com.datastrato.gravitino.Catalog;
 import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.client.DefaultOAuth2TokenProvider;
 import com.datastrato.gravitino.client.GravitinoClient;
+import com.datastrato.gravitino.enums.FilesetPrefixPattern;
 import com.datastrato.gravitino.file.Fileset;
+import com.datastrato.gravitino.properties.FilesetProperties;
 import com.datastrato.gravitino.shaded.com.google.common.annotations.VisibleForTesting;
 import com.datastrato.gravitino.shaded.com.google.common.base.Preconditions;
 import com.datastrato.gravitino.shaded.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.datastrato.gravitino.shaded.org.apache.commons.lang3.StringUtils;
 import com.datastrato.gravitino.shaded.org.apache.commons.lang3.tuple.Pair;
+import com.datastrato.gravitino.utils.FilesetPrefixPatternUtils;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Scheduler;
@@ -31,6 +38,7 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.InvalidPathException;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Progressable;
@@ -318,6 +326,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
         .withFileset(pair.getLeft())
         .withFileSystem(pair.getRight())
         .withActualPath(actualPath)
+        .withVirtualPath(virtualPath)
         .build();
   }
 
@@ -349,6 +358,111 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     Catalog catalog =
         client.loadCatalog(NameIdentifier.ofCatalog(metalakeName, identifier.namespace().level(1)));
     return catalog.asFilesetCatalog().loadFileset(identifier);
+  }
+
+  private FilesetPrefixProperties getFilesetPrefixProperties(FilesetContext context) {
+    Preconditions.checkArgument(
+        context.getFileset().properties().containsKey(FilesetProperties.PREFIX_PATTERN_KEY),
+        "Fileset: `%s` does not contain the property: `%s`, please set this property."
+            + " Following options are supported: `%s`.",
+        context.getIdentifier(),
+        FilesetProperties.PREFIX_PATTERN_KEY,
+        Arrays.asList(FilesetPrefixPattern.values()));
+    FilesetPrefixPattern prefixPattern =
+        FilesetPrefixPattern.valueOf(
+            context.getFileset().properties().get(FilesetProperties.PREFIX_PATTERN_KEY));
+
+    Preconditions.checkArgument(
+        context.getFileset().properties().containsKey(FilesetProperties.DIR_MAX_LEVEL_KEY),
+        "Fileset: `%s` does not contain the property: `%s`, please set this property.",
+        context.getIdentifier(),
+        FilesetProperties.DIR_MAX_LEVEL_KEY);
+    int maxLevel =
+        Integer.parseInt(
+            context.getFileset().properties().get(FilesetProperties.DIR_MAX_LEVEL_KEY));
+    Preconditions.checkArgument(
+        maxLevel > 0,
+        "Fileset: `%s`'s max level should be greater than 0.",
+        context.getIdentifier());
+
+    return FilesetPrefixProperties.builder()
+        .withPattern(prefixPattern)
+        .withMaxLevel(maxLevel)
+        .build();
+  }
+
+  private boolean checkSubDirValid(
+      FilesetContext context, Pattern pattern, FilesetPrefixProperties prefixProperties) {
+    Path storageLocation = new Path(context.getFileset().storageLocation());
+    // match sub dir like `/xxx/yyy`
+    String subDir =
+        context.getActualPath().toString().substring(storageLocation.toString().length());
+    if (StringUtils.isNotBlank(subDir)) {
+      Matcher matcher = pattern.matcher(subDir);
+      if (!matcher.matches()) {
+        // In this case, the sub dir level must be greater than the dir max level
+        String[] dirNames =
+            subDir.startsWith(SLASH) ? subDir.substring(1).split(SLASH) : subDir.split(SLASH);
+        // Try to check subdirectories before max level having temporary directory,
+        // if so, we pass the check
+        for (int index = 0;
+            index < prefixProperties.getMaxLevel() && index < dirNames.length;
+            index++) {
+          if (dirNames[index].startsWith(UNDER_SCORE) || dirNames[index].startsWith(DOT)) {
+            return true;
+          }
+        }
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private void checkPathValid(FilesetContext context, boolean isFile) {
+    FilesetPrefixProperties prefixProperties = getFilesetPrefixProperties(context);
+    Pattern pattern =
+        FilesetPrefixPatternUtils.combinePrefixPattern(
+            prefixProperties.getPattern(), prefixProperties.getMaxLevel(), isFile);
+    boolean valid = checkSubDirValid(context, pattern, prefixProperties);
+    if (!valid) {
+      throw new InvalidPathException(
+          context.getVirtualPath().toString(),
+          prefixErrorMessage(prefixProperties.getPattern(), prefixProperties.getMaxLevel()));
+    }
+  }
+
+  private void checkRenamePathValid(FilesetContext srcContext, FilesetContext dstContext)
+      throws IOException {
+    FilesetPrefixProperties prefixProperties = getFilesetPrefixProperties(srcContext);
+
+    FileStatus srcPathStatus = srcContext.getFileSystem().getFileStatus(srcContext.getActualPath());
+    if (srcPathStatus != null) {
+      Pattern pattern =
+          FilesetPrefixPatternUtils.combinePrefixPattern(
+              prefixProperties.getPattern(),
+              prefixProperties.getMaxLevel(),
+              srcPathStatus.isFile());
+
+      boolean srcValid = checkSubDirValid(srcContext, pattern, prefixProperties);
+      if (!srcValid) {
+        throw new InvalidPathException(
+            srcContext.getVirtualPath().toString(),
+            prefixErrorMessage(prefixProperties.getPattern(), prefixProperties.getMaxLevel()));
+      }
+
+      boolean dstValid = checkSubDirValid(dstContext, pattern, prefixProperties);
+      if (!dstValid) {
+        throw new InvalidPathException(
+            dstContext.getVirtualPath().toString(),
+            prefixErrorMessage(prefixProperties.getPattern(), prefixProperties.getMaxLevel()));
+      }
+    }
+  }
+
+  private String prefixErrorMessage(FilesetPrefixPattern pattern, Integer maxLevel) {
+    return String.format(
+        "The path should like `%s`, and max sub directory level after fileset identifier should be less than %d.",
+        pattern.getExample(), maxLevel);
   }
 
   @Override
@@ -385,6 +499,8 @@ public class GravitinoVirtualFileSystem extends FileSystem {
       Progressable progress)
       throws IOException {
     FilesetContext context = getFilesetContext(path);
+    // Create operation is only supported for files.
+    checkPathValid(context, true);
     return context
         .getFileSystem()
         .create(
@@ -401,6 +517,8 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   public FSDataOutputStream append(Path path, int bufferSize, Progressable progress)
       throws IOException {
     FilesetContext context = getFilesetContext(path);
+    // Append operation is only supported for files.
+    checkPathValid(context, true);
     return context.getFileSystem().append(context.getActualPath(), bufferSize, progress);
   }
 
@@ -428,6 +546,9 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     }
 
     FilesetContext dstFileContext = getFilesetContext(dst);
+
+    checkRenamePathValid(srcFileContext, dstFileContext);
+
     return srcFileContext
         .getFileSystem()
         .rename(srcFileContext.getActualPath(), dstFileContext.getActualPath());
@@ -466,6 +587,8 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   @Override
   public boolean mkdirs(Path path, FsPermission permission) throws IOException {
     FilesetContext context = getFilesetContext(path);
+    // Mkdirs operation is only supported for dirs.
+    checkPathValid(context, false);
     return context.getFileSystem().mkdirs(context.getActualPath(), permission);
   }
 

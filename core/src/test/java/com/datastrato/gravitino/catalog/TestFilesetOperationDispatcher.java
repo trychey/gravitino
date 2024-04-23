@@ -5,11 +5,15 @@
 package com.datastrato.gravitino.catalog;
 
 import static com.datastrato.gravitino.StringIdentifier.ID_KEY;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.Namespace;
+import com.datastrato.gravitino.enums.FilesetLifecycleUnit;
+import com.datastrato.gravitino.enums.FilesetPrefixPattern;
 import com.datastrato.gravitino.file.Fileset;
 import com.datastrato.gravitino.file.FilesetChange;
+import com.datastrato.gravitino.properties.FilesetProperties;
 import com.google.common.collect.ImmutableMap;
 import java.io.IOException;
 import java.util.Map;
@@ -141,5 +145,248 @@ public class TestFilesetOperationDispatcher extends TestOperationDispatcher {
 
     boolean dropped = filesetOperationDispatcher.dropFileset(filesetIdent1);
     Assertions.assertTrue(dropped);
+  }
+
+  @Test
+  public void testCreateFilesetWithAnyPrefixPattern() {
+    Namespace ns = Namespace.of(metalake, catalog, "fileset_schema_1");
+    Map<String, String> schemaProps = ImmutableMap.of("k1", "v1", "k2", "v2");
+    schemaOperationDispatcher.createSchema(NameIdentifier.of(ns.levels()), "comment", schemaProps);
+    NameIdentifier filesetIdent1 = NameIdentifier.of(ns, "fileset1");
+
+    // should set life cycle time be negative when prefix is any prefix
+    Map<String, String> invalidLifeCycleWithAnyPrefixProps =
+        ImmutableMap.of(
+            "k1",
+            "v1",
+            "k2",
+            "v2",
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.ANY.name(),
+            FilesetProperties.LIFECYCLE_TIME_NUM_KEY,
+            "30",
+            FilesetProperties.LIFECYCLE_TIME_UNIT_KEY,
+            FilesetLifecycleUnit.RETENTION_DAY.name());
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            filesetOperationDispatcher.createFileset(
+                filesetIdent1,
+                "comment",
+                Fileset.Type.MANAGED,
+                "test",
+                invalidLifeCycleWithAnyPrefixProps));
+
+    // test any prefix's life cycle number and dir max level
+    Map<String, String> Props1 =
+        ImmutableMap.of(
+            "k1",
+            "v1",
+            "k2",
+            "v2",
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.ANY.name(),
+            FilesetProperties.LIFECYCLE_TIME_NUM_KEY,
+            "30",
+            FilesetProperties.LIFECYCLE_TIME_UNIT_KEY,
+            FilesetLifecycleUnit.RETENTION_DAY.name());
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            filesetOperationDispatcher.createFileset(
+                filesetIdent1, "comment", Fileset.Type.MANAGED, "test", Props1));
+    Map<String, String> Props2 =
+        ImmutableMap.of(
+            "k1",
+            "v1",
+            "k2",
+            "v2",
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.ANY.name(),
+            FilesetProperties.LIFECYCLE_TIME_NUM_KEY,
+            "-1",
+            FilesetProperties.LIFECYCLE_TIME_UNIT_KEY,
+            FilesetLifecycleUnit.RETENTION_DAY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "-1");
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            filesetOperationDispatcher.createFileset(
+                filesetIdent1, "comment", Fileset.Type.MANAGED, "test", Props2));
+  }
+
+  @Test
+  public void testCreateFilesetWithDateWithStringPrefixPattern() {
+    Namespace ns = Namespace.of(metalake, catalog, "fileset_schema_2");
+    Map<String, String> schemaProps = ImmutableMap.of("k1", "v1", "k2", "v2");
+    schemaOperationDispatcher.createSchema(NameIdentifier.of(ns.levels()), "comment", schemaProps);
+    NameIdentifier filesetIdent1 = NameIdentifier.of(ns, "fileset1");
+
+    // test date with string prefix's dir max level
+    Map<String, String> Props2 =
+        ImmutableMap.of(
+            "k1",
+            "v1",
+            "k2",
+            "v2",
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.ANY.name(),
+            FilesetProperties.LIFECYCLE_TIME_NUM_KEY,
+            "-1",
+            FilesetProperties.LIFECYCLE_TIME_UNIT_KEY,
+            FilesetLifecycleUnit.RETENTION_DAY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "0");
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            filesetOperationDispatcher.createFileset(
+                filesetIdent1, "comment", Fileset.Type.MANAGED, "test", Props2));
+  }
+
+  @Test
+  public void testCreateFilesetWithYearMonthDayPrefixPattern() {
+    Namespace ns = Namespace.of(metalake, catalog, "fileset_schema_3");
+    Map<String, String> schemaProps = ImmutableMap.of("k1", "v1", "k2", "v2");
+    schemaOperationDispatcher.createSchema(NameIdentifier.of(ns.levels()), "comment", schemaProps);
+    NameIdentifier filesetIdent1 = NameIdentifier.of(ns, "fileset1");
+
+    // test date with string prefix's dir max level
+    Map<String, String> Props2 =
+        ImmutableMap.of(
+            "k1",
+            "v1",
+            "k2",
+            "v2",
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.ANY.name(),
+            FilesetProperties.LIFECYCLE_TIME_NUM_KEY,
+            "-1",
+            FilesetProperties.LIFECYCLE_TIME_UNIT_KEY,
+            FilesetLifecycleUnit.RETENTION_DAY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "0");
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            filesetOperationDispatcher.createFileset(
+                filesetIdent1, "comment", Fileset.Type.MANAGED, "test", Props2));
+  }
+
+  @Test
+  public void testCreateFilesetWithExtraProperties() {
+    Namespace ns = Namespace.of(metalake, catalog, "fileset_schema_4");
+    Map<String, String> schemaProps = ImmutableMap.of("k1", "v1", "k2", "v2");
+    schemaOperationDispatcher.createSchema(NameIdentifier.of(ns.levels()), "comment", schemaProps);
+
+    Map<String, String> props =
+        ImmutableMap.of(
+            "k1",
+            "v1",
+            "k2",
+            "v2",
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.DATE_WITH_STRING.name(),
+            FilesetProperties.LIFECYCLE_TIME_NUM_KEY,
+            "30",
+            FilesetProperties.LIFECYCLE_TIME_UNIT_KEY,
+            FilesetLifecycleUnit.RETENTION_DAY.name());
+    NameIdentifier filesetIdent1 = NameIdentifier.of(ns, "fileset1");
+    Fileset fileset1 =
+        filesetOperationDispatcher.createFileset(
+            filesetIdent1, "comment", Fileset.Type.MANAGED, "test", props);
+
+    Fileset loadedFileset1 = filesetOperationDispatcher.loadFileset(filesetIdent1);
+    Assertions.assertEquals(fileset1.name(), loadedFileset1.name());
+    Assertions.assertEquals(fileset1.comment(), loadedFileset1.comment());
+    testProperties(props, loadedFileset1.properties());
+    Assertions.assertEquals(fileset1.type(), loadedFileset1.type());
+    Assertions.assertEquals(fileset1.storageLocation(), loadedFileset1.storageLocation());
+
+    // invalid dir prefix
+    Map<String, String> invalidDirPrefixProps =
+        ImmutableMap.of(
+            "k1",
+            "v1",
+            "k2",
+            "v2",
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            "123",
+            FilesetProperties.LIFECYCLE_TIME_NUM_KEY,
+            "30",
+            FilesetProperties.LIFECYCLE_TIME_UNIT_KEY,
+            FilesetLifecycleUnit.RETENTION_DAY.name());
+    NameIdentifier filesetIdent3 = NameIdentifier.of(ns, "fileset3");
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            filesetOperationDispatcher.createFileset(
+                filesetIdent3, "comment", Fileset.Type.MANAGED, "test", invalidDirPrefixProps));
+
+    // invalid lifecycle time num
+    Map<String, String> invalidLifeCycleTimeNumProps =
+        ImmutableMap.of(
+            "k1",
+            "v1",
+            "k2",
+            "v2",
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.DATE_WITH_STRING.name(),
+            FilesetProperties.LIFECYCLE_TIME_NUM_KEY,
+            "123.1",
+            FilesetProperties.LIFECYCLE_TIME_UNIT_KEY,
+            FilesetLifecycleUnit.RETENTION_DAY.name());
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            filesetOperationDispatcher.createFileset(
+                filesetIdent3,
+                "comment",
+                Fileset.Type.MANAGED,
+                "test",
+                invalidLifeCycleTimeNumProps));
+
+    // invalid lifecycle time unit
+    Map<String, String> invalidLifeCycleTimeUnitProps =
+        ImmutableMap.of(
+            "k1",
+            "v1",
+            "k2",
+            "v2",
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.DATE_WITH_STRING.name(),
+            FilesetProperties.LIFECYCLE_TIME_NUM_KEY,
+            "30",
+            FilesetProperties.LIFECYCLE_TIME_UNIT_KEY,
+            "test");
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            filesetOperationDispatcher.createFileset(
+                filesetIdent3,
+                "comment",
+                Fileset.Type.MANAGED,
+                "test",
+                invalidLifeCycleTimeUnitProps));
+
+    // should set life cycle time num and correct time unit
+    Map<String, String> invalidLifeCycleProps =
+        ImmutableMap.of(
+            "k1",
+            "v1",
+            "k2",
+            "v2",
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.DATE_WITH_STRING.name(),
+            FilesetProperties.LIFECYCLE_TIME_NUM_KEY,
+            "30",
+            FilesetProperties.LIFECYCLE_TIME_UNIT_KEY,
+            "hello");
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            filesetOperationDispatcher.createFileset(
+                filesetIdent3, "comment", Fileset.Type.MANAGED, "test", invalidLifeCycleProps));
   }
 }

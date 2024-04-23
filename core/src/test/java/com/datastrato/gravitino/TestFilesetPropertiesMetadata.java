@@ -5,6 +5,9 @@
 package com.datastrato.gravitino;
 
 import com.datastrato.gravitino.connector.PropertyEntry;
+import com.datastrato.gravitino.enums.FilesetLifecycleUnit;
+import com.datastrato.gravitino.enums.FilesetPrefixPattern;
+import com.datastrato.gravitino.properties.FilesetProperties;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -20,13 +23,39 @@ public class TestFilesetPropertiesMetadata extends TestBasePropertiesMetadata {
   static {
     List<PropertyEntry<?>> tablePropertyMetadata =
         ImmutableList.of(
-            PropertyEntry.stringPropertyEntry(
-                TEST_FILESET_HIDDEN_KEY,
-                "test fileset required k1 property",
+            PropertyEntry.enumPropertyEntry(
+                FilesetProperties.PREFIX_PATTERN_KEY,
+                "The fileset dir prefix pattern",
                 false,
                 false,
-                "test",
-                true,
+                FilesetPrefixPattern.class,
+                FilesetPrefixPattern.ANY,
+                false,
+                false),
+            PropertyEntry.integerPropertyEntry(
+                FilesetProperties.LIFECYCLE_TIME_NUM_KEY,
+                "The fileset lifecycle time number",
+                false,
+                false,
+                -1,
+                false,
+                false),
+            PropertyEntry.enumPropertyEntry(
+                FilesetProperties.LIFECYCLE_TIME_UNIT_KEY,
+                "The fileset lifecycle time unit",
+                false,
+                false,
+                FilesetLifecycleUnit.class,
+                FilesetLifecycleUnit.RETENTION_DAY,
+                false,
+                false),
+            PropertyEntry.integerPropertyEntry(
+                FilesetProperties.DIR_MAX_LEVEL_KEY,
+                "The fileset dir max level",
+                false,
+                false,
+                -1,
+                false,
                 false));
 
     TEST_FILESET_PROPERTY = Maps.uniqueIndex(tablePropertyMetadata, PropertyEntry::getName);

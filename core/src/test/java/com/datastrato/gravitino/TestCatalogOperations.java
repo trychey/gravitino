@@ -9,6 +9,8 @@ import com.datastrato.gravitino.connector.CatalogInfo;
 import com.datastrato.gravitino.connector.CatalogOperations;
 import com.datastrato.gravitino.connector.PropertiesMetadata;
 import com.datastrato.gravitino.connector.PropertyEntry;
+import com.datastrato.gravitino.enums.FilesetLifecycleUnit;
+import com.datastrato.gravitino.enums.FilesetPrefixPattern;
 import com.datastrato.gravitino.exceptions.FilesetAlreadyExistsException;
 import com.datastrato.gravitino.exceptions.NoSuchCatalogException;
 import com.datastrato.gravitino.exceptions.NoSuchFilesetException;
@@ -27,6 +29,7 @@ import com.datastrato.gravitino.messaging.Topic;
 import com.datastrato.gravitino.messaging.TopicCatalog;
 import com.datastrato.gravitino.messaging.TopicChange;
 import com.datastrato.gravitino.meta.AuditInfo;
+import com.datastrato.gravitino.properties.FilesetProperties;
 import com.datastrato.gravitino.rel.Column;
 import com.datastrato.gravitino.rel.Schema;
 import com.datastrato.gravitino.rel.SchemaChange;
@@ -38,6 +41,7 @@ import com.datastrato.gravitino.rel.expressions.distributions.Distribution;
 import com.datastrato.gravitino.rel.expressions.sorts.SortOrder;
 import com.datastrato.gravitino.rel.expressions.transforms.Transform;
 import com.datastrato.gravitino.rel.indexes.Index;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import java.io.IOException;
@@ -433,11 +437,15 @@ public class TestCatalogOperations
       throws NoSuchSchemaException, FilesetAlreadyExistsException {
     AuditInfo auditInfo =
         AuditInfo.builder().withCreator("test").withCreateTime(Instant.now()).build();
+
+    Map<String, String> copyedProperties = Maps.newHashMap(properties);
+    checkAndFillFilesetProperties(ident, copyedProperties);
+
     TestFileset fileset =
         TestFileset.builder()
             .withName(ident.name())
             .withComment(comment)
-            .withProperties(properties)
+            .withProperties(copyedProperties)
             .withAuditInfo(auditInfo)
             .withType(type)
             .withStorageLocation(storageLocation)
@@ -493,6 +501,8 @@ public class TestCatalogOperations
         throw new IllegalArgumentException("Unsupported fileset change: " + change);
       }
     }
+
+    checkAndFillFilesetProperties(ident, newProps);
 
     TestFileset updatedFileset =
         TestFileset.builder()
@@ -609,6 +619,84 @@ public class TestCatalogOperations
       return true;
     } else {
       return false;
+    }
+  }
+
+  private void checkAndFillFilesetProperties(
+      NameIdentifier identifier, Map<String, String> properties) {
+    // Get properties with default values
+    FilesetPrefixPattern pattern =
+        FilesetPrefixPattern.valueOf(
+            properties.computeIfAbsent(
+                FilesetProperties.PREFIX_PATTERN_KEY, value -> FilesetPrefixPattern.ANY.name()));
+    int timeNum =
+        Integer.parseInt(
+            properties.computeIfAbsent(
+                FilesetProperties.LIFECYCLE_TIME_NUM_KEY, value -> String.valueOf(-1)));
+    Preconditions.checkArgument(
+        timeNum != 0,
+        "The fileset: `%s`'s property: %s should be a negative or positive integer,"
+            + " but cannot be 0.",
+        identifier,
+        FilesetProperties.LIFECYCLE_TIME_NUM_KEY);
+    FilesetLifecycleUnit timeUnit =
+        FilesetLifecycleUnit.valueOf(
+            properties.computeIfAbsent(
+                FilesetProperties.LIFECYCLE_TIME_UNIT_KEY,
+                value -> FilesetLifecycleUnit.RETENTION_DAY.name()));
+    Preconditions.checkArgument(
+        timeUnit == FilesetLifecycleUnit.RETENTION_DAY,
+        "Only supported: `%s` for the property: `%s` now.",
+        FilesetLifecycleUnit.RETENTION_DAY.name(),
+        FilesetProperties.LIFECYCLE_TIME_NUM_KEY);
+
+    int dirMaxLevel;
+    switch (pattern) {
+      case ANY:
+        Preconditions.checkArgument(
+            timeNum < 0,
+            "Lifecycle time number should be permanent"
+                + " because fileset's dir prefix pattern type is: `%s`.",
+            pattern.name());
+        dirMaxLevel =
+            Integer.parseInt(
+                properties.computeIfAbsent(
+                    FilesetProperties.DIR_MAX_LEVEL_KEY, value -> String.valueOf(3)));
+        Preconditions.checkArgument(
+            dirMaxLevel > 0,
+            "`%s` should be greater than 0 for the dir prefix: `%s`",
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            pattern.name());
+        break;
+      case DATE:
+      case DATE_HOUR:
+      case DATE_WITH_STRING:
+      case DATE_US_HOUR:
+      case DATE_US_HOUR_US_MINUTE:
+        dirMaxLevel =
+            Integer.parseInt(
+                properties.computeIfAbsent(
+                    FilesetProperties.DIR_MAX_LEVEL_KEY, value -> String.valueOf(3)));
+        Preconditions.checkArgument(
+            dirMaxLevel > 0,
+            "`%s` should be grater than 0 for the dir prefix: `%s`",
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            pattern.name());
+        break;
+      case YEAR_MONTH_DAY:
+        dirMaxLevel =
+            Integer.parseInt(
+                properties.computeIfAbsent(
+                    FilesetProperties.DIR_MAX_LEVEL_KEY, value -> String.valueOf(5)));
+        Preconditions.checkArgument(
+            dirMaxLevel >= 5,
+            "`%s` should be greater and equal than 5 for the dir prefix: `%s`",
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            pattern.name());
+        break;
+      default:
+        throw new IllegalArgumentException(
+            String.format("Unsupported fileset directory prefix pattern: `%s`.", pattern.name()));
     }
   }
 }

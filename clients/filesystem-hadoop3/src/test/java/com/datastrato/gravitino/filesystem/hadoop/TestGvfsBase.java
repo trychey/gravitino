@@ -12,7 +12,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastrato.gravitino.NameIdentifier;
+import com.datastrato.gravitino.enums.FilesetPrefixPattern;
 import com.datastrato.gravitino.file.Fileset;
+import com.datastrato.gravitino.properties.FilesetProperties;
+import com.datastrato.gravitino.shaded.com.google.common.collect.ImmutableMap;
+import com.datastrato.gravitino.shaded.com.google.common.collect.Maps;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -21,11 +26,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.InvalidPathException;
 import org.apache.hadoop.fs.Path;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
@@ -81,7 +88,12 @@ public class TestGvfsBase extends GravitinoMockServerBase {
         schemaName,
         managedFilesetName,
         Fileset.Type.MANAGED,
-        localDirPath.toString());
+        localDirPath.toString(),
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.ANY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            String.valueOf(20)));
     managedFilesetPath =
         FileSystemTestUtils.createFilesetPath(catalogName, schemaName, managedFilesetName, true);
 
@@ -95,7 +107,12 @@ public class TestGvfsBase extends GravitinoMockServerBase {
         schemaName,
         externalFilesetName,
         Fileset.Type.EXTERNAL,
-        localFilePath.toString());
+        localFilePath.toString(),
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.ANY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            String.valueOf(20)));
     externalFilesetPath =
         FileSystemTestUtils.createFilesetPath(catalogName, schemaName, externalFilesetName, true);
   }
@@ -179,7 +196,12 @@ public class TestGvfsBase extends GravitinoMockServerBase {
           schemaName,
           "fileset1",
           Fileset.Type.MANAGED,
-          localPath1.toString());
+          localPath1.toString(),
+          ImmutableMap.of(
+              FilesetProperties.PREFIX_PATTERN_KEY,
+              FilesetPrefixPattern.ANY.name(),
+              FilesetProperties.DIR_MAX_LEVEL_KEY,
+              String.valueOf(20)));
       FileSystemTestUtils.mkdirs(filesetPath1, fs);
 
       // expired by size
@@ -193,7 +215,12 @@ public class TestGvfsBase extends GravitinoMockServerBase {
           schemaName,
           "fileset2",
           Fileset.Type.MANAGED,
-          localPath2.toString());
+          localPath2.toString(),
+          ImmutableMap.of(
+              FilesetProperties.PREFIX_PATTERN_KEY,
+              FilesetPrefixPattern.ANY.name(),
+              FilesetProperties.DIR_MAX_LEVEL_KEY,
+              String.valueOf(20)));
       FileSystemTestUtils.mkdirs(filesetPath2, fs);
 
       Awaitility.await()
@@ -259,6 +286,201 @@ public class TestGvfsBase extends GravitinoMockServerBase {
       assertTrue(gravitinoFileSystem.getFileStatus(externalFilesetPath).isFile());
       gravitinoFileSystem.delete(externalFilesetPath, true);
       assertFalse(localFileSystem.exists(localFilePath));
+    }
+  }
+
+  @Test
+  public void testCreateWithPathLimit() throws IOException {
+    // test invalid properties
+    String filesetInvalidProperties = "fileset_invalid_properties";
+    Path localFilesetInvalidPropertiesPath =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetInvalidProperties);
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(3));
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        filesetInvalidProperties,
+        Fileset.Type.MANAGED,
+        localFilesetInvalidPropertiesPath.toString(),
+        properties);
+    Path filesetInvalidPropertiesPath =
+        FileSystemTestUtils.createFilesetPath(
+            catalogName, schemaName, filesetInvalidProperties, true);
+    try (FileSystem gravitinoFileSystem = filesetInvalidPropertiesPath.getFileSystem(conf)) {
+      // test
+      Path invalidPrefixPath = new Path(filesetInvalidPropertiesPath + "/xxx/test.txt");
+      assertThrows(
+          IllegalArgumentException.class,
+          () -> FileSystemTestUtils.create(invalidPrefixPath, gravitinoFileSystem));
+    }
+
+    // test prefix = DATE_WITH_STRING and max level = 3
+    String filesetWithDateString = "fileset_date_with_string";
+    Path localFilesetWithDateStringPath =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetWithDateString);
+    properties.put(
+        FilesetProperties.PREFIX_PATTERN_KEY, FilesetPrefixPattern.DATE_WITH_STRING.name());
+    properties.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(3));
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        filesetWithDateString,
+        Fileset.Type.MANAGED,
+        localFilesetWithDateStringPath.toString(),
+        properties);
+    Path filesetWithDateStringPath =
+        FileSystemTestUtils.createFilesetPath(catalogName, schemaName, filesetWithDateString, true);
+    try (FileSystem gravitinoFileSystem = filesetWithDateStringPath.getFileSystem(conf)) {
+      // test invalid prefix
+      Path invalidPrefixPath = new Path(filesetWithDateStringPath + "/xxx/test.txt");
+      assertThrows(
+          InvalidPathException.class,
+          () -> FileSystemTestUtils.create(invalidPrefixPath, gravitinoFileSystem));
+
+      // test invalid level
+      Path invalidLevelPath =
+          new Path(filesetWithDateStringPath + "/date=20240408/xxx/zzz/qqq/test.txt");
+      assertThrows(
+          InvalidPathException.class,
+          () -> FileSystemTestUtils.create(invalidLevelPath, gravitinoFileSystem));
+
+      // test valid path 1
+      Path validPath1 = new Path(filesetWithDateStringPath + "/date=20240408/xxx/zzz/test.txt");
+      FileSystemTestUtils.create(validPath1, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath1));
+      gravitinoFileSystem.delete(validPath1, true);
+
+      // test valid path 2
+      Path validPath2 = new Path(filesetWithDateStringPath + "/date=20240408/xxx/test.txt");
+      FileSystemTestUtils.create(validPath2, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath2));
+      gravitinoFileSystem.delete(validPath2, true);
+
+      // test valid path 3
+      Path validPath3 = new Path(filesetWithDateStringPath + "/date=20240408/test.txt");
+      FileSystemTestUtils.create(validPath3, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath3));
+      gravitinoFileSystem.delete(validPath3, true);
+    }
+
+    // test prefix = YEAR_MONTH_DAY and max level = 5
+    String filesetYMD = "fileset_year_month_day";
+    Path localFilesetYMDPath =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetYMD);
+    properties.put(
+        FilesetProperties.PREFIX_PATTERN_KEY, FilesetPrefixPattern.YEAR_MONTH_DAY.name());
+    properties.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(5));
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        filesetYMD,
+        Fileset.Type.MANAGED,
+        localFilesetYMDPath.toString(),
+        properties);
+    Path filesetYMDPath =
+        FileSystemTestUtils.createFilesetPath(catalogName, schemaName, filesetYMD, true);
+    try (FileSystem gravitinoFileSystem = filesetYMDPath.getFileSystem(conf)) {
+      // test invalid prefix
+      Path invalidPrefixPath = new Path(filesetYMDPath + "/xxx/test.txt");
+      assertThrows(
+          InvalidPathException.class,
+          () -> FileSystemTestUtils.create(invalidPrefixPath, gravitinoFileSystem));
+
+      // test invalid level
+      Path invalidLevelPath =
+          new Path(filesetYMDPath + "/year=2024/month=04/day=08/xxx/zzz/qqq/test.txt");
+      assertThrows(
+          InvalidPathException.class,
+          () -> FileSystemTestUtils.create(invalidLevelPath, gravitinoFileSystem));
+
+      // test valid path 1
+      Path validPath1 = new Path(filesetYMDPath + "/year=2024/month=04/day=08/xxx/zzz/test.txt");
+      FileSystemTestUtils.create(validPath1, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath1));
+      gravitinoFileSystem.delete(validPath1, true);
+
+      // test valid path 2
+      Path validPath2 = new Path(filesetYMDPath + "/year=2024/month=04/day=08/xxx/test.txt");
+      FileSystemTestUtils.create(validPath2, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath2));
+      gravitinoFileSystem.delete(validPath2, true);
+
+      // test valid path 3
+      Path validPath3 = new Path(filesetYMDPath + "/year=2024/month=04/day=08/test.txt");
+      FileSystemTestUtils.create(validPath3, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath3));
+      gravitinoFileSystem.delete(validPath3, true);
+    }
+
+    // test prefix = ANY and max level = 3
+    String filesetAny = "fileset_any";
+    Path localFilesetAnyPath =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetAny);
+    properties.put(FilesetProperties.PREFIX_PATTERN_KEY, FilesetPrefixPattern.ANY.name());
+    properties.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(3));
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        filesetAny,
+        Fileset.Type.MANAGED,
+        localFilesetAnyPath.toString(),
+        properties);
+    Path filesetAnyPath =
+        FileSystemTestUtils.createFilesetPath(catalogName, schemaName, filesetAny, true);
+    try (FileSystem gravitinoFileSystem = filesetAnyPath.getFileSystem(conf)) {
+      // test invalid level
+      Path invalidLevelPath = new Path(filesetAnyPath + "/year=2024/month=04/day=08/xxx/qqq.txt");
+      assertThrows(
+          InvalidPathException.class,
+          () -> FileSystemTestUtils.create(invalidLevelPath, gravitinoFileSystem));
+
+      // test valid path 1
+      Path validPath1 = new Path(filesetAnyPath + "/year=2024/month=04/day=08/xxx.txt");
+      FileSystemTestUtils.create(validPath1, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath1));
+      gravitinoFileSystem.delete(validPath1, true);
+
+      // test valid path 2
+      Path validPath2 = new Path(filesetAnyPath + "/xxx.txt");
+      FileSystemTestUtils.create(validPath2, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath2));
+      gravitinoFileSystem.delete(validPath2, true);
+    }
+
+    // test prefix = DATE_WITH_STRING and max level = 3
+    String filesetD1 = "fileset_date_1";
+    Path localFilesetD1Path =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetD1);
+    properties.put(
+        FilesetProperties.PREFIX_PATTERN_KEY, FilesetPrefixPattern.DATE_WITH_STRING.name());
+    properties.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(3));
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        filesetD1,
+        Fileset.Type.MANAGED,
+        localFilesetD1Path.toString(),
+        properties);
+    Path filesetD1Path =
+        FileSystemTestUtils.createFilesetPath(catalogName, schemaName, filesetD1, true);
+    try (FileSystem gravitinoFileSystem = filesetD1Path.getFileSystem(conf)) {
+      // test temporary dir 1
+      Path validPath1 = new Path(filesetD1Path + "/date=20240408/_temporary/xxx/ddd/zzz.parquet");
+      FileSystemTestUtils.create(validPath1, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath1));
+      gravitinoFileSystem.delete(validPath1, true);
+
+      // test temporary dir 2
+      Path validPath2 = new Path(filesetD1Path + "/date=20240408/.temporary/xxx/ddd/zzz.parquet");
+      FileSystemTestUtils.create(validPath2, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath2));
+      gravitinoFileSystem.delete(validPath2, true);
     }
   }
 
@@ -362,6 +584,648 @@ public class TestGvfsBase extends GravitinoMockServerBase {
           RuntimeException.class, () -> gravitinoFileSystem.rename(externalFilesetPath, dstPath));
       localFileSystem.delete(localFilePath, true);
       assertFalse(localFileSystem.exists(localFilePath));
+    }
+  }
+
+  @Test
+  public void testRenameFileWithPathLimit() throws IOException {
+    // test invalid properties
+    String filesetInvalidProperties = "fileset_file_invalid_properties";
+    Path localFilesetInvalidPropertiesPath =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetInvalidProperties);
+    Map<String, String> properties1 = Maps.newHashMap();
+    properties1.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(3));
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        filesetInvalidProperties,
+        Fileset.Type.MANAGED,
+        localFilesetInvalidPropertiesPath.toString(),
+        properties1);
+    Path filesetInvalidPropertiesPath =
+        FileSystemTestUtils.createFilesetPath(
+            catalogName, schemaName, filesetInvalidProperties, true);
+    try (FileSystem gravitinoFileSystem = filesetInvalidPropertiesPath.getFileSystem(conf)) {
+      Path invalidSrcFilePath = new Path(filesetInvalidPropertiesPath + "/xxx/test.txt");
+      Path invalidDstFilePath = new Path(filesetInvalidPropertiesPath + "/xxx/test1.txt");
+      assertThrows(
+          IllegalArgumentException.class,
+          () -> gravitinoFileSystem.rename(invalidSrcFilePath, invalidDstFilePath));
+    }
+
+    // test valid properties but src is not existing
+    String filesetValidProperties = "fileset_file_valid_properties";
+    Path localFilesetValidPropertiesPath =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetValidProperties);
+    Map<String, String> properties2 = Maps.newHashMap();
+    properties2.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(3));
+    properties2.put(FilesetProperties.PREFIX_PATTERN_KEY, FilesetPrefixPattern.ANY.name());
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        filesetValidProperties,
+        Fileset.Type.MANAGED,
+        localFilesetValidPropertiesPath.toString(),
+        properties2);
+    Path filesetValidPropertiesPath =
+        FileSystemTestUtils.createFilesetPath(
+            catalogName, schemaName, filesetValidProperties, true);
+    try (FileSystem gravitinoFileSystem = filesetValidPropertiesPath.getFileSystem(conf)) {
+      Path validSrcFilePath = new Path(filesetValidPropertiesPath + "/xxx/test.txt");
+      Path validDstFilePath = new Path(filesetValidPropertiesPath + "/xxx/test1.txt");
+      assertThrows(
+          FileNotFoundException.class,
+          () -> gravitinoFileSystem.rename(validSrcFilePath, validDstFilePath));
+    }
+
+    // test file rename with YMD
+    String fileRename1 = "fileset_file_rename1";
+    Map<String, String> properties3 = Maps.newHashMap();
+    Path localRenamePath1 =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, fileRename1);
+    properties3.put(
+        FilesetProperties.PREFIX_PATTERN_KEY, FilesetPrefixPattern.YEAR_MONTH_DAY.name());
+    properties3.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(5));
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        fileRename1,
+        Fileset.Type.MANAGED,
+        localRenamePath1.toString(),
+        properties3);
+    Path filesetRenamePath1 =
+        FileSystemTestUtils.createFilesetPath(catalogName, schemaName, fileRename1, true);
+    try (FileSystem gravitinoFileSystem = filesetRenamePath1.getFileSystem(conf);
+        FileSystem localFileSystem = localRenamePath1.getFileSystem(conf)) {
+      // test invalid src level
+      String subInvalidSrcLevelPath = "/year=2024/month=04/day=08/xxx/yyy/zzz/test.parquet";
+      Path localInvalidSrcLevelPath = new Path(localRenamePath1 + subInvalidSrcLevelPath);
+      Path gvfsInvalidSrcLevelPath = new Path(filesetRenamePath1 + subInvalidSrcLevelPath);
+      localFileSystem.create(localInvalidSrcLevelPath);
+      assertTrue(localFileSystem.exists(localInvalidSrcLevelPath));
+      assertTrue(gravitinoFileSystem.exists(gvfsInvalidSrcLevelPath));
+      assertThrows(
+          InvalidPathException.class,
+          () ->
+              gravitinoFileSystem.rename(
+                  gvfsInvalidSrcLevelPath, new Path(gvfsInvalidSrcLevelPath + ".zzz")));
+      localFileSystem.delete(localInvalidSrcLevelPath, true);
+      assertFalse(localFileSystem.exists(localInvalidSrcLevelPath));
+
+      // test invalid dst level
+      String subValidSrcLevelPath = "/year=2024/month=04/day=08/xxx/yyy/test.parquet";
+      Path localValidSrcLevelPath = new Path(localRenamePath1 + subValidSrcLevelPath);
+      Path gvfsValidSrcLevelPath = new Path(filesetRenamePath1 + subValidSrcLevelPath);
+      localFileSystem.create(localValidSrcLevelPath);
+      assertTrue(localFileSystem.exists(localValidSrcLevelPath));
+      assertTrue(gravitinoFileSystem.exists(gvfsValidSrcLevelPath));
+      assertThrows(
+          InvalidPathException.class,
+          () ->
+              gravitinoFileSystem.rename(
+                  gvfsValidSrcLevelPath, new Path(gvfsValidSrcLevelPath + "/qqq.parquet")));
+      localFileSystem.delete(localValidSrcLevelPath, true);
+      assertFalse(localFileSystem.exists(localValidSrcLevelPath));
+
+      // test valid src and dst
+      String subValidSrcLevelPath1 = "/year=2024/month=04/day=08/xxx/test.parquet";
+      String subValidDstLevelPath1 = "/year=2024/month=04/day=08/xxx/yyy/test.parquet";
+      Path localValidSrcLevelPath1 = new Path(localRenamePath1 + subValidSrcLevelPath1);
+      Path gvfsValidSrcLevelPath1 = new Path(filesetRenamePath1 + subValidSrcLevelPath1);
+      Path gvfsValidDstLevelPath1 = new Path(filesetRenamePath1 + subValidDstLevelPath1);
+      localFileSystem.create(localValidSrcLevelPath1);
+      assertTrue(localFileSystem.exists(localValidSrcLevelPath1));
+      assertTrue(gravitinoFileSystem.exists(gvfsValidSrcLevelPath1));
+      gravitinoFileSystem.rename(gvfsValidSrcLevelPath1, gvfsValidDstLevelPath1);
+      assertTrue(gravitinoFileSystem.exists(gvfsValidDstLevelPath1));
+      gravitinoFileSystem.delete(gvfsValidDstLevelPath1, true);
+      assertFalse(gravitinoFileSystem.exists(gvfsValidDstLevelPath1));
+
+      // test valid src, invalid dst level
+      String subValidSrcLevelPath2 = "/year=2024/month=04/day=08/xxx/test.parquet";
+      String subInvalidDstLevelPath2 = "/year=2024/month=04/day=08/xxx/yyy/zzz/test.parquet";
+      Path localValidSrcLevelPath2 = new Path(localRenamePath1 + subValidSrcLevelPath2);
+      Path gvfsValidSrcLevelPath2 = new Path(filesetRenamePath1 + subValidSrcLevelPath2);
+      Path gvfsInvalidDstLevelPath2 = new Path(filesetRenamePath1 + subInvalidDstLevelPath2);
+      localFileSystem.create(localValidSrcLevelPath2);
+      assertTrue(localFileSystem.exists(localValidSrcLevelPath2));
+      assertTrue(gravitinoFileSystem.exists(gvfsValidSrcLevelPath2));
+      assertThrows(
+          InvalidPathException.class,
+          () -> gravitinoFileSystem.rename(gvfsValidSrcLevelPath2, gvfsInvalidDstLevelPath2));
+      gravitinoFileSystem.delete(gvfsValidSrcLevelPath2, true);
+      assertFalse(gravitinoFileSystem.exists(gvfsValidSrcLevelPath2));
+    }
+
+    // test file rename with date string
+    String fileRename2 = "fileset_file_rename2";
+    Map<String, String> properties4 = Maps.newHashMap();
+    Path localRenamePath2 =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, fileRename2);
+    properties4.put(
+        FilesetProperties.PREFIX_PATTERN_KEY, FilesetPrefixPattern.DATE_WITH_STRING.name());
+    properties4.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(3));
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        fileRename2,
+        Fileset.Type.MANAGED,
+        localRenamePath2.toString(),
+        properties4);
+    Path filesetRenamePath2 =
+        FileSystemTestUtils.createFilesetPath(catalogName, schemaName, fileRename2, true);
+    try (FileSystem gravitinoFileSystem = filesetRenamePath2.getFileSystem(conf);
+        FileSystem localFileSystem = localRenamePath2.getFileSystem(conf)) {
+      // test invalid src level
+      String subInvalidSrcLevelPath = "/date=20240408/xxx/yyy/zzz/test.parquet";
+      Path localInvalidSrcLevelPath = new Path(localRenamePath2 + subInvalidSrcLevelPath);
+      Path gvfsInvalidSrcLevelPath = new Path(filesetRenamePath2 + subInvalidSrcLevelPath);
+      localFileSystem.create(localInvalidSrcLevelPath);
+      assertTrue(localFileSystem.exists(localInvalidSrcLevelPath));
+      assertTrue(gravitinoFileSystem.exists(gvfsInvalidSrcLevelPath));
+      assertThrows(
+          InvalidPathException.class,
+          () ->
+              gravitinoFileSystem.rename(
+                  gvfsInvalidSrcLevelPath, new Path(gvfsInvalidSrcLevelPath + ".zzz")));
+      localFileSystem.delete(localInvalidSrcLevelPath, true);
+      assertFalse(localFileSystem.exists(localInvalidSrcLevelPath));
+
+      // test invalid dst level
+      String subValidSrcLevelPath = "/date=20240408/xxx/yyy/test.parquet";
+      Path localValidSrcLevelPath = new Path(localRenamePath2 + subValidSrcLevelPath);
+      Path gvfsValidSrcLevelPath = new Path(filesetRenamePath2 + subValidSrcLevelPath);
+      localFileSystem.create(localValidSrcLevelPath);
+      assertTrue(localFileSystem.exists(localValidSrcLevelPath));
+      assertTrue(gravitinoFileSystem.exists(gvfsValidSrcLevelPath));
+      assertThrows(
+          InvalidPathException.class,
+          () ->
+              gravitinoFileSystem.rename(
+                  gvfsValidSrcLevelPath, new Path(gvfsValidSrcLevelPath + "/qqq.parquet")));
+      localFileSystem.delete(localValidSrcLevelPath, true);
+      assertFalse(localFileSystem.exists(localValidSrcLevelPath));
+
+      // test valid src and dst
+      String subValidSrcLevelPath1 = "/date=20240408/xxx/test.parquet";
+      String subValidDstLevelPath1 = "/date=20240408/xxx/yyy/test.parquet";
+      Path localValidSrcLevelPath1 = new Path(localRenamePath2 + subValidSrcLevelPath1);
+      Path gvfsValidSrcLevelPath1 = new Path(filesetRenamePath2 + subValidSrcLevelPath1);
+      Path gvfsValidDstLevelPath1 = new Path(filesetRenamePath2 + subValidDstLevelPath1);
+      localFileSystem.create(localValidSrcLevelPath1);
+      assertTrue(localFileSystem.exists(localValidSrcLevelPath1));
+      assertTrue(gravitinoFileSystem.exists(gvfsValidSrcLevelPath1));
+      gravitinoFileSystem.rename(gvfsValidSrcLevelPath1, gvfsValidDstLevelPath1);
+      assertTrue(gravitinoFileSystem.exists(gvfsValidDstLevelPath1));
+      gravitinoFileSystem.delete(gvfsValidDstLevelPath1, true);
+      assertFalse(gravitinoFileSystem.exists(gvfsValidDstLevelPath1));
+
+      // test valid src, invalid dst level
+      String subValidSrcLevelPath2 = "/date=20240408/xxx/test.parquet";
+      String subInvalidDstLevelPath2 = "/date=20240408/xxx/yyy/zzz/test.parquet";
+      Path localValidSrcLevelPath2 = new Path(localRenamePath2 + subValidSrcLevelPath2);
+      Path gvfsValidSrcLevelPath2 = new Path(filesetRenamePath2 + subValidSrcLevelPath2);
+      Path gvfsInvalidDstLevelPath2 = new Path(filesetRenamePath2 + subInvalidDstLevelPath2);
+      localFileSystem.create(localValidSrcLevelPath2);
+      assertTrue(localFileSystem.exists(localValidSrcLevelPath2));
+      assertTrue(gravitinoFileSystem.exists(gvfsValidSrcLevelPath2));
+      assertThrows(
+          InvalidPathException.class,
+          () -> gravitinoFileSystem.rename(gvfsValidSrcLevelPath2, gvfsInvalidDstLevelPath2));
+      gravitinoFileSystem.delete(gvfsValidSrcLevelPath2, true);
+      assertFalse(gravitinoFileSystem.exists(gvfsValidSrcLevelPath2));
+
+      // test src temporary directory
+      String tmpSrcLevelPath1 = "/date=20240408/_temporary/zzz/ddd/www.parquet";
+      String subValidDstLevelPath2 = "/date=20240408/zz.parquet";
+      Path localTmpSrcLevelPath1 = new Path(localRenamePath2 + tmpSrcLevelPath1);
+      Path gvfsTmpSrcLevelPath1 = new Path(filesetRenamePath2 + tmpSrcLevelPath1);
+      Path gvfsValidDstLevelPath2 = new Path(filesetRenamePath2 + subValidDstLevelPath2);
+      localFileSystem.create(localTmpSrcLevelPath1);
+      assertTrue(localFileSystem.exists(localTmpSrcLevelPath1));
+      assertTrue(gravitinoFileSystem.exists(gvfsTmpSrcLevelPath1));
+      gravitinoFileSystem.rename(gvfsTmpSrcLevelPath1, gvfsValidDstLevelPath2);
+      assertTrue(gravitinoFileSystem.exists(gvfsValidDstLevelPath2));
+      gravitinoFileSystem.delete(gvfsValidDstLevelPath2, true);
+      assertFalse(gravitinoFileSystem.exists(gvfsValidDstLevelPath2));
+
+      // test dst temporary directory
+      String subValidSrcLevelPath3 = "/date=20240408/www.parquet";
+      String tmpDstLevelPath1 = "/date=20240408/_temp/ddd/xxx/zzz.parquet";
+      Path localSrcLevelPath1 = new Path(localRenamePath2 + subValidSrcLevelPath3);
+      Path gvfsSrcLevelPath1 = new Path(filesetRenamePath2 + subValidSrcLevelPath3);
+      Path gvfsTmpDstLevelPath2 = new Path(filesetRenamePath2 + tmpDstLevelPath1);
+      localFileSystem.create(localSrcLevelPath1);
+      assertTrue(localFileSystem.exists(localSrcLevelPath1));
+      assertTrue(gravitinoFileSystem.exists(gvfsSrcLevelPath1));
+      gravitinoFileSystem.rename(gvfsSrcLevelPath1, gvfsTmpDstLevelPath2);
+      assertTrue(gravitinoFileSystem.exists(gvfsTmpDstLevelPath2));
+      gravitinoFileSystem.delete(gvfsTmpDstLevelPath2, true);
+      assertFalse(gravitinoFileSystem.exists(gvfsTmpDstLevelPath2));
+    }
+
+    // test file rename with any
+    String fileRename3 = "fileset_file_rename3";
+    Map<String, String> properties5 = Maps.newHashMap();
+    Path localRenamePath3 =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, fileRename3);
+    properties5.put(FilesetProperties.PREFIX_PATTERN_KEY, FilesetPrefixPattern.ANY.name());
+    properties5.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(3));
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        fileRename3,
+        Fileset.Type.MANAGED,
+        localRenamePath3.toString(),
+        properties5);
+    Path filesetRenamePath3 =
+        FileSystemTestUtils.createFilesetPath(catalogName, schemaName, fileRename3, true);
+    try (FileSystem gravitinoFileSystem = filesetRenamePath3.getFileSystem(conf);
+        FileSystem localFileSystem = localRenamePath3.getFileSystem(conf)) {
+      // test invalid src level
+      String subInvalidSrcLevelPath = "/date=20240408/xxx/yyy/zzz/test.parquet";
+      Path localInvalidSrcLevelPath = new Path(localRenamePath3 + subInvalidSrcLevelPath);
+      Path gvfsInvalidSrcLevelPath = new Path(filesetRenamePath3 + subInvalidSrcLevelPath);
+      localFileSystem.create(localInvalidSrcLevelPath);
+      assertTrue(localFileSystem.exists(localInvalidSrcLevelPath));
+      assertTrue(gravitinoFileSystem.exists(gvfsInvalidSrcLevelPath));
+      assertThrows(
+          InvalidPathException.class,
+          () ->
+              gravitinoFileSystem.rename(
+                  gvfsInvalidSrcLevelPath, new Path(gvfsInvalidSrcLevelPath + ".zzz")));
+      localFileSystem.delete(localInvalidSrcLevelPath, true);
+      assertFalse(localFileSystem.exists(localInvalidSrcLevelPath));
+
+      // test invalid dst level
+      String subValidSrcLevelPath = "/date=20240408/xxx/yyy/test.parquet";
+      Path localValidSrcLevelPath = new Path(localRenamePath3 + subValidSrcLevelPath);
+      Path gvfsValidSrcLevelPath = new Path(filesetRenamePath3 + subValidSrcLevelPath);
+      localFileSystem.create(localValidSrcLevelPath);
+      assertTrue(localFileSystem.exists(localValidSrcLevelPath));
+      assertTrue(gravitinoFileSystem.exists(gvfsValidSrcLevelPath));
+      assertThrows(
+          InvalidPathException.class,
+          () ->
+              gravitinoFileSystem.rename(
+                  gvfsValidSrcLevelPath, new Path(gvfsValidSrcLevelPath + "/qqq.parquet")));
+      localFileSystem.delete(localValidSrcLevelPath, true);
+      assertFalse(localFileSystem.exists(localValidSrcLevelPath));
+
+      // test valid src and dst
+      String subValidSrcLevelPath1 = "/xxx/test.parquet";
+      String subValidDstLevelPath1 = "/test.parquet";
+      Path localValidSrcLevelPath1 = new Path(localRenamePath3 + subValidSrcLevelPath1);
+      Path gvfsValidSrcLevelPath1 = new Path(filesetRenamePath3 + subValidSrcLevelPath1);
+      Path gvfsValidDstLevelPath1 = new Path(filesetRenamePath3 + subValidDstLevelPath1);
+      localFileSystem.create(localValidSrcLevelPath1);
+      assertTrue(localFileSystem.exists(localValidSrcLevelPath1));
+      assertTrue(gravitinoFileSystem.exists(gvfsValidSrcLevelPath1));
+      gravitinoFileSystem.rename(gvfsValidSrcLevelPath1, gvfsValidDstLevelPath1);
+      assertTrue(gravitinoFileSystem.exists(gvfsValidDstLevelPath1));
+      gravitinoFileSystem.delete(gvfsValidDstLevelPath1, true);
+      assertFalse(gravitinoFileSystem.exists(gvfsValidDstLevelPath1));
+
+      // test valid src, invalid dst level
+      String subValidSrcLevelPath2 = "/xxx/test.parquet";
+      String subInvalidDstLevelPath2 = "/qqq/zzz/rrr/aaa/test.parquet";
+      Path localValidSrcLevelPath2 = new Path(localRenamePath3 + subValidSrcLevelPath2);
+      Path gvfsValidSrcLevelPath2 = new Path(filesetRenamePath3 + subValidSrcLevelPath2);
+      Path gvfsInvalidDstLevelPath2 = new Path(filesetRenamePath3 + subInvalidDstLevelPath2);
+      localFileSystem.create(localValidSrcLevelPath2);
+      assertTrue(localFileSystem.exists(localValidSrcLevelPath2));
+      assertTrue(gravitinoFileSystem.exists(gvfsValidSrcLevelPath2));
+      assertThrows(
+          InvalidPathException.class,
+          () -> gravitinoFileSystem.rename(gvfsValidSrcLevelPath2, gvfsInvalidDstLevelPath2));
+      gravitinoFileSystem.delete(gvfsValidSrcLevelPath2, true);
+      assertFalse(gravitinoFileSystem.exists(gvfsValidSrcLevelPath2));
+    }
+  }
+
+  @Test
+  public void testRenameDirWithPathLimit() throws IOException {
+    // test invalid properties
+    String filesetInvalidProperties = "fileset_dir_invalid_properties";
+    Path localFilesetInvalidPropertiesPath =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetInvalidProperties);
+    Map<String, String> properties1 = Maps.newHashMap();
+    properties1.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(3));
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        filesetInvalidProperties,
+        Fileset.Type.MANAGED,
+        localFilesetInvalidPropertiesPath.toString(),
+        properties1);
+    Path filesetInvalidPropertiesPath =
+        FileSystemTestUtils.createFilesetPath(
+            catalogName, schemaName, filesetInvalidProperties, true);
+    try (FileSystem gravitinoFileSystem = filesetInvalidPropertiesPath.getFileSystem(conf)) {
+      Path invalidSrcFilePath = new Path(filesetInvalidPropertiesPath + "/xxx");
+      Path invalidDstFilePath = new Path(filesetInvalidPropertiesPath + "/xxx/yyy");
+      assertThrows(
+          IllegalArgumentException.class,
+          () -> gravitinoFileSystem.rename(invalidSrcFilePath, invalidDstFilePath));
+    }
+
+    // test valid properties but src is not existing
+    String filesetValidProperties = "fileset_dir_valid_properties";
+    Path localFilesetValidPropertiesPath =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetValidProperties);
+    Map<String, String> properties2 = Maps.newHashMap();
+    properties2.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(3));
+    properties2.put(FilesetProperties.PREFIX_PATTERN_KEY, FilesetPrefixPattern.ANY.name());
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        filesetValidProperties,
+        Fileset.Type.MANAGED,
+        localFilesetValidPropertiesPath.toString(),
+        properties2);
+    Path filesetValidPropertiesPath =
+        FileSystemTestUtils.createFilesetPath(
+            catalogName, schemaName, filesetValidProperties, true);
+    try (FileSystem gravitinoFileSystem = filesetValidPropertiesPath.getFileSystem(conf)) {
+      Path validSrcFilePath = new Path(filesetValidPropertiesPath + "/xxx/yyy");
+      Path validDstFilePath = new Path(filesetValidPropertiesPath + "/xxx/zzz");
+      assertThrows(
+          FileNotFoundException.class,
+          () -> gravitinoFileSystem.rename(validSrcFilePath, validDstFilePath));
+    }
+
+    // test dir rename with YMD
+    String fileRename1 = "fileset_dir_rename1";
+    Map<String, String> properties3 = Maps.newHashMap();
+    Path localRenamePath1 =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, fileRename1);
+    properties3.put(
+        FilesetProperties.PREFIX_PATTERN_KEY, FilesetPrefixPattern.YEAR_MONTH_DAY.name());
+    properties3.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(5));
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        fileRename1,
+        Fileset.Type.MANAGED,
+        localRenamePath1.toString(),
+        properties3);
+    Path filesetRenamePath1 =
+        FileSystemTestUtils.createFilesetPath(catalogName, schemaName, fileRename1, true);
+    try (FileSystem gravitinoFileSystem = filesetRenamePath1.getFileSystem(conf);
+        FileSystem localFileSystem = localRenamePath1.getFileSystem(conf)) {
+      // test invalid src level
+      String subInvalidSrcLevelPath = "/year=2024/month=04/day=08/xxx/yyy/zzz";
+      Path localInvalidSrcLevelPath = new Path(localRenamePath1 + subInvalidSrcLevelPath);
+      Path gvfsInvalidSrcLevelPath = new Path(filesetRenamePath1 + subInvalidSrcLevelPath);
+      localFileSystem.mkdirs(localInvalidSrcLevelPath);
+      assertTrue(localFileSystem.exists(localInvalidSrcLevelPath));
+      assertTrue(gravitinoFileSystem.exists(gvfsInvalidSrcLevelPath));
+      assertThrows(
+          InvalidPathException.class,
+          () ->
+              gravitinoFileSystem.rename(
+                  gvfsInvalidSrcLevelPath, new Path(gvfsInvalidSrcLevelPath + ".zzz")));
+      localFileSystem.delete(localInvalidSrcLevelPath, true);
+      assertFalse(localFileSystem.exists(localInvalidSrcLevelPath));
+
+      // test invalid dst level
+      String subValidSrcLevelPath = "/year=2024/month=04/day=08/xxx/yyy";
+      Path localValidSrcLevelPath = new Path(localRenamePath1 + subValidSrcLevelPath);
+      Path gvfsValidSrcLevelPath = new Path(filesetRenamePath1 + subValidSrcLevelPath);
+      localFileSystem.mkdirs(localValidSrcLevelPath);
+      assertTrue(localFileSystem.exists(localValidSrcLevelPath));
+      assertTrue(gravitinoFileSystem.exists(gvfsValidSrcLevelPath));
+      assertThrows(
+          InvalidPathException.class,
+          () ->
+              gravitinoFileSystem.rename(
+                  gvfsValidSrcLevelPath, new Path(gvfsValidSrcLevelPath + "/zzz")));
+      localFileSystem.delete(localValidSrcLevelPath, true);
+      assertFalse(localFileSystem.exists(localValidSrcLevelPath));
+
+      // test valid src and dst
+      String subValidSrcLevelPath1 = "/year=2024/month=04/day=08/xxx";
+      String subValidDstLevelPath1 = "/year=2024/month=04/day=08/aaa/yyy";
+      Path localValidSrcLevelPath1 = new Path(localRenamePath1 + subValidSrcLevelPath1);
+      Path gvfsValidSrcLevelPath1 = new Path(filesetRenamePath1 + subValidSrcLevelPath1);
+      Path gvfsValidDstLevelPath1 = new Path(filesetRenamePath1 + subValidDstLevelPath1);
+      localFileSystem.mkdirs(localValidSrcLevelPath1);
+      assertTrue(localFileSystem.exists(localValidSrcLevelPath1));
+      assertTrue(gravitinoFileSystem.exists(gvfsValidSrcLevelPath1));
+      gravitinoFileSystem.rename(gvfsValidSrcLevelPath1, gvfsValidDstLevelPath1);
+      assertTrue(gravitinoFileSystem.exists(gvfsValidDstLevelPath1));
+      gravitinoFileSystem.delete(gvfsValidDstLevelPath1, true);
+      assertFalse(gravitinoFileSystem.exists(gvfsValidDstLevelPath1));
+
+      // test valid src, invalid dst level
+      String subValidSrcLevelPath2 = "/year=2024/month=04/day=08/xxx";
+      String subInvalidDstLevelPath2 = "/year=2024/month=04/day=08/qqq/yyy/zzz";
+      Path localValidSrcLevelPath2 = new Path(localRenamePath1 + subValidSrcLevelPath2);
+      Path gvfsValidSrcLevelPath2 = new Path(filesetRenamePath1 + subValidSrcLevelPath2);
+      Path gvfsInvalidDstLevelPath2 = new Path(filesetRenamePath1 + subInvalidDstLevelPath2);
+      localFileSystem.mkdirs(localValidSrcLevelPath2);
+      assertTrue(localFileSystem.exists(localValidSrcLevelPath2));
+      assertTrue(gravitinoFileSystem.exists(gvfsValidSrcLevelPath2));
+      assertThrows(
+          InvalidPathException.class,
+          () -> gravitinoFileSystem.rename(gvfsValidSrcLevelPath2, gvfsInvalidDstLevelPath2));
+      gravitinoFileSystem.delete(gvfsValidSrcLevelPath2, true);
+      assertFalse(gravitinoFileSystem.exists(gvfsValidSrcLevelPath2));
+    }
+
+    // test file rename with date string
+    String fileRename2 = "fileset_dir_rename2";
+    Map<String, String> properties4 = Maps.newHashMap();
+    Path localRenamePath2 =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, fileRename2);
+    properties4.put(
+        FilesetProperties.PREFIX_PATTERN_KEY, FilesetPrefixPattern.DATE_WITH_STRING.name());
+    properties4.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(3));
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        fileRename2,
+        Fileset.Type.MANAGED,
+        localRenamePath2.toString(),
+        properties4);
+    Path filesetRenamePath2 =
+        FileSystemTestUtils.createFilesetPath(catalogName, schemaName, fileRename2, true);
+    try (FileSystem gravitinoFileSystem = filesetRenamePath2.getFileSystem(conf);
+        FileSystem localFileSystem = localRenamePath2.getFileSystem(conf)) {
+      // test invalid src level
+      String subInvalidSrcLevelPath = "/date=20240408/xxx/yyy/zzz";
+      Path localInvalidSrcLevelPath = new Path(localRenamePath2 + subInvalidSrcLevelPath);
+      Path gvfsInvalidSrcLevelPath = new Path(filesetRenamePath2 + subInvalidSrcLevelPath);
+      localFileSystem.mkdirs(localInvalidSrcLevelPath);
+      assertTrue(localFileSystem.exists(localInvalidSrcLevelPath));
+      assertTrue(gravitinoFileSystem.exists(gvfsInvalidSrcLevelPath));
+      assertThrows(
+          InvalidPathException.class,
+          () ->
+              gravitinoFileSystem.rename(
+                  gvfsInvalidSrcLevelPath, new Path(gvfsInvalidSrcLevelPath + "/zzz")));
+      localFileSystem.delete(localInvalidSrcLevelPath, true);
+      assertFalse(localFileSystem.exists(localInvalidSrcLevelPath));
+
+      // test invalid dst level
+      String subValidSrcLevelPath = "/date=20240408/xxx/yyy";
+      Path localValidSrcLevelPath = new Path(localRenamePath2 + subValidSrcLevelPath);
+      Path gvfsValidSrcLevelPath = new Path(filesetRenamePath2 + subValidSrcLevelPath);
+      localFileSystem.mkdirs(localValidSrcLevelPath);
+      assertTrue(localFileSystem.exists(localValidSrcLevelPath));
+      assertTrue(gravitinoFileSystem.exists(gvfsValidSrcLevelPath));
+      assertThrows(
+          InvalidPathException.class,
+          () ->
+              gravitinoFileSystem.rename(
+                  gvfsValidSrcLevelPath, new Path(gvfsValidSrcLevelPath + "/qqq")));
+      localFileSystem.delete(localValidSrcLevelPath, true);
+      assertFalse(localFileSystem.exists(localValidSrcLevelPath));
+
+      // test valid src and dst
+      String subValidSrcLevelPath1 = "/date=20240408/xxx";
+      String subValidDstLevelPath1 = "/date=20240408/qqq/yyy";
+      Path localValidSrcLevelPath1 = new Path(localRenamePath2 + subValidSrcLevelPath1);
+      Path gvfsValidSrcLevelPath1 = new Path(filesetRenamePath2 + subValidSrcLevelPath1);
+      Path gvfsValidDstLevelPath1 = new Path(filesetRenamePath2 + subValidDstLevelPath1);
+      localFileSystem.mkdirs(localValidSrcLevelPath1);
+      assertTrue(localFileSystem.exists(localValidSrcLevelPath1));
+      assertTrue(gravitinoFileSystem.exists(gvfsValidSrcLevelPath1));
+      gravitinoFileSystem.rename(gvfsValidSrcLevelPath1, gvfsValidDstLevelPath1);
+      assertTrue(gravitinoFileSystem.exists(gvfsValidDstLevelPath1));
+      gravitinoFileSystem.delete(gvfsValidDstLevelPath1, true);
+      assertFalse(gravitinoFileSystem.exists(gvfsValidDstLevelPath1));
+
+      // test valid src, invalid dst level
+      String subValidSrcLevelPath2 = "/date=20240408/xxx";
+      String subInvalidDstLevelPath2 = "/date=20240408/qqq/yyy/zzz";
+      Path localValidSrcLevelPath2 = new Path(localRenamePath2 + subValidSrcLevelPath2);
+      Path gvfsValidSrcLevelPath2 = new Path(filesetRenamePath2 + subValidSrcLevelPath2);
+      Path gvfsInvalidDstLevelPath2 = new Path(filesetRenamePath2 + subInvalidDstLevelPath2);
+      localFileSystem.mkdirs(localValidSrcLevelPath2);
+      assertTrue(localFileSystem.exists(localValidSrcLevelPath2));
+      assertTrue(gravitinoFileSystem.exists(gvfsValidSrcLevelPath2));
+      assertThrows(
+          InvalidPathException.class,
+          () -> gravitinoFileSystem.rename(gvfsValidSrcLevelPath2, gvfsInvalidDstLevelPath2));
+      gravitinoFileSystem.delete(gvfsValidSrcLevelPath2, true);
+      assertFalse(gravitinoFileSystem.exists(gvfsValidSrcLevelPath2));
+
+      // test src temporary directory
+      String tmpSrcLevelPath1 = "/date=20240408/_temporary/zzz/ddd/www";
+      String subValidDstLevelPath2 = "/date=20240408/";
+      Path localTmpSrcLevelPath1 = new Path(localRenamePath2 + tmpSrcLevelPath1);
+      Path gvfsTmpSrcLevelPath1 = new Path(filesetRenamePath2 + tmpSrcLevelPath1);
+      Path gvfsValidDstLevelPath2 = new Path(filesetRenamePath2 + subValidDstLevelPath2);
+      localFileSystem.mkdirs(localTmpSrcLevelPath1);
+      assertTrue(localFileSystem.exists(localTmpSrcLevelPath1));
+      assertTrue(gravitinoFileSystem.exists(gvfsTmpSrcLevelPath1));
+      gravitinoFileSystem.rename(gvfsTmpSrcLevelPath1, gvfsValidDstLevelPath2);
+      assertTrue(gravitinoFileSystem.exists(gvfsValidDstLevelPath2));
+      gravitinoFileSystem.delete(gvfsValidDstLevelPath2, true);
+      assertFalse(gravitinoFileSystem.exists(gvfsValidDstLevelPath2));
+
+      // test dst temporary directory
+      String subValidSrcLevelPath3 = "/date=20240408/www";
+      String tmpDstLevelPath1 = "/date=20240408/_temp/ddd/xxx/zzz";
+      Path localSrcLevelPath1 = new Path(localRenamePath2 + subValidSrcLevelPath3);
+      Path gvfsSrcLevelPath1 = new Path(filesetRenamePath2 + subValidSrcLevelPath3);
+      Path gvfsTmpDstLevelPath2 = new Path(filesetRenamePath2 + tmpDstLevelPath1);
+      localFileSystem.mkdirs(localSrcLevelPath1);
+      assertTrue(localFileSystem.exists(localSrcLevelPath1));
+      assertTrue(gravitinoFileSystem.exists(gvfsSrcLevelPath1));
+      gravitinoFileSystem.rename(gvfsSrcLevelPath1, gvfsTmpDstLevelPath2);
+      assertTrue(gravitinoFileSystem.exists(gvfsTmpDstLevelPath2));
+      gravitinoFileSystem.delete(gvfsTmpDstLevelPath2, true);
+      assertFalse(gravitinoFileSystem.exists(gvfsTmpDstLevelPath2));
+    }
+
+    // test file rename with any
+    String fileRename3 = "fileset_dir_rename3";
+    Map<String, String> properties5 = Maps.newHashMap();
+    Path localRenamePath3 =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, fileRename3);
+    properties5.put(FilesetProperties.PREFIX_PATTERN_KEY, FilesetPrefixPattern.ANY.name());
+    properties5.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(3));
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        fileRename3,
+        Fileset.Type.MANAGED,
+        localRenamePath3.toString(),
+        properties5);
+    Path filesetRenamePath3 =
+        FileSystemTestUtils.createFilesetPath(catalogName, schemaName, fileRename3, true);
+    try (FileSystem gravitinoFileSystem = filesetRenamePath3.getFileSystem(conf);
+        FileSystem localFileSystem = localRenamePath3.getFileSystem(conf)) {
+      // test invalid src level
+      String subInvalidSrcLevelPath = "/date=20240408/xxx/yyy/zzz";
+      Path localInvalidSrcLevelPath = new Path(localRenamePath3 + subInvalidSrcLevelPath);
+      Path gvfsInvalidSrcLevelPath = new Path(filesetRenamePath3 + subInvalidSrcLevelPath);
+      localFileSystem.mkdirs(localInvalidSrcLevelPath);
+      assertTrue(localFileSystem.exists(localInvalidSrcLevelPath));
+      assertTrue(gravitinoFileSystem.exists(gvfsInvalidSrcLevelPath));
+      assertThrows(
+          InvalidPathException.class,
+          () ->
+              gravitinoFileSystem.rename(
+                  gvfsInvalidSrcLevelPath, new Path(gvfsInvalidSrcLevelPath + "/zzz")));
+      localFileSystem.delete(localInvalidSrcLevelPath, true);
+      assertFalse(localFileSystem.exists(localInvalidSrcLevelPath));
+
+      // test invalid dst level
+      String subValidSrcLevelPath = "/date=20240408/xxx/yyy";
+      Path localValidSrcLevelPath = new Path(localRenamePath3 + subValidSrcLevelPath);
+      Path gvfsValidSrcLevelPath = new Path(filesetRenamePath3 + subValidSrcLevelPath);
+      localFileSystem.mkdirs(localValidSrcLevelPath);
+      assertTrue(localFileSystem.exists(localValidSrcLevelPath));
+      assertTrue(gravitinoFileSystem.exists(gvfsValidSrcLevelPath));
+      assertThrows(
+          InvalidPathException.class,
+          () ->
+              gravitinoFileSystem.rename(
+                  gvfsValidSrcLevelPath, new Path(gvfsValidSrcLevelPath + "/qqq")));
+      localFileSystem.delete(localValidSrcLevelPath, true);
+      assertFalse(localFileSystem.exists(localValidSrcLevelPath));
+
+      // test valid src and dst
+      String subValidSrcLevelPath1 = "/xxx";
+      String subValidDstLevelPath1 = "/test/zzz/qqq";
+      Path localValidSrcLevelPath1 = new Path(localRenamePath3 + subValidSrcLevelPath1);
+      Path gvfsValidSrcLevelPath1 = new Path(filesetRenamePath3 + subValidSrcLevelPath1);
+      Path gvfsValidDstLevelPath1 = new Path(filesetRenamePath3 + subValidDstLevelPath1);
+      localFileSystem.mkdirs(localValidSrcLevelPath1);
+      assertTrue(localFileSystem.exists(localValidSrcLevelPath1));
+      assertTrue(gravitinoFileSystem.exists(gvfsValidSrcLevelPath1));
+      gravitinoFileSystem.rename(gvfsValidSrcLevelPath1, gvfsValidDstLevelPath1);
+      assertTrue(gravitinoFileSystem.exists(gvfsValidDstLevelPath1));
+      gravitinoFileSystem.delete(gvfsValidDstLevelPath1, true);
+      assertFalse(gravitinoFileSystem.exists(gvfsValidDstLevelPath1));
+
+      // test valid src, invalid dst level
+      String subValidSrcLevelPath2 = "/xxx";
+      String subInvalidDstLevelPath2 = "/qqq/zzz/rrr/aaa";
+      Path localValidSrcLevelPath2 = new Path(localRenamePath3 + subValidSrcLevelPath2);
+      Path gvfsValidSrcLevelPath2 = new Path(filesetRenamePath3 + subValidSrcLevelPath2);
+      Path gvfsInvalidDstLevelPath2 = new Path(filesetRenamePath3 + subInvalidDstLevelPath2);
+      localFileSystem.mkdirs(localValidSrcLevelPath2);
+      assertTrue(localFileSystem.exists(localValidSrcLevelPath2));
+      assertTrue(gravitinoFileSystem.exists(gvfsValidSrcLevelPath2));
+      assertThrows(
+          InvalidPathException.class,
+          () -> gravitinoFileSystem.rename(gvfsValidSrcLevelPath2, gvfsInvalidDstLevelPath2));
+      gravitinoFileSystem.delete(gvfsValidSrcLevelPath2, true);
+      assertFalse(gravitinoFileSystem.exists(gvfsValidSrcLevelPath2));
     }
   }
 
@@ -495,6 +1359,199 @@ public class TestGvfsBase extends GravitinoMockServerBase {
               .replaceFirst(
                   GravitinoVirtualFileSystemConfiguration.GVFS_FILESET_PREFIX,
                   FileSystemTestUtils.localRootPrefix()));
+    }
+  }
+
+  @Test
+  public void testMkdirsWithPathLimit() throws IOException {
+    // test invalid properties
+    String filesetInvalidProperties = "fileset_invalid_properties";
+    Path localFilesetInvalidPropertiesPath =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetInvalidProperties);
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(3));
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        filesetInvalidProperties,
+        Fileset.Type.MANAGED,
+        localFilesetInvalidPropertiesPath.toString(),
+        properties);
+    Path filesetInvalidPropertiesPath =
+        FileSystemTestUtils.createFilesetPath(
+            catalogName, schemaName, filesetInvalidProperties, true);
+    try (FileSystem gravitinoFileSystem = filesetInvalidPropertiesPath.getFileSystem(conf)) {
+      // test
+      Path invalidPrefixPath = new Path(filesetInvalidPropertiesPath + "/xxx");
+      assertThrows(
+          IllegalArgumentException.class,
+          () -> FileSystemTestUtils.mkdirs(invalidPrefixPath, gravitinoFileSystem));
+    }
+
+    // test prefix = DATE_WITH_STRING and max level = 3
+    String filesetWithDateString = "fileset_date_with_string";
+    Path localFilesetWithDateStringPath =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetWithDateString);
+    properties.put(
+        FilesetProperties.PREFIX_PATTERN_KEY, FilesetPrefixPattern.DATE_WITH_STRING.name());
+    properties.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(3));
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        filesetWithDateString,
+        Fileset.Type.MANAGED,
+        localFilesetWithDateStringPath.toString(),
+        properties);
+    Path filesetWithDateStringPath =
+        FileSystemTestUtils.createFilesetPath(catalogName, schemaName, filesetWithDateString, true);
+    try (FileSystem gravitinoFileSystem = filesetWithDateStringPath.getFileSystem(conf)) {
+      // test invalid prefix
+      Path invalidPrefixPath = new Path(filesetWithDateStringPath + "/xxx/test.txt");
+      assertThrows(
+          InvalidPathException.class,
+          () -> FileSystemTestUtils.mkdirs(invalidPrefixPath, gravitinoFileSystem));
+
+      // test invalid level
+      Path invalidLevelPath = new Path(filesetWithDateStringPath + "/date=20240408/xxx/zzz/qqq");
+      assertThrows(
+          InvalidPathException.class,
+          () -> FileSystemTestUtils.mkdirs(invalidLevelPath, gravitinoFileSystem));
+
+      // test valid path 1
+      Path validPath1 = new Path(filesetWithDateStringPath + "/date=20240408/xxx/zzz");
+      FileSystemTestUtils.mkdirs(validPath1, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath1));
+      gravitinoFileSystem.delete(validPath1, true);
+
+      // test valid path 2
+      Path validPath2 = new Path(filesetWithDateStringPath + "/date=20240408/xxx");
+      FileSystemTestUtils.mkdirs(validPath2, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath2));
+      gravitinoFileSystem.delete(validPath2, true);
+
+      // test valid path 3
+      Path validPath3 = new Path(filesetWithDateStringPath + "/date=20240408");
+      FileSystemTestUtils.mkdirs(validPath3, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath3));
+      gravitinoFileSystem.delete(validPath3, true);
+    }
+
+    // test prefix = YEAR_MONTH_DAY and max level = 5
+    String filesetYMD = "fileset_year_month_day";
+    Path localFilesetYMDPath =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetYMD);
+    properties.put(
+        FilesetProperties.PREFIX_PATTERN_KEY, FilesetPrefixPattern.YEAR_MONTH_DAY.name());
+    properties.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(5));
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        filesetYMD,
+        Fileset.Type.MANAGED,
+        localFilesetYMDPath.toString(),
+        properties);
+    Path filesetYMDPath =
+        FileSystemTestUtils.createFilesetPath(catalogName, schemaName, filesetYMD, true);
+    try (FileSystem gravitinoFileSystem = filesetYMDPath.getFileSystem(conf)) {
+      // test invalid prefix
+      Path invalidPrefixPath = new Path(filesetYMDPath + "/xxx/test.txt");
+      assertThrows(
+          InvalidPathException.class,
+          () -> FileSystemTestUtils.mkdirs(invalidPrefixPath, gravitinoFileSystem));
+
+      // test invalid level
+      Path invalidLevelPath = new Path(filesetYMDPath + "/year=2024/month=04/day=08/xxx/zzz/qqq");
+      assertThrows(
+          InvalidPathException.class,
+          () -> FileSystemTestUtils.mkdirs(invalidLevelPath, gravitinoFileSystem));
+
+      // test valid path 1
+      Path validPath1 = new Path(filesetYMDPath + "/year=2024/month=04/day=08/xxx/zzz");
+      FileSystemTestUtils.mkdirs(validPath1, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath1));
+      gravitinoFileSystem.delete(validPath1, true);
+
+      // test valid path 2
+      Path validPath2 = new Path(filesetYMDPath + "/year=2024/month=04/day=08/xxx");
+      FileSystemTestUtils.mkdirs(validPath2, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath2));
+      gravitinoFileSystem.delete(validPath2, true);
+
+      // test valid path 3
+      Path validPath3 = new Path(filesetYMDPath + "/year=2024/month=04/day=08");
+      FileSystemTestUtils.mkdirs(validPath3, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath3));
+      gravitinoFileSystem.delete(validPath3, true);
+    }
+
+    // test prefix = ANY and max level = 3
+    String filesetAny = "fileset_any";
+    Path localFilesetAnyPath =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetAny);
+    properties.put(FilesetProperties.PREFIX_PATTERN_KEY, FilesetPrefixPattern.ANY.name());
+    properties.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(3));
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        filesetAny,
+        Fileset.Type.MANAGED,
+        localFilesetAnyPath.toString(),
+        properties);
+    Path filesetAnyPath =
+        FileSystemTestUtils.createFilesetPath(catalogName, schemaName, filesetAny, true);
+    try (FileSystem gravitinoFileSystem = filesetAnyPath.getFileSystem(conf)) {
+      // test invalid level
+      Path invalidLevelPath = new Path(filesetAnyPath + "/year=2024/month=04/day=08/xxx");
+      assertThrows(
+          InvalidPathException.class,
+          () -> FileSystemTestUtils.mkdirs(invalidLevelPath, gravitinoFileSystem));
+
+      // test valid path 1
+      Path validPath1 = new Path(filesetAnyPath + "/year=2024/month=04/day=08");
+      FileSystemTestUtils.mkdirs(validPath1, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath1));
+      gravitinoFileSystem.delete(validPath1, true);
+
+      // test valid path 2
+      Path validPath2 = new Path(filesetAnyPath + "/xxx");
+      FileSystemTestUtils.mkdirs(validPath2, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath2));
+      gravitinoFileSystem.delete(validPath2, true);
+    }
+
+    // test prefix = DATE_WITH_STRING and max level = 3
+    String filesetD1 = "fileset_date_1";
+    Path localFilesetD1Path =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetD1);
+    properties.put(
+        FilesetProperties.PREFIX_PATTERN_KEY, FilesetPrefixPattern.DATE_WITH_STRING.name());
+    properties.put(FilesetProperties.DIR_MAX_LEVEL_KEY, String.valueOf(3));
+    mockFilesetDTO(
+        metalakeName,
+        catalogName,
+        schemaName,
+        filesetD1,
+        Fileset.Type.MANAGED,
+        localFilesetD1Path.toString(),
+        properties);
+    Path filesetD1Path =
+        FileSystemTestUtils.createFilesetPath(catalogName, schemaName, filesetD1, true);
+    try (FileSystem gravitinoFileSystem = filesetD1Path.getFileSystem(conf)) {
+      // test temporary dir 1
+      Path validPath1 = new Path(filesetD1Path + "/date=20240408/_temporary/xxx/ddd/zzz");
+      FileSystemTestUtils.mkdirs(validPath1, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath1));
+      gravitinoFileSystem.delete(validPath1, true);
+
+      // test temporary dir 2
+      Path validPath2 = new Path(filesetD1Path + "/date=20240408/.temporary/xxx/ddd/zzz");
+      FileSystemTestUtils.mkdirs(validPath2, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath2));
+      gravitinoFileSystem.delete(validPath2, true);
     }
   }
 

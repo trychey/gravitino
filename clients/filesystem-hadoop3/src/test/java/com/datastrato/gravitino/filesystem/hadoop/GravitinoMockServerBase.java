@@ -166,7 +166,8 @@ public abstract class GravitinoMockServerBase {
       String schemaName,
       String filesetName,
       Fileset.Type type,
-      String location) {
+      String location,
+      Map<String, String> properties) {
     NameIdentifier fileset = NameIdentifier.of(metalakeName, catalogName, schemaName, filesetName);
     String filesetPath =
         String.format(
@@ -178,7 +179,7 @@ public abstract class GravitinoMockServerBase {
             .type(type)
             .storageLocation(location)
             .comment("comment")
-            .properties(ImmutableMap.of("k1", "v1"))
+            .properties(properties)
             .audit(AuditDTO.builder().withCreator("creator").withCreateTime(Instant.now()).build())
             .build();
     FilesetResponse filesetResponse = new FilesetResponse(mockFileset);

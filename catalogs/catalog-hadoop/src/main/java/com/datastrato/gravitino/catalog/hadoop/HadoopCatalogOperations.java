@@ -15,6 +15,8 @@ import com.datastrato.gravitino.StringIdentifier;
 import com.datastrato.gravitino.connector.CatalogInfo;
 import com.datastrato.gravitino.connector.CatalogOperations;
 import com.datastrato.gravitino.connector.PropertiesMetadata;
+import com.datastrato.gravitino.enums.FilesetLifecycleUnit;
+import com.datastrato.gravitino.enums.FilesetPrefixPattern;
 import com.datastrato.gravitino.exceptions.AlreadyExistsException;
 import com.datastrato.gravitino.exceptions.FilesetAlreadyExistsException;
 import com.datastrato.gravitino.exceptions.NoSuchCatalogException;
@@ -29,6 +31,7 @@ import com.datastrato.gravitino.file.FilesetChange;
 import com.datastrato.gravitino.meta.AuditInfo;
 import com.datastrato.gravitino.meta.FilesetEntity;
 import com.datastrato.gravitino.meta.SchemaEntity;
+import com.datastrato.gravitino.properties.FilesetProperties;
 import com.datastrato.gravitino.rel.Schema;
 import com.datastrato.gravitino.rel.SchemaChange;
 import com.datastrato.gravitino.rel.SupportsSchemas;
@@ -188,6 +191,9 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
         StringUtils.isNotBlank(storageLocation)
             ? new Path(storageLocation)
             : new Path(schemaPath, ident.name());
+
+    // Check properties before creating the directory
+    checkAndFillFilesetProperties(ident, properties);
 
     try {
       // formalize the path to avoid path without scheme, uri, authority, etc.
@@ -575,6 +581,9 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
       }
     }
 
+    // Check properties after applying all changes
+    checkAndFillFilesetProperties(ident, props);
+
     return FilesetEntity.builder()
         .withName(newName)
         .withNamespace(ident.namespace())
@@ -608,5 +617,83 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
   static Path formalizePath(Path path, Configuration configuration) throws IOException {
     FileSystem defaultFs = FileSystem.get(configuration);
     return path.makeQualified(defaultFs.getUri(), defaultFs.getWorkingDirectory());
+  }
+
+  private void checkAndFillFilesetProperties(
+      NameIdentifier identifier, Map<String, String> properties) {
+    // Get properties with default values
+    FilesetPrefixPattern pattern =
+        FilesetPrefixPattern.valueOf(
+            properties.computeIfAbsent(
+                FilesetProperties.PREFIX_PATTERN_KEY, value -> FilesetPrefixPattern.ANY.name()));
+    int timeNum =
+        Integer.parseInt(
+            properties.computeIfAbsent(
+                FilesetProperties.LIFECYCLE_TIME_NUM_KEY, value -> String.valueOf(-1)));
+    Preconditions.checkArgument(
+        timeNum != 0,
+        "The fileset: `%s`'s property: %s should be a negative or positive integer,"
+            + " but cannot be 0.",
+        identifier,
+        FilesetProperties.LIFECYCLE_TIME_NUM_KEY);
+    FilesetLifecycleUnit timeUnit =
+        FilesetLifecycleUnit.valueOf(
+            properties.computeIfAbsent(
+                FilesetProperties.LIFECYCLE_TIME_UNIT_KEY,
+                value -> FilesetLifecycleUnit.RETENTION_DAY.name()));
+    Preconditions.checkArgument(
+        timeUnit == FilesetLifecycleUnit.RETENTION_DAY,
+        "Only supported: `%s` for the property: `%s` now.",
+        FilesetLifecycleUnit.RETENTION_DAY.name(),
+        FilesetProperties.LIFECYCLE_TIME_NUM_KEY);
+
+    int dirMaxLevel;
+    switch (pattern) {
+      case ANY:
+        Preconditions.checkArgument(
+            timeNum < 0,
+            "Lifecycle time number should be permanent"
+                + " because fileset's dir prefix pattern type is: `%s`.",
+            pattern.name());
+        dirMaxLevel =
+            Integer.parseInt(
+                properties.computeIfAbsent(
+                    FilesetProperties.DIR_MAX_LEVEL_KEY, value -> String.valueOf(3)));
+        Preconditions.checkArgument(
+            dirMaxLevel > 0,
+            "`%s` should be greater than 0 for the dir prefix: `%s`",
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            pattern.name());
+        break;
+      case DATE:
+      case DATE_HOUR:
+      case DATE_WITH_STRING:
+      case DATE_US_HOUR:
+      case DATE_US_HOUR_US_MINUTE:
+        dirMaxLevel =
+            Integer.parseInt(
+                properties.computeIfAbsent(
+                    FilesetProperties.DIR_MAX_LEVEL_KEY, value -> String.valueOf(3)));
+        Preconditions.checkArgument(
+            dirMaxLevel > 0,
+            "`%s` should be grater than 0 for the dir prefix: `%s`",
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            pattern.name());
+        break;
+      case YEAR_MONTH_DAY:
+        dirMaxLevel =
+            Integer.parseInt(
+                properties.computeIfAbsent(
+                    FilesetProperties.DIR_MAX_LEVEL_KEY, value -> String.valueOf(5)));
+        Preconditions.checkArgument(
+            dirMaxLevel >= 5,
+            "`%s` should be greater and equal than 5 for the dir prefix: `%s`",
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            pattern.name());
+        break;
+      default:
+        throw new IllegalArgumentException(
+            String.format("Unsupported fileset directory prefix pattern: `%s`.", pattern.name()));
+    }
   }
 }

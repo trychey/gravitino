@@ -20,6 +20,7 @@ class FilesetContext {
   private Fileset fileset;
   private FileSystem fileSystem;
   private Path actualPath;
+  private Path virtualPath;
 
   private FilesetContext() {}
 
@@ -39,20 +40,26 @@ class FilesetContext {
     return actualPath;
   }
 
+  public Path getVirtualPath() {
+    return virtualPath;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
     if (!(o instanceof FilesetContext)) return false;
-    FilesetContext that = (FilesetContext) o;
-    return Objects.equal(getIdentifier(), that.getIdentifier())
-        && Objects.equal(getFileset(), that.getFileset())
-        && Objects.equal(getFileSystem(), that.getFileSystem())
-        && Objects.equal(getActualPath(), that.getActualPath());
+    FilesetContext context = (FilesetContext) o;
+    return Objects.equal(getIdentifier(), context.getIdentifier())
+        && Objects.equal(getFileset(), context.getFileset())
+        && Objects.equal(getFileSystem(), context.getFileSystem())
+        && Objects.equal(getActualPath(), context.getActualPath())
+        && Objects.equal(getVirtualPath(), context.getVirtualPath());
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(getIdentifier(), getFileset(), getFileSystem(), getActualPath());
+    return Objects.hashCode(
+        getIdentifier(), getFileset(), getFileSystem(), getActualPath(), getVirtualPath());
   }
 
   public static Builder builder() {
@@ -88,11 +95,17 @@ class FilesetContext {
       return this;
     }
 
+    public Builder withVirtualPath(Path virtualPath) {
+      context.virtualPath = virtualPath;
+      return this;
+    }
+
     public FilesetContext build() {
       Preconditions.checkArgument(context.identifier != null, "Identifier is required");
       Preconditions.checkArgument(context.fileset != null, "Fileset is required");
       Preconditions.checkArgument(context.fileSystem != null, "FileSystem is required");
       Preconditions.checkArgument(context.actualPath != null, "ActualPath is required");
+      Preconditions.checkArgument(context.virtualPath != null, "VirtualPath is required");
       return context;
     }
   }
