@@ -28,13 +28,25 @@ public class GravitinoVersion extends VersionDTO implements Comparable {
   /** @return parse the version number for a version string */
   int[] getVersionNumber() {
     Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)(-\\w+){0,1}");
-    Matcher matcher = pattern.matcher(version());
-    if (matcher.matches()) {
+    Pattern mdhPattern =
+        Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)-mdh-\\d+\\.\\d+\\.\\d+-SNAPSHOT");
+    String versionString = version();
+    Matcher mdhMatcher = mdhPattern.matcher(versionString);
+    if (mdhMatcher.matches()) {
       int[] versionNumbers = new int[VERSION_PART_NUMBER];
       for (int i = 0; i < VERSION_PART_NUMBER; i++) {
-        versionNumbers[i] = Integer.parseInt(matcher.group(i + 1));
+        versionNumbers[i] = Integer.parseInt(mdhMatcher.group(i + 1));
       }
       return versionNumbers;
+    } else {
+      Matcher matcher = pattern.matcher(version());
+      if (matcher.matches()) {
+        int[] versionNumbers = new int[VERSION_PART_NUMBER];
+        for (int i = 0; i < VERSION_PART_NUMBER; i++) {
+          versionNumbers[i] = Integer.parseInt(matcher.group(i + 1));
+        }
+        return versionNumbers;
+      }
     }
     throw new GravitinoRuntimeException("Invalid version string " + version());
   }
