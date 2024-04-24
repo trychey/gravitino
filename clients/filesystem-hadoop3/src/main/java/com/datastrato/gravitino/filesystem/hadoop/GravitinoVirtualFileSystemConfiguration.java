@@ -20,6 +20,7 @@ class GravitinoVirtualFileSystemConfiguration {
 
   public static final String SIMPLE_AUTH_TYPE = "simple";
   public static final String OAUTH2_AUTH_TYPE = "oauth2";
+  public static final String TOKEN_AUTH_TYPE = "token";
 
   // oauth2
   /** The configuration key for the URI of the default OAuth server. */
@@ -37,6 +38,8 @@ class GravitinoVirtualFileSystemConfiguration {
   /** The configuration key for the scope of the token. */
   public static final String FS_GRAVITINO_CLIENT_OAUTH2_SCOPE_KEY =
       "fs.gravitino.client.oauth2.scope";
+
+  public static final String FS_GRAVITINO_CLIENT_AUTH_TOKEN_KEY = "fs.gravitino.client.token.value";
 
   /** The configuration key for the maximum capacity of the Gravitino fileset cache. */
   public static final String FS_GRAVITINO_FILESET_CACHE_MAX_CAPACITY_KEY =

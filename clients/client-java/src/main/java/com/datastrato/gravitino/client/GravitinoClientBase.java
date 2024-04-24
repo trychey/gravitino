@@ -217,6 +217,18 @@ public abstract class GravitinoClientBase implements Closeable {
     }
 
     /**
+     * Sets TokenProvider for Gravitino.
+     *
+     * @param dataProvider The TokenAuthProvider used as the provider of authentication data for
+     *     Gravitino Client.
+     * @return This Builder instance for method chaining.
+     */
+    public Builder<T> withTokenAuth(TokenAuthProvider dataProvider) {
+      this.authDataProvider = dataProvider;
+      return this;
+    }
+
+    /**
      * Sets KerberosTokenProvider for the Gravitino.
      *
      * @param dataProvider The KerberosTokenProvider used as the provider of authentication data for

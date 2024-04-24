@@ -12,6 +12,7 @@ import com.datastrato.gravitino.Catalog;
 import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.client.DefaultOAuth2TokenProvider;
 import com.datastrato.gravitino.client.GravitinoClient;
+import com.datastrato.gravitino.client.TokenAuthProvider;
 import com.datastrato.gravitino.enums.FilesetPrefixPattern;
 import com.datastrato.gravitino.file.Fileset;
 import com.datastrato.gravitino.properties.FilesetProperties;
@@ -212,6 +213,20 @@ public class GravitinoVirtualFileSystem extends FileSystem {
           GravitinoClient.builder(serverUri)
               .withMetalake(metalakeName)
               .withOAuth(authDataProvider)
+              .build();
+    } else if (authType.equalsIgnoreCase(GravitinoVirtualFileSystemConfiguration.TOKEN_AUTH_TYPE)) {
+      String token =
+          configuration.get(
+              GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_AUTH_TOKEN_KEY);
+      checkAuthConfig(
+          GravitinoVirtualFileSystemConfiguration.TOKEN_AUTH_TYPE,
+          GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_AUTH_TOKEN_KEY,
+          token);
+      TokenAuthProvider tokenAuthProvider = new TokenAuthProvider(token);
+      this.client =
+          GravitinoClient.builder(serverUri)
+              .withMetalake(metalakeName)
+              .withTokenAuth(tokenAuthProvider)
               .build();
     } else {
       throw new IllegalArgumentException(

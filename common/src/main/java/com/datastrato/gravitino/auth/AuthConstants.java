@@ -18,6 +18,9 @@ public final class AuthConstants {
   /** The name of BASIC header used to pass the authentication token. */
   public static final String AUTHORIZATION_BASIC_HEADER = "Basic ";
 
+  /** The name of TOKEN header used to pass the authentication token. */
+  public static final String AUTHORIZATION_TOKEN_HEADER = "Token ";
+
   /** The name of NEGOTIATE. */
   public static final String NEGOTIATE = "Negotiate";
 
