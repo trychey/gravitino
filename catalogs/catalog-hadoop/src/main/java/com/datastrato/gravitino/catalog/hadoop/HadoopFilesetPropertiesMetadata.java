@@ -53,6 +53,14 @@ public class HadoopFilesetPropertiesMetadata extends BasePropertiesMetadata {
                 false,
                 -1,
                 false,
+                false),
+            PropertyEntry.stringPropertyEntry(
+                FilesetProperties.OWNER_KEY,
+                "The fileset owner",
+                false,
+                false,
+                null,
+                false,
                 false));
     PROPERTIES_METADATA = Maps.uniqueIndex(propertyEntries, PropertyEntry::getName);
   }

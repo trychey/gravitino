@@ -26,6 +26,7 @@ import com.datastrato.gravitino.exceptions.NonEmptySchemaException;
 import com.datastrato.gravitino.exceptions.SchemaAlreadyExistsException;
 import com.datastrato.gravitino.file.Fileset;
 import com.datastrato.gravitino.file.FilesetChange;
+import com.datastrato.gravitino.properties.FilesetProperties;
 import com.datastrato.gravitino.rel.Schema;
 import com.datastrato.gravitino.rel.SchemaChange;
 import com.datastrato.gravitino.storage.IdGenerator;
@@ -530,6 +531,66 @@ public class TestHadoopCatalogOperations {
       Assertions.assertEquals(fileset.storageLocation(), fileset2.storageLocation());
       Map<String, String> props2 = fileset2.properties();
       Assertions.assertFalse(props2.containsKey("k1"));
+    }
+  }
+
+  @Test
+  public void testAlterFilesetOwner() throws IOException {
+    String schemaName = "schema_1";
+    String comment = "comment_1";
+    String schemaPath = TEST_ROOT_PATH + "/" + schemaName;
+    createSchema(schemaName, comment, null, schemaPath);
+
+    String catalogName = "c1";
+    String name = "fileset_1";
+    String storageLocation = TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + name;
+    Fileset fileset =
+        createFileset(name, schemaName, comment, Fileset.Type.MANAGED, null, storageLocation);
+
+    // add owner
+    FilesetChange change1 = FilesetChange.setProperty(FilesetProperties.OWNER_KEY, "test_owner");
+    // remove owner
+    FilesetChange change2 = FilesetChange.removeProperty(FilesetProperties.OWNER_KEY);
+    // add other properties to check if owner property is lost
+    FilesetChange change3 = FilesetChange.setProperty("k1", "v1");
+    // update owner
+    FilesetChange change4 = FilesetChange.setProperty(FilesetProperties.OWNER_KEY, "test_owner_1");
+
+    try (HadoopCatalogOperations ops = new HadoopCatalogOperations(store)) {
+      ops.initialize(Maps.newHashMap(), null);
+      NameIdentifier filesetIdent = NameIdentifier.of("m1", "c1", schemaName, name);
+
+      Fileset fileset1 = ops.alterFileset(filesetIdent, change1);
+      Assertions.assertEquals(name, fileset1.name());
+      Assertions.assertEquals(Fileset.Type.MANAGED, fileset1.type());
+      Assertions.assertEquals("comment_1", fileset1.comment());
+      Assertions.assertEquals(fileset.storageLocation(), fileset1.storageLocation());
+      Map<String, String> props1 = fileset1.properties();
+      Assertions.assertTrue(props1.containsKey(FilesetProperties.OWNER_KEY));
+      Assertions.assertEquals("test_owner", props1.get(FilesetProperties.OWNER_KEY));
+
+      Assertions.assertThrows(
+          UnsupportedOperationException.class, () -> ops.alterFileset(filesetIdent, change2));
+
+      Fileset fileset2 = ops.alterFileset(filesetIdent, change3);
+      Assertions.assertEquals(name, fileset2.name());
+      Assertions.assertEquals(Fileset.Type.MANAGED, fileset2.type());
+      Assertions.assertEquals("comment_1", fileset2.comment());
+      Assertions.assertEquals(fileset.storageLocation(), fileset2.storageLocation());
+      Map<String, String> props2 = fileset2.properties();
+      Assertions.assertTrue(props2.containsKey(FilesetProperties.OWNER_KEY));
+      Assertions.assertEquals("test_owner", props2.get(FilesetProperties.OWNER_KEY));
+      Assertions.assertTrue(props2.containsKey("k1"));
+      Assertions.assertEquals("v1", props2.get("k1"));
+
+      Fileset fileset3 = ops.alterFileset(filesetIdent, change4);
+      Assertions.assertEquals(name, fileset3.name());
+      Assertions.assertEquals(Fileset.Type.MANAGED, fileset3.type());
+      Assertions.assertEquals("comment_1", fileset3.comment());
+      Assertions.assertEquals(fileset.storageLocation(), fileset3.storageLocation());
+      Map<String, String> props3 = fileset3.properties();
+      Assertions.assertTrue(props3.containsKey(FilesetProperties.OWNER_KEY));
+      Assertions.assertEquals("test_owner_1", props3.get(FilesetProperties.OWNER_KEY));
     }
   }
 

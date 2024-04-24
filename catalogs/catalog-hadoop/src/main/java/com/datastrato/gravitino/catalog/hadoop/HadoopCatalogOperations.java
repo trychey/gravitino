@@ -595,6 +595,13 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
         props.put(setProperty.getProperty(), setProperty.getValue());
       } else if (change instanceof FilesetChange.RemoveProperty) {
         FilesetChange.RemoveProperty removeProperty = (FilesetChange.RemoveProperty) change;
+        // If the `owner` property is set, cannot remove anymore
+        if (removeProperty.getProperty().equalsIgnoreCase(FilesetProperties.OWNER_KEY)) {
+          throw new UnsupportedOperationException(
+              String.format(
+                  "Cannot remove the `%s` property for the fileset: `%s`.",
+                  FilesetProperties.OWNER_KEY, ident));
+        }
         props.remove(removeProperty.getProperty());
       } else if (change instanceof FilesetChange.RenameFileset) {
         newName = ((FilesetChange.RenameFileset) change).getNewName();
