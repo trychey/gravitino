@@ -35,9 +35,11 @@ import com.datastrato.gravitino.properties.FilesetProperties;
 import com.datastrato.gravitino.rel.Schema;
 import com.datastrato.gravitino.rel.SchemaChange;
 import com.datastrato.gravitino.rel.SupportsSchemas;
+import com.datastrato.gravitino.storage.relational.RelationalEntityStore;
 import com.datastrato.gravitino.utils.PrincipalUtils;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.time.Instant;
@@ -45,9 +47,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.slf4j.Logger;
@@ -68,6 +73,19 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
 
   private static final HadoopFilesetPropertiesMetadata FILESET_PROPERTIES_METADATA =
       new HadoopFilesetPropertiesMetadata();
+
+  // match location like hdfs://zjyprc-hadoop/user/h_data_platform/fileset/catalog1/db1/fileset1
+  private static final String HDFS_VALID_MANAGED_PATH =
+      "^hdfs://[^/]+/user/h_data_platform/fileset/%s/%s/%s$";
+  // just for tests
+  private static final String LOCAL_VALID_MANAGED_PATH = "^file:/[^/]+/[^/]+/%s/%s/%s$";
+  private static final List<String> VALID_MANAGED_PATHS =
+      ImmutableList.of(HDFS_VALID_MANAGED_PATH, LOCAL_VALID_MANAGED_PATH);
+  private static final String HDFS_VALID_EXTERNAL_PATH = "^hdfs://[^/]+/.+";
+  // just for tests
+  private static final String LOCAL_VALID_EXTERNAL_PATH = "^file:/[^/]+/.+";
+  private static final List<String> VALID_EXTERNAL_PATHS =
+      ImmutableList.of(HDFS_VALID_EXTERNAL_PATH, LOCAL_VALID_EXTERNAL_PATH);
 
   private final EntityStore store;
 
@@ -160,6 +178,7 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
       throw new RuntimeException("Failed to check if fileset " + ident + " exists", ioe);
     }
 
+    /*
     SchemaEntity schemaEntity;
     NameIdentifier schemaIdent = NameIdentifier.of(ident.namespace().levels());
     try {
@@ -169,6 +188,7 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
     } catch (IOException ioe) {
       throw new RuntimeException("Failed to load schema " + schemaIdent, ioe);
     }
+    */
 
     // For external fileset, the storageLocation must be set.
     if (type == Fileset.Type.EXTERNAL && StringUtils.isBlank(storageLocation)) {
@@ -176,6 +196,7 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
           "Storage location must be set for external fileset " + ident);
     }
 
+    /*
     // Either catalog property "location", or schema property "location", or storageLocation must be
     // set for managed fileset.
     Path schemaPath = getSchemaPath(schemaIdent.name(), schemaEntity.properties());
@@ -192,30 +213,34 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
             ? new Path(storageLocation)
             : new Path(schemaPath, ident.name());
 
-    // Check properties before creating the directory
-    checkAndFillFilesetProperties(ident, properties);
-
     try {
       // formalize the path to avoid path without scheme, uri, authority, etc.
       filesetPath = formalizePath(filesetPath, hadoopConf);
-      FileSystem fs = filesetPath.getFileSystem(hadoopConf);
-      if (!fs.exists(filesetPath)) {
-        if (!fs.mkdirs(filesetPath)) {
-          throw new RuntimeException(
-              "Failed to create fileset " + ident + " location " + filesetPath);
-        }
-
-        LOG.info("Created fileset {} location {}", ident, filesetPath);
-      } else {
-        LOG.info("Fileset {} manages the existing location {}", ident, filesetPath);
-      }
-
     } catch (IOException ioe) {
       throw new RuntimeException(
-          "Failed to create fileset " + ident + " location " + filesetPath, ioe);
+          "Failed to formalize fileset " + ident + " location " + filesetPath, ioe);
+    }
+    */
+
+    // Change the immutable map to a mutable map
+    Map<String, String> props =
+        properties == null ? Maps.newHashMap() : Maps.newHashMap(properties);
+    // Check properties before creating the directory
+    checkAndFillFilesetProperties(ident, props);
+
+    // Always need specify storage location for all filests
+    if (StringUtils.isBlank(storageLocation)) {
+      throw new IllegalArgumentException("Storage location must be set for fileset: " + ident);
     }
 
-    StringIdentifier stringId = StringIdentifier.fromProperties(properties);
+    Path filesetPath = new Path(storageLocation);
+    if (type == Fileset.Type.MANAGED) {
+      checkAndCreateManagedStorageLocation(ident, filesetPath);
+    } else {
+      checkExternalStorageLocation(ident, filesetPath);
+    }
+
+    StringIdentifier stringId = StringIdentifier.fromProperties(props);
     Preconditions.checkArgument(stringId != null, "Property String identifier should not be null");
 
     FilesetEntity filesetEntity =
@@ -229,7 +254,7 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
             // managed fileset, Gravitino will get and store the location based on the
             // catalog/schema's location and store it to the store.
             .withStorageLocation(filesetPath.toString())
-            .withProperties(properties)
+            .withProperties(props)
             .withAuditInfo(
                 AuditInfo.builder()
                     .withCreator(PrincipalUtils.getCurrentPrincipal().getName())
@@ -694,6 +719,126 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
       default:
         throw new IllegalArgumentException(
             String.format("Unsupported fileset directory prefix pattern: `%s`.", pattern.name()));
+    }
+  }
+
+  private void checkAndCreateManagedStorageLocation(NameIdentifier ident, Path filesetPath) {
+    try {
+      String checkedPathString = filesetPath.toString();
+      // Check if the storage location is set in the valid managed locations
+      boolean isValidManagedPath =
+          VALID_MANAGED_PATHS.stream()
+              .anyMatch(
+                  patternString -> {
+                    Pattern pattern =
+                        Pattern.compile(
+                            String.format(
+                                patternString,
+                                ident.namespace().level(1),
+                                ident.namespace().level(2),
+                                ident.name()));
+                    Matcher matcher = pattern.matcher(checkedPathString);
+                    return matcher.matches();
+                  });
+      if (!isValidManagedPath) {
+        throw new RuntimeException(
+            String.format(
+                "The storage location: %s is not valid for managed fileset: %s.%s.%s.",
+                checkedPathString,
+                ident.namespace().level(1),
+                ident.namespace().level(2),
+                ident.name()));
+      }
+
+      FileSystem fs = filesetPath.getFileSystem(hadoopConf);
+      if (!fs.exists(filesetPath)) {
+        if (!fs.mkdirs(filesetPath)) {
+          throw new RuntimeException(
+              "Failed to create fileset " + ident + " location " + filesetPath);
+        }
+      } else {
+        LOG.warn(
+            "Using existing managed storage location: `{}` for fileset: `{}`", filesetPath, ident);
+      }
+      LOG.info("Created managed fileset {} location {}", ident, filesetPath);
+    } catch (IOException ioe) {
+      throw new RuntimeException(
+          "Failed to create managed fileset " + ident + " location " + filesetPath, ioe);
+    }
+  }
+
+  private void checkExternalStorageLocation(NameIdentifier ident, Path filesetPath) {
+    try {
+      String checkedPathString = filesetPath.toString();
+      // Check if the storage location is in the valid managed locations
+      boolean isValidManagedPath =
+          VALID_MANAGED_PATHS.stream()
+              .anyMatch(
+                  patternString -> {
+                    Pattern pattern =
+                        Pattern.compile(
+                            String.format(
+                                patternString,
+                                ident.namespace().level(1),
+                                ident.namespace().level(2),
+                                ident.name()));
+                    Matcher matcher = pattern.matcher(checkedPathString);
+                    return matcher.matches();
+                  });
+      // Cannot set the managed storage location for external filesets
+      if (isValidManagedPath) {
+        throw new RuntimeException(
+            String.format(
+                "The managed storage location: %s cannot set for external filesets.",
+                checkedPathString));
+      }
+
+      // Check if the storage location is in the valid external locations
+      boolean isValidExternalPath =
+          VALID_EXTERNAL_PATHS.stream()
+              .anyMatch(
+                  patternString -> {
+                    Pattern pattern = Pattern.compile(patternString);
+                    Matcher matcher = pattern.matcher(checkedPathString);
+                    return matcher.matches();
+                  });
+      if (!isValidExternalPath) {
+        throw new RuntimeException(
+            String.format(
+                "The external storage location: %s cannot set for external filesets.",
+                checkedPathString));
+      }
+
+      // Fetch an external fileset name the storage location is already mounted,
+      // if it's find one, we throw an exception
+      // only supports in relational entity storage
+      if (store instanceof RelationalEntityStore) {
+        String filesetName = store.fetchExternalFilesetName(checkedPathString);
+        if (StringUtils.isNotBlank(filesetName)) {
+          throw new RuntimeException(
+              String.format(
+                  "The storage location: %s is already mounted with an external fileset which named: %s.",
+                  checkedPathString, filesetName));
+        }
+      }
+
+      FileSystem fs = filesetPath.getFileSystem(hadoopConf);
+      // Throw an exception if the storage location is not exist for external filesets
+      if (!fs.exists(filesetPath)) {
+        throw new RuntimeException(
+            String.format("The storage location: %s does not exists.", filesetPath));
+      }
+
+      // Check if the external fileset mounts a single file
+      FileStatus fileStatus = fs.getFileStatus(filesetPath);
+      if (fileStatus != null && fileStatus.isFile()) {
+        throw new RuntimeException("Cannot mount a single file with an external fileset.");
+      }
+      LOG.info("External fileset {} manages the existing location {}", ident, filesetPath);
+
+    } catch (IOException ioe) {
+      throw new RuntimeException(
+          "Failed to create external fileset " + ident + " location " + filesetPath, ioe);
     }
   }
 }

@@ -150,6 +150,11 @@ public class TestMemoryEntityStore {
     }
 
     @Override
+    public String fetchExternalFilesetName(String storageLocation) {
+      throw new UnsupportedOperationException("Unsupported method in MemoryEntityStore.");
+    }
+
+    @Override
     public void close() throws IOException {
       entityMap.clear();
     }

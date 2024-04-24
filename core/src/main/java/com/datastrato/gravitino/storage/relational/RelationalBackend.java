@@ -112,4 +112,13 @@ public interface RelationalBackend extends Closeable {
    * @return The count of the deleted data.
    */
   int deleteOldVersionData(Entity.EntityType entityType, long versionRetentionCount);
+
+  /**
+   * Fetch an external fileset name the storage location of a new external fileset is already
+   * mounted.
+   *
+   * @param storageLocation the storage location of a new external fileset
+   * @return the fileset name for the storage location mounted
+   */
+  String fetchExternalFilesetName(String storageLocation);
 }

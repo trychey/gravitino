@@ -301,6 +301,11 @@ public class KvEntityStore implements EntityStore {
   }
 
   @Override
+  public String fetchExternalFilesetName(String storageLocation) {
+    throw new UnsupportedOperationException("Unsupported method in KvEntityStore.");
+  }
+
+  @Override
   public void close() throws IOException {
     txIdGenerator.close();
     kvGarbageCollector.close();

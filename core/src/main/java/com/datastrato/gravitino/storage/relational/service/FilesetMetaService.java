@@ -9,6 +9,7 @@ import com.datastrato.gravitino.HasIdentifier;
 import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.Namespace;
 import com.datastrato.gravitino.exceptions.NoSuchEntityException;
+import com.datastrato.gravitino.file.Fileset;
 import com.datastrato.gravitino.meta.FilesetEntity;
 import com.datastrato.gravitino.storage.relational.mapper.FilesetMetaMapper;
 import com.datastrato.gravitino.storage.relational.mapper.FilesetVersionMapper;
@@ -264,6 +265,14 @@ public class FilesetMetaService {
           filesetCurVersion.getValue());
     }
     return totalDeletedCount;
+  }
+
+  public String getExternalFilesetNameByLocation(String storageLocation) {
+    return SessionUtils.getWithoutCommit(
+        FilesetMetaMapper.class,
+        mapper ->
+            mapper.selectFilesetNameByTypeAndStorageLocation(
+                Fileset.Type.EXTERNAL.name(), storageLocation));
   }
 
   private void fillFilesetPOBuilderParentEntityId(FilesetPO.Builder builder, Namespace namespace) {

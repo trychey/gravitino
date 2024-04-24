@@ -113,6 +113,11 @@ public class RelationalEntityStore implements EntityStore {
   }
 
   @Override
+  public String fetchExternalFilesetName(String storageLocation) {
+    return backend.fetchExternalFilesetName(storageLocation);
+  }
+
+  @Override
   public void close() throws IOException {
     garbageCollector.close();
     backend.close();

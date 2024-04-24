@@ -69,6 +69,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.ibatis.session.SqlSession;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
@@ -1166,6 +1167,49 @@ public class TestEntityStorage {
     }
   }
 
+  @ParameterizedTest
+  @MethodSource("storageProvider")
+  void testExternalFilesetWithExistingLocation(String type) throws IOException {
+    Assumptions.assumeTrue(type.equalsIgnoreCase(Configs.RELATIONAL_ENTITY_STORE));
+    Config config = Mockito.mock(Config.class);
+    init(type, config);
+
+    AuditInfo auditInfo =
+        AuditInfo.builder().withCreator("creator").withCreateTime(Instant.now()).build();
+
+    try (EntityStore store = EntityStoreFactory.createEntityStore(config)) {
+      store.initialize(config);
+      if (store instanceof RelationalEntityStore) {
+        prepareJdbcTable();
+      }
+
+      BaseMetalake metalake = createBaseMakeLake(1L, "metalake", auditInfo);
+      CatalogEntity catalog = createCatalog(1L, Namespace.of("metalake"), "catalog", auditInfo);
+      SchemaEntity schema =
+          createSchemaEntity(1L, Namespace.of("metalake", "catalog"), "schema1", auditInfo);
+
+      String location = "file://tmp/catalog/schema1/fileset1";
+      FilesetEntity fileset1 =
+          createFilesetEntity(
+              1L,
+              Namespace.of("metalake", "catalog", "schema1"),
+              "fileset1",
+              auditInfo,
+              Fileset.Type.EXTERNAL,
+              location);
+
+      // Store all entities
+      store.put(metalake);
+      store.put(catalog);
+      store.put(schema);
+      store.put(fileset1);
+
+      Assertions.assertNotNull(store.fetchExternalFilesetName(location));
+
+      destroy(type);
+    }
+  }
+
   public static BaseMetalake createBaseMakeLake(Long id, String name, AuditInfo auditInfo) {
     return BaseMetalake.builder()
         .withId(id)
@@ -1214,13 +1258,18 @@ public class TestEntityStorage {
   }
 
   public static FilesetEntity createFilesetEntity(
-      Long id, Namespace namespace, String name, AuditInfo auditInfo) {
+      Long id,
+      Namespace namespace,
+      String name,
+      AuditInfo auditInfo,
+      Fileset.Type type,
+      String location) {
     return FilesetEntity.builder()
         .withId(id)
         .withName(name)
         .withNamespace(namespace)
-        .withFilesetType(Fileset.Type.MANAGED)
-        .withStorageLocation("/tmp")
+        .withFilesetType(type)
+        .withStorageLocation(location)
         .withComment("")
         .withProperties(null)
         .withAuditInfo(auditInfo)
@@ -1277,6 +1326,11 @@ public class TestEntityStorage {
     // Delete the topic 'metalake.catalog.schema1.topic1'
     Assertions.assertTrue(store.delete(topic1.nameIdentifier(), Entity.EntityType.TOPIC));
     Assertions.assertFalse(store.exists(topic1.nameIdentifier(), Entity.EntityType.TOPIC));
+  }
+
+  public static FilesetEntity createFilesetEntity(
+      Long id, Namespace namespace, String name, AuditInfo auditInfo) {
+    return createFilesetEntity(id, namespace, name, auditInfo, Fileset.Type.MANAGED, "/tmp");
   }
 
   private void validateDeleteFilesetCascade(EntityStore store, FilesetEntity fileset1)

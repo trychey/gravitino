@@ -339,6 +339,10 @@ public class TestHadoopCatalogOperations {
       if (!ops.schemaExists(schemaIdent)) {
         createSchema(schemaName, comment, catalogPath, schemaPath);
       }
+      Path storePath = new Path(storageLocation);
+      try (FileSystem fs = storePath.getFileSystem(new Configuration())) {
+        fs.mkdirs(storePath);
+      }
       Fileset fileset =
           createFileset(name, schemaName, "comment", type, catalogPath, storageLocation);
 
@@ -381,11 +385,7 @@ public class TestHadoopCatalogOperations {
             IllegalArgumentException.class,
             () -> createFileset(name, schemaName, comment, Fileset.Type.MANAGED, null, null));
     Assertions.assertEquals(
-        "Storage location must be set for fileset "
-            + filesetIdent
-            + " when it's catalog and schema "
-            + "location are not set",
-        exception.getMessage());
+        "Storage location must be set for fileset: " + filesetIdent, exception.getMessage());
     try (HadoopCatalogOperations ops = new HadoopCatalogOperations(store)) {
       ops.initialize(Maps.newHashMap(), null);
       Throwable e =
@@ -418,8 +418,12 @@ public class TestHadoopCatalogOperations {
     String schemaPath = TEST_ROOT_PATH + "/" + schemaName;
     createSchema(schemaName, comment, null, schemaPath);
     String[] filesets = new String[] {"fileset23_1", "fileset23_2", "fileset23_3"};
+    String catalogName = "c1";
+
     for (String fileset : filesets) {
-      createFileset(fileset, schemaName, comment, Fileset.Type.MANAGED, null, null);
+      String storageLocation =
+          TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + fileset;
+      createFileset(fileset, schemaName, comment, Fileset.Type.MANAGED, null, storageLocation);
     }
 
     try (HadoopCatalogOperations ops = new HadoopCatalogOperations(store)) {
@@ -458,6 +462,10 @@ public class TestHadoopCatalogOperations {
       if (!ops.schemaExists(schemaIdent)) {
         createSchema(schemaName, comment, catalogPath, schemaPath);
       }
+      Path storePath = new Path(storageLocation);
+      try (FileSystem fs = storePath.getFileSystem(new Configuration())) {
+        fs.mkdirs(storePath);
+      }
       Fileset fileset =
           createFileset(name, schemaName, "comment", type, catalogPath, storageLocation);
 
@@ -493,8 +501,11 @@ public class TestHadoopCatalogOperations {
     String schemaPath = TEST_ROOT_PATH + "/" + schemaName;
     createSchema(schemaName, comment, null, schemaPath);
 
+    String catalogName = "c1";
     String name = "fileset25";
-    Fileset fileset = createFileset(name, schemaName, comment, Fileset.Type.MANAGED, null, null);
+    String storageLocation = TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + name;
+    Fileset fileset =
+        createFileset(name, schemaName, comment, Fileset.Type.MANAGED, null, storageLocation);
 
     FilesetChange change1 = FilesetChange.setProperty("k1", "v1");
     FilesetChange change2 = FilesetChange.removeProperty("k1");
@@ -561,7 +572,10 @@ public class TestHadoopCatalogOperations {
     createSchema(schemaName, comment, null, schemaPath);
 
     String name = "fileset26";
-    Fileset fileset = createFileset(name, schemaName, comment, Fileset.Type.MANAGED, null, null);
+    String catalogName = "c1";
+    String storageLocation = TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + name;
+    Fileset fileset =
+        createFileset(name, schemaName, comment, Fileset.Type.MANAGED, null, storageLocation);
 
     FilesetChange change1 = FilesetChange.updateComment("comment26_new");
     try (HadoopCatalogOperations ops = new HadoopCatalogOperations(store)) {
@@ -576,6 +590,78 @@ public class TestHadoopCatalogOperations {
     }
   }
 
+  @Test
+  public void testFilesetStorageLocation() throws IOException {
+    String schemaName = "schema_z1";
+    String comment = "comment26";
+    String schemaPath = TEST_ROOT_PATH + "/" + schemaName;
+    createSchema(schemaName, comment, null, schemaPath);
+    try (HadoopCatalogOperations ops = new HadoopCatalogOperations(store)) {
+      Map<String, String> catalogProps = Maps.newHashMap();
+      ops.initialize(catalogProps, null);
+
+      // test invalid managed storage location with oss
+      String name = "fileset_z1";
+      String catalogName = "c1";
+      String storageLocation = "oss://localhost/" + catalogName + "/" + schemaName + "/" + name;
+      NameIdentifier filesetIdent = NameIdentifier.of("m1", "c1", schemaName, name);
+      Map<String, String> filesetProps = Maps.newHashMap();
+      StringIdentifier stringId = StringIdentifier.fromId(idGenerator.nextId());
+      Assertions.assertThrows(
+          RuntimeException.class,
+          () ->
+              ops.createFileset(
+                  filesetIdent,
+                  comment,
+                  Fileset.Type.MANAGED,
+                  storageLocation,
+                  Maps.newHashMap(StringIdentifier.newPropertiesWithId(stringId, filesetProps))));
+
+      // test invalid external storage location with oss
+      Assertions.assertThrows(
+          RuntimeException.class,
+          () ->
+              ops.createFileset(
+                  filesetIdent,
+                  comment,
+                  Fileset.Type.EXTERNAL,
+                  storageLocation,
+                  Maps.newHashMap(StringIdentifier.newPropertiesWithId(stringId, filesetProps))));
+
+      // test valid managed storage location with file
+      String name1 = "fileset_z11";
+      String storageLocation1 = TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + name1;
+      NameIdentifier filesetIdent1 = NameIdentifier.of("m1", "c1", schemaName, name1);
+      Map<String, String> filesetProps1 = Maps.newHashMap();
+      StringIdentifier stringId1 = StringIdentifier.fromId(idGenerator.nextId());
+      ops.createFileset(
+          filesetIdent1,
+          comment,
+          Fileset.Type.MANAGED,
+          storageLocation1,
+          Maps.newHashMap(StringIdentifier.newPropertiesWithId(stringId1, filesetProps1)));
+      Assertions.assertNotNull(ops.loadFileset(filesetIdent1));
+
+      // test valid external storage location with file
+      String name2 = "fileset_z12";
+      String storageLocation2 = TEST_ROOT_PATH + "/" + catalogName + "/" + name2;
+      Path storageLocation2Path = new Path(storageLocation2);
+      try (FileSystem fs = storageLocation2Path.getFileSystem(new Configuration())) {
+        fs.mkdirs(storageLocation2Path);
+      }
+      NameIdentifier filesetIdent2 = NameIdentifier.of("m1", "c1", schemaName, name2);
+      Map<String, String> filesetProps2 = Maps.newHashMap();
+      StringIdentifier stringId2 = StringIdentifier.fromId(idGenerator.nextId());
+      ops.createFileset(
+          filesetIdent2,
+          comment,
+          Fileset.Type.EXTERNAL,
+          storageLocation2,
+          Maps.newHashMap(StringIdentifier.newPropertiesWithId(stringId2, filesetProps2)));
+      Assertions.assertNotNull(ops.loadFileset(filesetIdent2));
+    }
+  }
+
   private static Stream<Arguments> locationArguments() {
     return Stream.of(
         // Honor the catalog location
@@ -584,48 +670,48 @@ public class TestHadoopCatalogOperations {
             Fileset.Type.MANAGED,
             TEST_ROOT_PATH + "/catalog21",
             null,
-            null,
-            TEST_ROOT_PATH + "/catalog21/s1_fileset11/fileset11"),
+            TEST_ROOT_PATH + "/c1/s1_fileset11/fileset11",
+            TEST_ROOT_PATH + "/c1/s1_fileset11/fileset11"),
         Arguments.of(
             // honor the schema location
             "fileset12",
             Fileset.Type.MANAGED,
             null,
             TEST_ROOT_PATH + "/s1_fileset12",
-            null,
-            TEST_ROOT_PATH + "/s1_fileset12/fileset12"),
+            TEST_ROOT_PATH + "/c1/s1_fileset12/fileset12",
+            TEST_ROOT_PATH + "/c1/s1_fileset12/fileset12"),
         Arguments.of(
             // honor the schema location
             "fileset13",
             Fileset.Type.MANAGED,
             TEST_ROOT_PATH + "/catalog22",
             TEST_ROOT_PATH + "/s1_fileset13",
-            null,
-            TEST_ROOT_PATH + "/s1_fileset13/fileset13"),
+            TEST_ROOT_PATH + "/c1/s1_fileset13/fileset13",
+            TEST_ROOT_PATH + "/c1/s1_fileset13/fileset13"),
         Arguments.of(
             // honor the storage location
             "fileset14",
             Fileset.Type.MANAGED,
             TEST_ROOT_PATH + "/catalog23",
             TEST_ROOT_PATH + "/s1_fileset14",
-            TEST_ROOT_PATH + "/fileset14",
-            TEST_ROOT_PATH + "/fileset14"),
+            TEST_ROOT_PATH + "/c1/s1_fileset14/fileset14",
+            TEST_ROOT_PATH + "/c1/s1_fileset14/fileset14"),
         Arguments.of(
             // honor the storage location
             "fileset15",
             Fileset.Type.MANAGED,
             null,
             null,
-            TEST_ROOT_PATH + "/fileset15",
-            TEST_ROOT_PATH + "/fileset15"),
+            TEST_ROOT_PATH + "/c1/s1_fileset15/fileset15",
+            TEST_ROOT_PATH + "/c1/s1_fileset15/fileset15"),
         Arguments.of(
             // honor the storage location
             "fileset16",
             Fileset.Type.MANAGED,
             TEST_ROOT_PATH + "/catalog24",
             null,
-            TEST_ROOT_PATH + "/fileset16",
-            TEST_ROOT_PATH + "/fileset16"),
+            TEST_ROOT_PATH + "/c1/s1_fileset16/fileset16",
+            TEST_ROOT_PATH + "/c1/s1_fileset16/fileset16"),
         Arguments.of(
             // honor the storage location
             "fileset17",
@@ -656,55 +742,55 @@ public class TestHadoopCatalogOperations {
             Fileset.Type.MANAGED,
             UNFORMALIZED_TEST_ROOT_PATH + "/catalog201",
             null,
-            null,
-            TEST_ROOT_PATH + "/catalog201/s1_fileset101/fileset101"),
+            TEST_ROOT_PATH + "/c1/s1_fileset101/fileset101",
+            TEST_ROOT_PATH + "/c1/s1_fileset101/fileset101"),
         Arguments.of(
             // honor the schema location
             "fileset102",
             Fileset.Type.MANAGED,
             null,
             UNFORMALIZED_TEST_ROOT_PATH + "/s1_fileset102",
-            null,
-            TEST_ROOT_PATH + "/s1_fileset102/fileset102"),
+            TEST_ROOT_PATH + "/c1/s1_fileset102/fileset102",
+            TEST_ROOT_PATH + "/c1/s1_fileset102/fileset102"),
         Arguments.of(
             // honor the schema location
             "fileset103",
             Fileset.Type.MANAGED,
             UNFORMALIZED_TEST_ROOT_PATH + "/catalog202",
             UNFORMALIZED_TEST_ROOT_PATH + "/s1_fileset103",
-            null,
-            TEST_ROOT_PATH + "/s1_fileset103/fileset103"),
+            TEST_ROOT_PATH + "/c1/s1_fileset103/fileset103",
+            TEST_ROOT_PATH + "/c1/s1_fileset103/fileset103"),
         Arguments.of(
             // honor the storage location
             "fileset104",
             Fileset.Type.MANAGED,
             UNFORMALIZED_TEST_ROOT_PATH + "/catalog203",
             UNFORMALIZED_TEST_ROOT_PATH + "/s1_fileset104",
-            UNFORMALIZED_TEST_ROOT_PATH + "/fileset104",
-            TEST_ROOT_PATH + "/fileset104"),
+            TEST_ROOT_PATH + "/c1/s1_fileset104/fileset104",
+            TEST_ROOT_PATH + "/c1/s1_fileset104/fileset104"),
         Arguments.of(
             // honor the storage location
             "fileset105",
             Fileset.Type.MANAGED,
             null,
             null,
-            UNFORMALIZED_TEST_ROOT_PATH + "/fileset105",
-            TEST_ROOT_PATH + "/fileset105"),
+            TEST_ROOT_PATH + "/c1/s1_fileset105/fileset105",
+            TEST_ROOT_PATH + "/c1/s1_fileset105/fileset105"),
         Arguments.of(
             // honor the storage location
             "fileset106",
             Fileset.Type.MANAGED,
             UNFORMALIZED_TEST_ROOT_PATH + "/catalog204",
             null,
-            UNFORMALIZED_TEST_ROOT_PATH + "/fileset106",
-            TEST_ROOT_PATH + "/fileset106"),
+            TEST_ROOT_PATH + "/c1/s1_fileset106/fileset106",
+            TEST_ROOT_PATH + "/c1/s1_fileset106/fileset106"),
         Arguments.of(
             // honor the storage location
             "fileset107",
             Fileset.Type.EXTERNAL,
             UNFORMALIZED_TEST_ROOT_PATH + "/catalog205",
             UNFORMALIZED_TEST_ROOT_PATH + "/s1_fileset107",
-            UNFORMALIZED_TEST_ROOT_PATH + "/fileset107",
+            TEST_ROOT_PATH + "/fileset107",
             TEST_ROOT_PATH + "/fileset107"),
         Arguments.of(
             // honor the storage location
@@ -712,7 +798,7 @@ public class TestHadoopCatalogOperations {
             Fileset.Type.EXTERNAL,
             null,
             UNFORMALIZED_TEST_ROOT_PATH + "/s1_fileset108",
-            UNFORMALIZED_TEST_ROOT_PATH + "/fileset108",
+            TEST_ROOT_PATH + "/fileset108",
             TEST_ROOT_PATH + "/fileset108"),
         Arguments.of(
             // honor the storage location
@@ -720,7 +806,7 @@ public class TestHadoopCatalogOperations {
             Fileset.Type.EXTERNAL,
             null,
             null,
-            UNFORMALIZED_TEST_ROOT_PATH + "/fileset109",
+            TEST_ROOT_PATH + "/fileset109",
             TEST_ROOT_PATH + "/fileset109"));
   }
 
@@ -733,8 +819,8 @@ public class TestHadoopCatalogOperations {
             Fileset.Type.MANAGED,
             TEST_ROOT_PATH + "/catalog21",
             null,
-            null,
-            TEST_ROOT_PATH + "/catalog21/s24_fileset31/fileset31"),
+            TEST_ROOT_PATH + "/c1/s24_fileset31/fileset31",
+            TEST_ROOT_PATH + "/c1/s24_fileset31/fileset31"),
         Arguments.of(
             // honor the schema location
             "fileset32",
@@ -742,8 +828,8 @@ public class TestHadoopCatalogOperations {
             Fileset.Type.MANAGED,
             null,
             TEST_ROOT_PATH + "/s24_fileset32",
-            null,
-            TEST_ROOT_PATH + "/s24_fileset32/fileset32"),
+            TEST_ROOT_PATH + "/c1/s24_fileset32/fileset32",
+            TEST_ROOT_PATH + "/c1/s24_fileset32/fileset32"),
         Arguments.of(
             // honor the schema location
             "fileset33",
@@ -751,8 +837,8 @@ public class TestHadoopCatalogOperations {
             Fileset.Type.MANAGED,
             TEST_ROOT_PATH + "/catalog22",
             TEST_ROOT_PATH + "/s24_fileset33",
-            null,
-            TEST_ROOT_PATH + "/s24_fileset33/fileset33"),
+            TEST_ROOT_PATH + "/c1/s24_fileset33/fileset33",
+            TEST_ROOT_PATH + "/c1/s24_fileset33/fileset33"),
         Arguments.of(
             // honor the storage location
             "fileset34",
@@ -760,8 +846,8 @@ public class TestHadoopCatalogOperations {
             Fileset.Type.MANAGED,
             TEST_ROOT_PATH + "/catalog23",
             TEST_ROOT_PATH + "/s24_fileset34",
-            TEST_ROOT_PATH + "/fileset34",
-            TEST_ROOT_PATH + "/fileset34"),
+            TEST_ROOT_PATH + "/c1/s24_fileset34/fileset34",
+            TEST_ROOT_PATH + "/c1/s24_fileset34/fileset34"),
         Arguments.of(
             // honor the storage location
             "fileset35",
@@ -769,8 +855,8 @@ public class TestHadoopCatalogOperations {
             Fileset.Type.MANAGED,
             null,
             null,
-            TEST_ROOT_PATH + "/fileset35",
-            TEST_ROOT_PATH + "/fileset35"),
+            TEST_ROOT_PATH + "/c1/s24_fileset35/fileset35",
+            TEST_ROOT_PATH + "/c1/s24_fileset35/fileset35"),
         Arguments.of(
             // honor the storage location
             "fileset36",
@@ -778,8 +864,8 @@ public class TestHadoopCatalogOperations {
             Fileset.Type.MANAGED,
             TEST_ROOT_PATH + "/catalog24",
             null,
-            TEST_ROOT_PATH + "/fileset36",
-            TEST_ROOT_PATH + "/fileset36"),
+            TEST_ROOT_PATH + "/c1/s24_fileset36/fileset36",
+            TEST_ROOT_PATH + "/c1/s24_fileset36/fileset36"),
         Arguments.of(
             // honor the storage location
             "fileset37",

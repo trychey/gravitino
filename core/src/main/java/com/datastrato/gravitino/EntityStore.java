@@ -168,4 +168,13 @@ public interface EntityStore extends Closeable {
    */
   <R, E extends Exception> R executeInTransaction(Executable<R, E> executable)
       throws E, IOException;
+
+  /**
+   * Fetch an external fileset name the storage location of a new external fileset is already
+   * mounted.
+   *
+   * @param storageLocation the storage location of a new external fileset
+   * @return the fileset name for the storage location mounted
+   */
+  String fetchExternalFilesetName(String storageLocation);
 }

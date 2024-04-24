@@ -276,6 +276,11 @@ public class JDBCBackend implements RelationalBackend {
   }
 
   @Override
+  public String fetchExternalFilesetName(String storageLocation) {
+    return FilesetMetaService.getInstance().getExternalFilesetNameByLocation(storageLocation);
+  }
+
+  @Override
   public void close() throws IOException {
     SqlSessionFactoryHelper.getInstance().close();
   }

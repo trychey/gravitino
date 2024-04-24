@@ -112,6 +112,18 @@ public interface FilesetMetaMapper {
   FilesetPO selectFilesetMetaBySchemaIdAndName(
       @Param("schemaId") Long schemaId, @Param("filesetName") String name);
 
+  @Select(
+      "SELECT fm.fileset_name"
+          + " FROM "
+          + META_TABLE_NAME
+          + " fm INNER JOIN "
+          + VERSION_TABLE_NAME
+          + " vi ON fm.fileset_id = vi.fileset_id AND fm.current_version = vi.version"
+          + " WHERE fm.type = #{type} AND fm.deleted_at = 0 AND vi.storage_location = #{storageLocation}"
+          + " AND vi.deleted_at = 0 LIMIT 1")
+  String selectFilesetNameByTypeAndStorageLocation(
+      @Param("type") String type, @Param("storageLocation") String storageLocation);
+
   @Insert(
       "INSERT INTO "
           + META_TABLE_NAME
