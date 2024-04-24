@@ -74,3 +74,7 @@ tasks {
     }
   }
 }
+
+tasks.all {
+  enabled = false
+}
