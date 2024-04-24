@@ -52,3 +52,6 @@ include clients/client-python/.gitignore
 # integration test
 integration-test/metastore_db
 catalogs/catalog-lakehouse-iceberg/spark-warehouse
+
+# ignore project.properties
+**/src/main/resources/project.properties
