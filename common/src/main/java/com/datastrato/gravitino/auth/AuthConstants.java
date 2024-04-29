@@ -40,4 +40,10 @@ public final class AuthConstants {
    */
   public static final String AUTHENTICATED_PRINCIPAL_ATTRIBUTE_NAME =
       AuthConstants.class.getName() + "-principal";
+
+  /**
+   * There are no OAuth in Xiaomi. So we can't authenticate who the user really is in data platform.
+   * So we use X-Proxy-User to pass the username.
+   */
+  public static final String PROXY_USER = "X-Proxy-User";
 }

@@ -4,6 +4,7 @@
  */
 package com.datastrato.gravitino.server.authentication;
 
+import com.datastrato.gravitino.UserPrincipal;
 import com.datastrato.gravitino.auth.AuthConstants;
 import com.datastrato.gravitino.exceptions.UnauthorizedException;
 import com.google.common.annotations.VisibleForTesting;
@@ -19,6 +20,7 @@ import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import org.apache.commons.lang3.StringUtils;
 
 public class AuthenticationFilter implements Filter {
 
@@ -48,12 +50,19 @@ public class AuthenticationFilter implements Filter {
       }
       HttpServletRequest req = (HttpServletRequest) request;
       Enumeration<String> headerData = req.getHeaders(AuthConstants.HTTP_HEADER_AUTHORIZATION);
+      String proxyUser = req.getHeader(AuthConstants.PROXY_USER);
       byte[] authData = null;
       if (headerData.hasMoreElements()) {
         authData = headerData.nextElement().getBytes(StandardCharsets.UTF_8);
       }
       if (authenticator.isDataFromToken()) {
         Principal principal = authenticator.authenticateToken(authData);
+        request.setAttribute(AuthConstants.AUTHENTICATED_PRINCIPAL_ATTRIBUTE_NAME, principal);
+      }
+      if (supportedProxyUser(authenticator) && StringUtils.isNotBlank(proxyUser)) {
+        // We will use the proxy-user override the principal from the authData. If we want to use
+        // principal from the authData, so do not pass the proxy-user in header.
+        Principal principal = new UserPrincipal(proxyUser);
         request.setAttribute(AuthConstants.AUTHENTICATED_PRINCIPAL_ATTRIBUTE_NAME, principal);
       }
       chain.doFilter(request, response);
@@ -73,4 +82,11 @@ public class AuthenticationFilter implements Filter {
 
   @Override
   public void destroy() {}
+
+  // Only simple and kerberos support proxy user. We will not support proxy-user
+  // for OAuth and Token.
+  private boolean supportedProxyUser(Authenticator authenticator) {
+    return authenticator instanceof SimpleAuthenticator
+        || authenticator instanceof KerberosAuthenticator;
+  }
 }

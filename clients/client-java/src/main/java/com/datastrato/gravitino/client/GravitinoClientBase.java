@@ -189,8 +189,8 @@ public abstract class GravitinoClientBase implements Closeable {
      *
      * @return This Builder instance for method chaining.
      */
-    public Builder<T> withSimpleAuth() {
-      this.authDataProvider = new SimpleTokenProvider();
+    public Builder<T> withSimpleAuth(String... token) {
+      this.authDataProvider = new SimpleTokenProvider(token);
       return this;
     }
 

@@ -18,12 +18,18 @@ final class SimpleTokenProvider implements AuthDataProvider {
 
   private final byte[] token;
 
-  public SimpleTokenProvider() {
-    String gravitinoUser = System.getenv("GRAVITINO_USER");
-    if (gravitinoUser == null) {
-      gravitinoUser = System.getProperty("user.name");
+  public SimpleTokenProvider(String... token) {
+    String userInformation;
+    if (token != null && token.length > 0) {
+      userInformation = token[0];
+    } else {
+      String gravitinoUser = System.getenv("GRAVITINO_USER");
+      if (gravitinoUser == null) {
+        gravitinoUser = System.getProperty("user.name");
+      }
+      userInformation = gravitinoUser + ":dummy";
     }
-    String userInformation = gravitinoUser + ":dummy";
+
     this.token =
         (AuthConstants.AUTHORIZATION_BASIC_HEADER
                 + new String(
