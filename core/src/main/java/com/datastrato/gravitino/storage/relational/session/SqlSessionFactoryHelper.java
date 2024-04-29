@@ -7,6 +7,7 @@ package com.datastrato.gravitino.storage.relational.session;
 
 import com.datastrato.gravitino.Config;
 import com.datastrato.gravitino.Configs;
+import com.datastrato.gravitino.cipher.CipherUtils;
 import com.datastrato.gravitino.storage.relational.mapper.CatalogMetaMapper;
 import com.datastrato.gravitino.storage.relational.mapper.FilesetMetaMapper;
 import com.datastrato.gravitino.storage.relational.mapper.FilesetVersionMapper;
@@ -57,8 +58,14 @@ public class SqlSessionFactoryHelper {
     BasicDataSource dataSource = new BasicDataSource();
     dataSource.setUrl(config.get(Configs.ENTITY_RELATIONAL_JDBC_BACKEND_URL));
     dataSource.setDriverClassName(config.get(Configs.ENTITY_RELATIONAL_JDBC_BACKEND_DRIVER));
-    dataSource.setUsername(config.get(Configs.ENTITY_RELATIONAL_JDBC_BACKEND_USER));
-    dataSource.setPassword(config.get(Configs.ENTITY_RELATIONAL_JDBC_BACKEND_PASSWORD));
+    String username =
+        CipherUtils.decryptStringWithoutCompress(
+            config.get(Configs.ENTITY_RELATIONAL_JDBC_BACKEND_USER));
+    String password =
+        CipherUtils.decryptStringWithoutCompress(
+            config.get(Configs.ENTITY_RELATIONAL_JDBC_BACKEND_PASSWORD));
+    dataSource.setUsername(username);
+    dataSource.setPassword(password);
     // Close the auto commit, so that we can control the transaction manual commit
     dataSource.setDefaultAutoCommit(false);
     dataSource.setMaxWaitMillis(1000L);

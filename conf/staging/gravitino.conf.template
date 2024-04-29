@@ -41,8 +41,9 @@ gravitino.entity.store = relational
 gravitino.entity.store.relational = JDBCBackend
 gravitino.entity.store.relational.jdbcUrl = jdbc:mysql://gaea.test.mysql03.b2c.srv:13616/gravitino_meta?useUnicode=true&characterEncoding=utf-8&useSSL=false
 gravitino.entity.store.relational.jdbcDriver = com.mysql.jdbc.Driver
-gravitino.entity.store.relational.jdbcUser = gravitino_meta_wn
-gravitino.entity.store.relational.jdbcPassword = xUETkx4yj-UZp_DVBg_Zs819CB9o-FRl
+# Encrypt by keycenter, sid = `compute-infra-meta`
+gravitino.entity.store.relational.jdbcUser = GCAPNyDSJ8AsVKihpj4ToYlkbxmJgfdEFj6bzGlo63AJoBgS6V1/PrhVR7e4ZekiwuCTIOr/GBBpyUH6QHdJ2rVFAWsqMCBiGBQ8CUazWfpuQP62BtTGwLkN3Q6M1gA=
+gravitino.entity.store.relational.jdbcPassword = GDBv9+aOynejp7KqEvtLy8BTEva1GZ3rtBXXAIPqoy7yRJy2E/RaBhe2cL4Ww4+2MfsYEix7KrfMzkLLiUNy/O8LINBM/xgQH1aWWtzYSY68v5rRXN/YKhgUN9DQtQz8UZNOF3Rl3iJv1ibYEYEA
 
 # THE CONFIGURATION FOR Gravitino CATALOG
 # The interval in milliseconds to evict the catalog cache
