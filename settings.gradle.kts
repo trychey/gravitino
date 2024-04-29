@@ -32,3 +32,4 @@ include("spark-connector:spark-connector", "spark-connector:spark-connector-runt
 include("web")
 include("docs")
 include("integration-test-common")
+include("gc-service")

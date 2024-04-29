@@ -696,7 +696,7 @@ tasks {
     subprojects.forEach() {
       if (!it.name.startsWith("catalog") &&
         !it.name.startsWith("client") && !it.name.startsWith("filesystem") && !it.name.startsWith("spark-connector") && it.name != "trino-connector" &&
-        it.name != "integration-test" && it.name != "bundled-catalog"
+        it.name != "integration-test" && it.name != "bundled-catalog" && it.name != "gc-service"
       ) {
         from(it.configurations.runtimeClasspath)
         into("distribution/package/libs")
@@ -712,7 +712,8 @@ tasks {
         !it.name.startsWith("spark-connector") &&
         it.name != "trino-connector" &&
         it.name != "integration-test" &&
-        it.name != "bundled-catalog"
+        it.name != "bundled-catalog" &&
+        it.name != "gc-service"
       ) {
         dependsOn("${it.name}:build")
         from("${it.name}/build/libs")
