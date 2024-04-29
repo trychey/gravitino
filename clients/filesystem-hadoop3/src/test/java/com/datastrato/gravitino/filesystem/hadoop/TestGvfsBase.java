@@ -68,6 +68,8 @@ public class TestGvfsBase extends GravitinoMockServerBase {
         String.format(
             "fs.%s.impl.disable.cache", GravitinoVirtualFileSystemConfiguration.GVFS_SCHEME),
         "true");
+    conf.set(
+        GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_SIMPLE_SUPER_USER_KEY, "test");
   }
 
   @AfterAll

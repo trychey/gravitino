@@ -22,6 +22,15 @@ class GravitinoVirtualFileSystemConfiguration {
   public static final String OAUTH2_AUTH_TYPE = "oauth2";
   public static final String TOKEN_AUTH_TYPE = "token";
 
+  // simple
+  /** The configuration key for the superuser of the simple auth. */
+  public static final String FS_GRAVITINO_CLIENT_SIMPLE_SUPER_USER_KEY =
+      "fs.gravitino.client.simple.superUser";
+
+  /** The configuration key for the proxy user of the simple auth. */
+  public static final String FS_GRAVITINO_CLIENT_SIMPLE_PROXY_USER_KEY =
+      "fs.gravitino.client.simple.proxyUser";
+
   // oauth2
   /** The configuration key for the URI of the default OAuth server. */
   public static final String FS_GRAVITINO_CLIENT_OAUTH2_SERVER_URI_KEY =

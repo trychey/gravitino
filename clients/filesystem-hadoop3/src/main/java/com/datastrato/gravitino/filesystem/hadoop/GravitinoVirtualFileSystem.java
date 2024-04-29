@@ -10,14 +10,17 @@ import static com.datastrato.gravitino.filesystem.hadoop.GravitinoVirtualFileSys
 
 import com.datastrato.gravitino.Catalog;
 import com.datastrato.gravitino.NameIdentifier;
+import com.datastrato.gravitino.auth.AuthConstants;
 import com.datastrato.gravitino.client.DefaultOAuth2TokenProvider;
 import com.datastrato.gravitino.client.GravitinoClient;
+import com.datastrato.gravitino.client.GravitinoClientBase;
 import com.datastrato.gravitino.client.TokenAuthProvider;
 import com.datastrato.gravitino.enums.FilesetPrefixPattern;
 import com.datastrato.gravitino.file.Fileset;
 import com.datastrato.gravitino.properties.FilesetProperties;
 import com.datastrato.gravitino.shaded.com.google.common.annotations.VisibleForTesting;
 import com.datastrato.gravitino.shaded.com.google.common.base.Preconditions;
+import com.datastrato.gravitino.shaded.com.google.common.collect.ImmutableMap;
 import com.datastrato.gravitino.shaded.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.datastrato.gravitino.shaded.org.apache.commons.lang3.StringUtils;
 import com.datastrato.gravitino.shaded.org.apache.commons.lang3.tuple.Pair;
@@ -165,8 +168,22 @@ public class GravitinoVirtualFileSystem extends FileSystem {
             GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_AUTH_TYPE_KEY,
             GravitinoVirtualFileSystemConfiguration.SIMPLE_AUTH_TYPE);
     if (authType.equalsIgnoreCase(GravitinoVirtualFileSystemConfiguration.SIMPLE_AUTH_TYPE)) {
-      this.client =
-          GravitinoClient.builder(serverUri).withMetalake(metalakeName).withSimpleAuth().build();
+      String superUser =
+          configuration.get(
+              GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_SIMPLE_SUPER_USER_KEY);
+      checkAuthConfig(
+          GravitinoVirtualFileSystemConfiguration.SIMPLE_AUTH_TYPE,
+          GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_SIMPLE_SUPER_USER_KEY,
+          superUser);
+      String proxyUser =
+          configuration.get(
+              GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_SIMPLE_PROXY_USER_KEY);
+      GravitinoClientBase.Builder<GravitinoClient> builder =
+          GravitinoClient.builder(serverUri).withMetalake(metalakeName).withSimpleAuth(superUser);
+      if (StringUtils.isNotBlank(proxyUser)) {
+        builder.withHeaders(ImmutableMap.of(AuthConstants.PROXY_USER, proxyUser));
+      }
+      this.client = builder.build();
     } else if (authType.equalsIgnoreCase(
         GravitinoVirtualFileSystemConfiguration.OAUTH2_AUTH_TYPE)) {
       String authServerUri =
