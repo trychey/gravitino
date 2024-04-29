@@ -8,6 +8,7 @@ package com.datastrato.gravitino.server.authentication;
 import com.datastrato.gravitino.Config;
 import com.datastrato.gravitino.UserPrincipal;
 import com.datastrato.gravitino.auth.AuthConstants;
+import com.datastrato.gravitino.cipher.CipherUtils;
 import com.datastrato.gravitino.exceptions.UnauthorizedException;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
@@ -27,7 +28,7 @@ class SimpleAuthenticator implements Authenticator {
 
   private final Splitter SPLITTER = Splitter.on(",").omitEmptyStrings().trimResults();
 
-  private String[] serviceAudiences;
+  private String[] superUsers;
 
   private boolean localEnv;
 
@@ -47,12 +48,11 @@ class SimpleAuthenticator implements Authenticator {
 
   @Override
   public void initialize(Config config) throws RuntimeException {
-    String allowedAudiences = config.get(SimpleConfig.SUPER_USERS);
+    String encryptedConfig = config.get(SimpleConfig.SUPER_USERS);
     Preconditions.checkArgument(
-        StringUtils.isNotBlank(allowedAudiences),
-        "The service audiences should not be null or empty.");
-    this.serviceAudiences =
-        SPLITTER.splitToStream(allowedAudiences).distinct().toArray(String[]::new);
+        StringUtils.isNotBlank(encryptedConfig), "The super users should not be null or empty.");
+    String users = CipherUtils.decryptStringWithoutCompress(encryptedConfig);
+    this.superUsers = SPLITTER.splitToStream(users).distinct().toArray(String[]::new);
     this.localEnv = config.get(SimpleConfig.LOCAL_ENV);
   }
 
@@ -98,7 +98,7 @@ class SimpleAuthenticator implements Authenticator {
     }
 
     String userInformation = new String(Base64.getDecoder().decode(token), StandardCharsets.UTF_8);
-    boolean authenticated = Arrays.asList(serviceAudiences).contains(userInformation);
+    boolean authenticated = Arrays.asList(superUsers).contains(userInformation);
     if (authenticated) {
       return new UserPrincipal(userInformation);
     } else {
