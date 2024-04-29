@@ -187,6 +187,7 @@ public abstract class GravitinoClientBase implements Closeable {
     /**
      * Sets the simple mode authentication for Gravitino
      *
+     * @param token The token of the Simple authenticator. Only the first token will be used.
      * @return This Builder instance for method chaining.
      */
     public Builder<T> withSimpleAuth(String... token) {
