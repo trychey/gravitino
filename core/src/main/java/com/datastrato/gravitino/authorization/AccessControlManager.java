@@ -296,6 +296,28 @@ public class AccessControlManager {
     return doWithNonAdminLock(() -> roleManager.deleteRole(metalake, role));
   }
 
+  /**
+   * Lists all Groups that has the Role.
+   *
+   * @param metalake The Metalake of the Role.
+   * @param role The name of the Role.
+   * @return An array of Groups that has the Role.
+   */
+  public Group[] listGroupsByRole(String metalake, String role) {
+    return doWithNonAdminLock(() -> permissionManager.listGroupsByRole(metalake, role));
+  }
+
+  /**
+   * Lists all Users that has the Role.
+   *
+   * @param metalake The Metalake of the Role.
+   * @param role The name of the Role.
+   * @return An array of Users that has the Role.
+   */
+  public User[] listUsersByRole(String metalake, String role) {
+    return doWithNonAdminLock(() -> permissionManager.listUsersByRole(metalake, role));
+  }
+
   @VisibleForTesting
   RoleManager getRoleManager() {
     return roleManager;

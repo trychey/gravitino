@@ -11,6 +11,8 @@ import com.datastrato.gravitino.HasIdentifier;
 import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.Namespace;
 import com.datastrato.gravitino.exceptions.NoSuchEntityException;
+import com.datastrato.gravitino.meta.GroupEntity;
+import com.datastrato.gravitino.meta.UserEntity;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
@@ -121,4 +123,20 @@ public interface RelationalBackend extends Closeable {
    * @return the fileset name for the storage location mounted
    */
   String fetchExternalFilesetName(String storageLocation);
+
+  /**
+   * Lists all UserEntity that has the role.
+   *
+   * @param ident the unique identifier of the role entity
+   * @return the list of UserEntity
+   */
+  List<UserEntity> listUsersByRole(NameIdentifier ident);
+
+  /**
+   * Lists all GroupEntity that has the role.
+   *
+   * @param ident the unique identifier of the role entity
+   * @return the list of GroupEntity
+   */
+  List<GroupEntity> listGroupsByRole(NameIdentifier ident);
 }

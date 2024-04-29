@@ -5,6 +5,7 @@
 package com.datastrato.gravitino.authorization;
 
 import static com.datastrato.gravitino.authorization.AuthorizationUtils.GROUP_DOES_NOT_EXIST_MSG;
+import static com.datastrato.gravitino.authorization.AuthorizationUtils.ROLE_DOES_NOT_EXIST_MSG;
 import static com.datastrato.gravitino.authorization.AuthorizationUtils.USER_DOES_NOT_EXIST_MSG;
 
 import com.datastrato.gravitino.Entity;
@@ -283,6 +284,32 @@ class PermissionManager {
           metalake,
           ioe);
       throw new RuntimeException(ioe);
+    }
+  }
+
+  public User[] listUsersByRole(String metalake, String role) {
+    try {
+      AuthorizationUtils.checkMetalakeExists(metalake);
+      List<UserEntity> userEntities =
+          store.listUsersByRole(AuthorizationUtils.ofRole(metalake, role));
+      return userEntities.toArray(new User[0]);
+    } catch (NoSuchEntityException nse) {
+      LOG.warn(
+          "Failed to list users, role {} does not exist in the metalake {}", role, metalake, nse);
+      throw new NoSuchUserException(ROLE_DOES_NOT_EXIST_MSG, role, metalake);
+    }
+  }
+
+  public Group[] listGroupsByRole(String metalake, String role) {
+    try {
+      AuthorizationUtils.checkMetalakeExists(metalake);
+      List<GroupEntity> groupEntities =
+          store.listGroupsByRole(AuthorizationUtils.ofGroup(metalake, role));
+      return groupEntities.toArray(new Group[0]);
+    } catch (NoSuchEntityException nse) {
+      LOG.warn(
+          "Failed to list groups, role {} does not exist in the metalake {}", role, metalake, nse);
+      throw new NoSuchGroupException(ROLE_DOES_NOT_EXIST_MSG, role, metalake);
     }
   }
 

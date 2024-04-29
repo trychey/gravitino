@@ -27,6 +27,8 @@ import com.datastrato.gravitino.Namespace;
 import com.datastrato.gravitino.exceptions.AlreadyExistsException;
 import com.datastrato.gravitino.exceptions.NoSuchEntityException;
 import com.datastrato.gravitino.exceptions.NonEmptyEntityException;
+import com.datastrato.gravitino.meta.GroupEntity;
+import com.datastrato.gravitino.meta.UserEntity;
 import com.datastrato.gravitino.storage.EntityKeyEncoder;
 import com.datastrato.gravitino.storage.FunctionUtils;
 import com.datastrato.gravitino.storage.NameMappingService;
@@ -302,6 +304,16 @@ public class KvEntityStore implements EntityStore {
 
   @Override
   public String fetchExternalFilesetName(String storageLocation) {
+    throw new UnsupportedOperationException("Unsupported method in KvEntityStore.");
+  }
+
+  @Override
+  public List<GroupEntity> listGroupsByRole(NameIdentifier ident) {
+    throw new UnsupportedOperationException("Unsupported method in KvEntityStore.");
+  }
+
+  @Override
+  public List<UserEntity> listUsersByRole(NameIdentifier ident) {
     throw new UnsupportedOperationException("Unsupported method in KvEntityStore.");
   }
 

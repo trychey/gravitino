@@ -10,12 +10,15 @@ import com.datastrato.gravitino.GravitinoEnv;
 import com.datastrato.gravitino.authorization.AccessControlManager;
 import com.datastrato.gravitino.dto.requests.RoleGrantRequest;
 import com.datastrato.gravitino.dto.requests.RoleRevokeRequest;
+import com.datastrato.gravitino.dto.responses.GroupListResponse;
 import com.datastrato.gravitino.dto.responses.GroupResponse;
+import com.datastrato.gravitino.dto.responses.UserListResponse;
 import com.datastrato.gravitino.dto.responses.UserResponse;
 import com.datastrato.gravitino.dto.util.DTOConverters;
 import com.datastrato.gravitino.metrics.MetricNames;
 import com.datastrato.gravitino.server.web.Utils;
 import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.GET;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
@@ -131,6 +134,47 @@ public class PermissionOperations {
     } catch (Exception e) {
       return ExceptionHandlers.handleGroupPermissionOperationException(
           OperationType.REVOKE, StringUtils.join(request.getRoleNames()), group, e);
+    }
+  }
+
+  @GET
+  @Path("roles/{role}/groups")
+  @Produces("application/vnd.gravitino.v1+json")
+  @Timed(name = "list-groups-by-role" + MetricNames.HTTP_PROCESS_DURATION, absolute = true)
+  @ResponseMetered(name = "list-groups-by-role", absolute = true)
+  public Response listGroupsByRole(
+      @PathParam("metalake") String metalake, @PathParam("role") String role) {
+    try {
+      return Utils.doAs(
+          httpRequest,
+          () ->
+              Utils.ok(
+                  new GroupListResponse(
+                      DTOConverters.toDTOs(
+                          accessControlManager.listGroupsByRole(metalake, role)))));
+    } catch (Exception e) {
+      return ExceptionHandlers.handleGroupPermissionOperationException(
+          OperationType.LIST, "", role, e);
+    }
+  }
+
+  @GET
+  @Path("roles/{role}/users")
+  @Produces("application/vnd.gravitino.v1+json")
+  @Timed(name = "list-users-by-role" + MetricNames.HTTP_PROCESS_DURATION, absolute = true)
+  @ResponseMetered(name = "list-users-by-role", absolute = true)
+  public Response listUsersByRole(
+      @PathParam("metalake") String metalake, @PathParam("role") String role) {
+    try {
+      return Utils.doAs(
+          httpRequest,
+          () ->
+              Utils.ok(
+                  new UserListResponse(
+                      DTOConverters.toDTOs(accessControlManager.listUsersByRole(metalake, role)))));
+    } catch (Exception e) {
+      return ExceptionHandlers.handleUserPermissionOperationException(
+          OperationType.LIST, "", role, e);
     }
   }
 }

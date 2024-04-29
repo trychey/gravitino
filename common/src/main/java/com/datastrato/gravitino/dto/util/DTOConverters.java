@@ -851,4 +851,30 @@ public class DTOConverters {
         throw new IllegalArgumentException("Unsupported partitioning: " + partitioning.strategy());
     }
   }
+
+  /**
+   * Converts an array of Groups to an array of GroupDTOs.
+   *
+   * @param groups The groups to be converted.
+   * @return The array of GroupDTO.
+   */
+  public static GroupDTO[] toDTOs(Group[] groups) {
+    if (ArrayUtils.isEmpty(groups)) {
+      return new GroupDTO[0];
+    }
+    return Arrays.stream(groups).map(DTOConverters::toDTO).toArray(GroupDTO[]::new);
+  }
+
+  /**
+   * Converts an array of Users to an array of UserDTOs.
+   *
+   * @param users The users to be converted.
+   * @return The array of UserDTO.
+   */
+  public static UserDTO[] toDTOs(User[] users) {
+    if (ArrayUtils.isEmpty(users)) {
+      return new UserDTO[0];
+    }
+    return Arrays.stream(users).map(DTOConverters::toDTO).toArray(UserDTO[]::new);
+  }
 }

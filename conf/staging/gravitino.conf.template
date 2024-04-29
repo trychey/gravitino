@@ -58,4 +58,6 @@ gravitino.auxService.iceberg-rest.classpath = catalogs/lakehouse-iceberg/libs, c
 gravitino.auxService.iceberg-rest.host = 0.0.0.0
 # Iceberg REST service http port
 gravitino.auxService.iceberg-rest.httpPort = 9001
+# Enable the authorization
+gravitino.authorization.enable = true
 

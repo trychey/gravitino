@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /** The service class for group metadata. It provides the basic database operations for group. */
 public class GroupMetaService {
@@ -52,7 +53,7 @@ public class GroupMetaService {
     return GroupPO;
   }
 
-  private Long getGroupIdByMetalakeIdAndName(Long metalakeId, String groupName) {
+  public Long getGroupIdByMetalakeIdAndName(Long metalakeId, String groupName) {
     Long groupId =
         SessionUtils.getWithoutCommit(
             GroupMetaMapper.class,
@@ -209,5 +210,29 @@ public class GroupMetaService {
       throw re;
     }
     return newEntity;
+  }
+
+  public List<GroupEntity> listGroupsByRole(NameIdentifier identifier) {
+    Preconditions.checkArgument(
+        identifier != null
+            && !identifier.namespace().isEmpty()
+            && identifier.namespace().levels().length == 3,
+        "The identifier should not be null and should have three level.");
+
+    Long metalakeId =
+        MetalakeMetaService.getInstance().getMetalakeIdByName(identifier.namespace().level(0));
+    Long roleId =
+        RoleMetaService.getInstance().getRoleIdByMetalakeIdAndName(metalakeId, identifier.name());
+    List<GroupPO> groupPOs =
+        SessionUtils.getWithoutCommit(
+            GroupMetaMapper.class, mapper -> mapper.listGroupsByRoleId(roleId));
+    return groupPOs.stream()
+        .map(
+            i ->
+                POConverters.fromGroupPO(
+                    i,
+                    Lists.newArrayList(),
+                    AuthorizationUtils.ofUserNamespace(identifier.namespace().level(0))))
+        .collect(Collectors.toList());
   }
 }

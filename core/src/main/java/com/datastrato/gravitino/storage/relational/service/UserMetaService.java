@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /** The service class for user metadata. It provides the basic database operations for user. */
 public class UserMetaService {
@@ -52,7 +53,7 @@ public class UserMetaService {
     return userPO;
   }
 
-  private Long getUserIdByMetalakeIdAndName(Long metalakeId, String userName) {
+  public Long getUserIdByMetalakeIdAndName(Long metalakeId, String userName) {
     Long userId =
         SessionUtils.getWithoutCommit(
             UserMetaMapper.class,
@@ -206,5 +207,29 @@ public class UserMetaService {
       throw re;
     }
     return newEntity;
+  }
+
+  public List<UserEntity> listUsersByRole(NameIdentifier identifier) {
+    Preconditions.checkArgument(
+        identifier != null
+            && !identifier.namespace().isEmpty()
+            && identifier.namespace().levels().length == 3,
+        "The identifier should not be null and should have three level.");
+
+    Long metalakeId =
+        MetalakeMetaService.getInstance().getMetalakeIdByName(identifier.namespace().level(0));
+    Long roleId =
+        RoleMetaService.getInstance().getRoleIdByMetalakeIdAndName(metalakeId, identifier.name());
+    List<UserPO> userPOs =
+        SessionUtils.getWithoutCommit(
+            UserMetaMapper.class, mapper -> mapper.listUsersByRoleId(roleId));
+    return userPOs.stream()
+        .map(
+            i ->
+                POConverters.fromUserPO(
+                    i,
+                    Lists.newArrayList(),
+                    AuthorizationUtils.ofUserNamespace(identifier.namespace().level(0))))
+        .collect(Collectors.toList());
   }
 }

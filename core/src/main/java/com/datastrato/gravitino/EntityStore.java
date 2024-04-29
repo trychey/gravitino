@@ -7,6 +7,8 @@ package com.datastrato.gravitino;
 import com.datastrato.gravitino.Entity.EntityType;
 import com.datastrato.gravitino.exceptions.AlreadyExistsException;
 import com.datastrato.gravitino.exceptions.NoSuchEntityException;
+import com.datastrato.gravitino.meta.GroupEntity;
+import com.datastrato.gravitino.meta.UserEntity;
 import com.datastrato.gravitino.utils.Executable;
 import java.io.Closeable;
 import java.io.IOException;
@@ -177,4 +179,20 @@ public interface EntityStore extends Closeable {
    * @return the fileset name for the storage location mounted
    */
   String fetchExternalFilesetName(String storageLocation);
+
+  /**
+   * Lists all UserEntity that has the role.
+   *
+   * @param ident the unique identifier of the role entity
+   * @return the list of UserEntity
+   */
+  List<UserEntity> listUsersByRole(NameIdentifier ident);
+
+  /**
+   * Lists all GroupEntity that has the role.
+   *
+   * @param ident the unique identifier of the role entity
+   * @return the list of GroupEntity
+   */
+  List<GroupEntity> listGroupsByRole(NameIdentifier ident);
 }

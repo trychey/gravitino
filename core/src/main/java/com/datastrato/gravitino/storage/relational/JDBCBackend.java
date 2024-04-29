@@ -272,6 +272,16 @@ public class JDBCBackend implements RelationalBackend {
   }
 
   @Override
+  public List<UserEntity> listUsersByRole(NameIdentifier ident) {
+    return UserMetaService.getInstance().listUsersByRole(ident);
+  }
+
+  @Override
+  public List<GroupEntity> listGroupsByRole(NameIdentifier ident) {
+    return GroupMetaService.getInstance().listGroupsByRole(ident);
+  }
+
+  @Override
   public void close() throws IOException {
     SqlSessionFactoryHelper.getInstance().close();
   }

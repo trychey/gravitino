@@ -23,11 +23,13 @@ import com.datastrato.gravitino.dto.requests.RoleRevokeRequest;
 import com.datastrato.gravitino.dto.requests.UserAddRequest;
 import com.datastrato.gravitino.dto.responses.DeleteResponse;
 import com.datastrato.gravitino.dto.responses.DropResponse;
+import com.datastrato.gravitino.dto.responses.GroupListResponse;
 import com.datastrato.gravitino.dto.responses.GroupResponse;
 import com.datastrato.gravitino.dto.responses.MetalakeListResponse;
 import com.datastrato.gravitino.dto.responses.MetalakeResponse;
 import com.datastrato.gravitino.dto.responses.RemoveResponse;
 import com.datastrato.gravitino.dto.responses.RoleResponse;
+import com.datastrato.gravitino.dto.responses.UserListResponse;
 import com.datastrato.gravitino.dto.responses.UserResponse;
 import com.datastrato.gravitino.exceptions.GroupAlreadyExistsException;
 import com.datastrato.gravitino.exceptions.MetalakeAlreadyExistsException;
@@ -571,6 +573,50 @@ public class GravitinoAdminClient extends GravitinoClientBase implements Support
     resp.validate();
 
     return resp.getGroup();
+  }
+
+  /**
+   * List all users that has the role.
+   *
+   * @param metalake The metalake of the Role.
+   * @param role The name of the Role.
+   * @return The Users that has the role
+   * @throws NoSuchRoleException If the Role with the given name does not exist.
+   * @throws NoSuchMetalakeException If the Metalake with the given name does not exist.
+   */
+  public User[] listUsersByRole(String metalake, String role)
+      throws NoSuchRoleException, NoSuchMetalakeException {
+    UserListResponse resp =
+        restClient.get(
+            String.format(API_PERMISSION_PATH, metalake, String.format("roles/%s/users", role)),
+            UserListResponse.class,
+            Collections.emptyMap(),
+            ErrorHandlers.permissionOperationErrorHandler());
+    resp.validate();
+
+    return resp.getUsers();
+  }
+
+  /**
+   * List all groups that has the role.
+   *
+   * @param metalake The metalake of the Role.
+   * @param role The name of the Role.
+   * @return The Groups that has the role
+   * @throws NoSuchRoleException If the Role with the given name does not exist.
+   * @throws NoSuchMetalakeException If the Metalake with the given name does not exist.
+   */
+  public Group[] listGroupByRole(String metalake, String role)
+      throws NoSuchRoleException, NoSuchMetalakeException {
+    GroupListResponse resp =
+        restClient.get(
+            String.format(API_PERMISSION_PATH, metalake, String.format("roles/%s/groups", role)),
+            GroupListResponse.class,
+            Collections.emptyMap(),
+            ErrorHandlers.permissionOperationErrorHandler());
+    resp.validate();
+
+    return resp.getGroups();
   }
 
   /**

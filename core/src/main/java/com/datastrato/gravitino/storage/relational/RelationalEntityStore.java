@@ -17,6 +17,8 @@ import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.Namespace;
 import com.datastrato.gravitino.exceptions.AlreadyExistsException;
 import com.datastrato.gravitino.exceptions.NoSuchEntityException;
+import com.datastrato.gravitino.meta.GroupEntity;
+import com.datastrato.gravitino.meta.UserEntity;
 import com.datastrato.gravitino.utils.Executable;
 import com.google.common.collect.ImmutableMap;
 import java.io.IOException;
@@ -115,6 +117,16 @@ public class RelationalEntityStore implements EntityStore {
   @Override
   public String fetchExternalFilesetName(String storageLocation) {
     return backend.fetchExternalFilesetName(storageLocation);
+  }
+
+  @Override
+  public List<UserEntity> listUsersByRole(NameIdentifier ident) {
+    return backend.listUsersByRole(ident);
+  }
+
+  @Override
+  public List<GroupEntity> listGroupsByRole(NameIdentifier ident) {
+    return backend.listGroupsByRole(ident);
   }
 
   @Override

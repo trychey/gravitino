@@ -22,6 +22,7 @@ import com.google.common.collect.Sets;
 import java.time.Instant;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -610,5 +611,62 @@ class TestGroupMetaService extends TestJDBCBackend {
         () -> groupMetaService.getGroupByIdentifier(group2.nameIdentifier()));
     Assertions.assertEquals(0, roleMetaService.listRolesByGroupId(group1.id()).size());
     Assertions.assertEquals(0, roleMetaService.listRolesByGroupId(group2.id()).size());
+  }
+
+  @Test
+  void testListGroupsByRole() {
+    AuditInfo auditInfo =
+        AuditInfo.builder().withCreator("creator").withCreateTime(Instant.now()).build();
+    BaseMetalake metalake =
+        createBaseMakeLake(RandomIdGenerator.INSTANCE.nextId(), metalakeName, auditInfo);
+    backend.insert(metalake, false);
+
+    GroupMetaService groupMetaService = GroupMetaService.getInstance();
+    RoleMetaService roleMetaService = RoleMetaService.getInstance();
+
+    RoleEntity role1 =
+        createRoleEntity(
+            RandomIdGenerator.INSTANCE.nextId(),
+            AuthorizationUtils.ofRoleNamespace(metalakeName),
+            "role1",
+            auditInfo);
+    RoleEntity role2 =
+        createRoleEntity(
+            RandomIdGenerator.INSTANCE.nextId(),
+            AuthorizationUtils.ofRoleNamespace(metalakeName),
+            "role2",
+            auditInfo);
+    roleMetaService.insertRole(role1, false);
+    roleMetaService.insertRole(role2, false);
+    GroupEntity user1 =
+        createGroupEntity(
+            RandomIdGenerator.INSTANCE.nextId(),
+            AuthorizationUtils.ofGroupNamespace(metalakeName),
+            "group1",
+            auditInfo,
+            Lists.newArrayList(role1.name(), role2.name()),
+            Lists.newArrayList(role1.id(), role2.id()));
+    GroupEntity user2 =
+        createGroupEntity(
+            RandomIdGenerator.INSTANCE.nextId(),
+            AuthorizationUtils.ofGroupNamespace(metalakeName),
+            "group2",
+            auditInfo,
+            Lists.newArrayList(role1.name()),
+            Lists.newArrayList(role1.id()));
+    groupMetaService.insertGroup(user1, false);
+    groupMetaService.insertGroup(user2, false);
+
+    List<GroupEntity> groups = groupMetaService.listGroupsByRole(role1.nameIdentifier());
+    Assertions.assertEquals(2, groups.size());
+    Assertions.assertEquals(
+        Sets.newHashSet(user1.name(), user2.name()),
+        groups.stream().map(GroupEntity::name).collect(Collectors.toSet()));
+
+    groups = groupMetaService.listGroupsByRole(role2.nameIdentifier());
+    Assertions.assertEquals(1, groups.size());
+    Assertions.assertEquals(
+        Sets.newHashSet(user1.name()),
+        groups.stream().map(GroupEntity::name).collect(Collectors.toSet()));
   }
 }

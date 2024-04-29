@@ -15,7 +15,9 @@ import com.datastrato.gravitino.dto.authorization.UserDTO;
 import com.datastrato.gravitino.dto.requests.RoleGrantRequest;
 import com.datastrato.gravitino.dto.requests.RoleRevokeRequest;
 import com.datastrato.gravitino.dto.responses.ErrorResponse;
+import com.datastrato.gravitino.dto.responses.GroupListResponse;
 import com.datastrato.gravitino.dto.responses.GroupResponse;
+import com.datastrato.gravitino.dto.responses.UserListResponse;
 import com.datastrato.gravitino.dto.responses.UserResponse;
 import com.google.common.collect.Lists;
 import java.time.Instant;
@@ -141,5 +143,69 @@ public class TestPermission extends TestBase {
     buildMockResource(Method.DELETE, groupPath, null, errResp, SC_SERVER_ERROR);
     Assertions.assertThrows(
         RuntimeException.class, () -> client.revokeRolesFromGroup(metalakeName, roles, group));
+  }
+
+  @Test
+  public void testListUserByRole() throws Exception {
+    String role = "role";
+    String path =
+        String.format(API_PERMISSION_PATH, metalakeName, String.format("roles/%s/users", role));
+    UserDTO userDTO1 =
+        UserDTO.builder()
+            .withName("user1")
+            .withRoles(Lists.newArrayList())
+            .withAudit(AuditDTO.builder().withCreator("test").withCreateTime(Instant.now()).build())
+            .build();
+    UserDTO userDTO2 =
+        UserDTO.builder()
+            .withName("user2")
+            .withRoles(Lists.newArrayList())
+            .withAudit(AuditDTO.builder().withCreator("test").withCreateTime(Instant.now()).build())
+            .build();
+    UserListResponse response = new UserListResponse(new UserDTO[] {userDTO1, userDTO2});
+
+    buildMockResource(Method.GET, path, null, response, SC_OK);
+    User[] users = client.listUsersByRole(metalakeName, role);
+    Assertions.assertEquals(2, users.length);
+    Assertions.assertEquals(userDTO1.name(), users[0].name());
+    Assertions.assertEquals(userDTO2.name(), users[1].name());
+
+    // test Exception
+    ErrorResponse errResp = ErrorResponse.internalError("internal error");
+    buildMockResource(Method.GET, path, null, errResp, SC_SERVER_ERROR);
+    Assertions.assertThrows(
+        RuntimeException.class, () -> client.listUsersByRole(metalakeName, role));
+  }
+
+  @Test
+  public void testListGroupByRole() throws Exception {
+    String role = "role";
+    String path =
+        String.format(API_PERMISSION_PATH, metalakeName, String.format("roles/%s/groups", role));
+    GroupDTO groupDTO1 =
+        GroupDTO.builder()
+            .withName("group1")
+            .withRoles(Lists.newArrayList())
+            .withAudit(AuditDTO.builder().withCreator("test").withCreateTime(Instant.now()).build())
+            .build();
+    GroupDTO groupDTO2 =
+        GroupDTO.builder()
+            .withName("group2")
+            .withRoles(Lists.newArrayList())
+            .withAudit(AuditDTO.builder().withCreator("test").withCreateTime(Instant.now()).build())
+            .build();
+    GroupListResponse response = new GroupListResponse(new GroupDTO[] {groupDTO1, groupDTO2});
+
+    buildMockResource(Method.GET, path, null, response, SC_OK);
+    Group[] groups = client.listGroupByRole(metalakeName, role);
+    Assertions.assertEquals(2, groups.length);
+    Assertions.assertEquals(groupDTO1.name(), groups[0].name());
+    Assertions.assertEquals(groupDTO2.name(), groups[1].name());
+
+    // test Exception
+    ErrorResponse errResp = ErrorResponse.internalError("internal error");
+    buildMockResource(Method.GET, path, null, errResp, SC_SERVER_ERROR);
+    Assertions.assertThrows(
+        RuntimeException.class, () -> client.listUsersByRole(metalakeName, role));
   }
 }

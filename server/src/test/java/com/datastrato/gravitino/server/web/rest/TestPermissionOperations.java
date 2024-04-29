@@ -15,13 +15,18 @@ import static org.mockito.Mockito.when;
 import com.datastrato.gravitino.Config;
 import com.datastrato.gravitino.GravitinoEnv;
 import com.datastrato.gravitino.authorization.AccessControlManager;
+import com.datastrato.gravitino.authorization.AuthorizationUtils;
 import com.datastrato.gravitino.authorization.Group;
 import com.datastrato.gravitino.authorization.User;
+import com.datastrato.gravitino.dto.authorization.GroupDTO;
+import com.datastrato.gravitino.dto.authorization.UserDTO;
 import com.datastrato.gravitino.dto.requests.RoleGrantRequest;
 import com.datastrato.gravitino.dto.requests.RoleRevokeRequest;
 import com.datastrato.gravitino.dto.responses.ErrorConstants;
 import com.datastrato.gravitino.dto.responses.ErrorResponse;
+import com.datastrato.gravitino.dto.responses.GroupListResponse;
 import com.datastrato.gravitino.dto.responses.GroupResponse;
+import com.datastrato.gravitino.dto.responses.UserListResponse;
 import com.datastrato.gravitino.dto.responses.UserResponse;
 import com.datastrato.gravitino.exceptions.NoSuchMetalakeException;
 import com.datastrato.gravitino.exceptions.NoSuchRoleException;
@@ -31,9 +36,13 @@ import com.datastrato.gravitino.meta.AuditInfo;
 import com.datastrato.gravitino.meta.GroupEntity;
 import com.datastrato.gravitino.meta.UserEntity;
 import com.datastrato.gravitino.rest.RESTUtils;
+import com.datastrato.gravitino.storage.RandomIdGenerator;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.Application;
@@ -376,6 +385,110 @@ public class TestPermissionOperations extends JerseyTest {
         Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), resp3.getStatus());
 
     ErrorResponse errorResponse = resp3.readEntity(ErrorResponse.class);
+    Assertions.assertEquals(ErrorConstants.INTERNAL_ERROR_CODE, errorResponse.getCode());
+    Assertions.assertEquals(RuntimeException.class.getSimpleName(), errorResponse.getType());
+  }
+
+  @Test
+  public void testListGroupsByRole() {
+    GroupEntity group1 =
+        GroupEntity.builder()
+            .withId(RandomIdGenerator.INSTANCE.nextId())
+            .withName("group1")
+            .withAuditInfo(
+                AuditInfo.builder().withCreator("test").withCreateTime(Instant.now()).build())
+            .withNamespace(AuthorizationUtils.ofGroupNamespace("metalake"))
+            .build();
+    GroupEntity group2 =
+        GroupEntity.builder()
+            .withId(RandomIdGenerator.INSTANCE.nextId())
+            .withName("group2")
+            .withAuditInfo(
+                AuditInfo.builder().withCreator("test").withCreateTime(Instant.now()).build())
+            .withNamespace(AuthorizationUtils.ofGroupNamespace("metalake"))
+            .build();
+    when(manager.listGroupsByRole(any(), any()))
+        .thenReturn(Lists.newArrayList(group1, group2).toArray(new GroupEntity[0]));
+
+    Response resp =
+        target("/metalakes/metalake1/permissions/roles/role1/groups")
+            .request(MediaType.APPLICATION_JSON_TYPE)
+            .accept("application/vnd.gravitino.v1+json")
+            .get();
+
+    Assertions.assertEquals(Response.Status.OK.getStatusCode(), resp.getStatus());
+    GroupListResponse groupListResponse = resp.readEntity(GroupListResponse.class);
+    Assertions.assertEquals(0, groupListResponse.getCode());
+
+    GroupDTO[] groups = groupListResponse.getGroups();
+    Assertions.assertEquals(2, groups.length);
+    Assertions.assertEquals(
+        Sets.newHashSet(group1.name(), group2.name()),
+        Arrays.stream(groups).map(GroupDTO::name).collect(Collectors.toSet()));
+
+    doThrow(new RuntimeException("mock error")).when(manager).listGroupsByRole(any(), any());
+    Response resp1 =
+        target("/metalakes/metalake1/permissions/roles/role1/groups")
+            .request(MediaType.APPLICATION_JSON_TYPE)
+            .accept("application/vnd.gravitino.v1+json")
+            .get();
+
+    Assertions.assertEquals(
+        Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), resp1.getStatus());
+
+    ErrorResponse errorResponse = resp1.readEntity(ErrorResponse.class);
+    Assertions.assertEquals(ErrorConstants.INTERNAL_ERROR_CODE, errorResponse.getCode());
+    Assertions.assertEquals(RuntimeException.class.getSimpleName(), errorResponse.getType());
+  }
+
+  @Test
+  public void testListUsersByRole() {
+    UserEntity user1 =
+        UserEntity.builder()
+            .withId(RandomIdGenerator.INSTANCE.nextId())
+            .withName("user1")
+            .withAuditInfo(
+                AuditInfo.builder().withCreator("test").withCreateTime(Instant.now()).build())
+            .withNamespace(AuthorizationUtils.ofGroupNamespace("metalake"))
+            .build();
+    UserEntity user2 =
+        UserEntity.builder()
+            .withId(RandomIdGenerator.INSTANCE.nextId())
+            .withName("user2")
+            .withAuditInfo(
+                AuditInfo.builder().withCreator("test").withCreateTime(Instant.now()).build())
+            .withNamespace(AuthorizationUtils.ofGroupNamespace("metalake"))
+            .build();
+    when(manager.listUsersByRole(any(), any()))
+        .thenReturn(Lists.newArrayList(user1, user2).toArray(new UserEntity[0]));
+
+    Response resp =
+        target("/metalakes/metalake1/permissions/roles/role1/users")
+            .request(MediaType.APPLICATION_JSON_TYPE)
+            .accept("application/vnd.gravitino.v1+json")
+            .get();
+
+    Assertions.assertEquals(Response.Status.OK.getStatusCode(), resp.getStatus());
+    UserListResponse userListResponse = resp.readEntity(UserListResponse.class);
+    Assertions.assertEquals(0, userListResponse.getCode());
+
+    UserDTO[] users = userListResponse.getUsers();
+    Assertions.assertEquals(2, users.length);
+    Assertions.assertEquals(
+        Sets.newHashSet(user1.name(), user2.name()),
+        Arrays.stream(users).map(UserDTO::name).collect(Collectors.toSet()));
+
+    doThrow(new RuntimeException("mock error")).when(manager).listUsersByRole(any(), any());
+    Response resp1 =
+        target("/metalakes/metalake1/permissions/roles/role1/users")
+            .request(MediaType.APPLICATION_JSON_TYPE)
+            .accept("application/vnd.gravitino.v1+json")
+            .get();
+
+    Assertions.assertEquals(
+        Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), resp1.getStatus());
+
+    ErrorResponse errorResponse = resp1.readEntity(ErrorResponse.class);
     Assertions.assertEquals(ErrorConstants.INTERNAL_ERROR_CODE, errorResponse.getCode());
     Assertions.assertEquals(RuntimeException.class.getSimpleName(), errorResponse.getType());
   }

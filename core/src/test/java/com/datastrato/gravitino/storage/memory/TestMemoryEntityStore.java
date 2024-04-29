@@ -155,6 +155,16 @@ public class TestMemoryEntityStore {
     }
 
     @Override
+    public List<UserEntity> listUsersByRole(NameIdentifier ident) {
+      throw new UnsupportedOperationException("Unsupported method in MemoryEntityStore.");
+    }
+
+    @Override
+    public List<GroupEntity> listGroupsByRole(NameIdentifier ident) {
+      throw new UnsupportedOperationException("Unsupported method in MemoryEntityStore.");
+    }
+
+    @Override
     public void close() throws IOException {
       entityMap.clear();
     }
