@@ -604,6 +604,7 @@ tasks {
       copy {
         when (cluster) {
           "staging" -> from(projectDir.dir("conf/staging")) { into("package/conf") }
+          "tjwq" -> from(projectDir.dir("conf/tjwq")) { into("package/conf") }
           "zjy" -> from(projectDir.dir("conf/zjy")) { into("package/conf") }
           else -> from(projectDir.dir("conf/template")) { into("package/conf") }
         }

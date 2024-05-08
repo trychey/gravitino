@@ -67,6 +67,8 @@ tasks {
     when (cluster) {
       "staging" ->
         from("src/main/resources/staging")
+      "tjwq" ->
+        from("src/main/resources/tjwq")
       "zjy" ->
         from("src/main/resources/zjy")
       else ->
