@@ -72,13 +72,11 @@ public class FilesetGarbageCleanJob {
     }
   }
 
-  @VisibleForTesting
-  static void executeJob() {
-    // TODO Using simple auth now, we should replace it with token in the future.
+  private static void executeJob() {
     try (GravitinoClient client =
         GravitinoClient.builder(cliParser.getGravitinoServerUri())
             .withMetalake(cliParser.getGravitinoMetalake())
-            .withSimpleAuth()
+            .withSimpleAuth(cliParser.getSuperUser())
             .build()) {
       Catalog filesetCatalog =
           client.loadCatalog(

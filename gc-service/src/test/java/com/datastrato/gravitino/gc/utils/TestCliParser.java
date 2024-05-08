@@ -55,7 +55,9 @@ public class TestCliParser {
           "--" + CliConstants.DATE,
           "20240408",
           "--" + CliConstants.PRINCIPAL_FILE_PATH,
-          "file:/xxx/xxx/xxx"
+          "file:/xxx/xxx/xxx",
+          "--" + CliConstants.SUPER_USER,
+          "test"
         };
     CliParser cliParser = new CliParser(args5);
     assertEquals("http://localhost:8090", cliParser.getGravitinoServerUri());
@@ -63,5 +65,6 @@ public class TestCliParser {
     assertEquals("test_catalog", cliParser.getFilesetCatalog());
     assertEquals("20240408", cliParser.getDate());
     assertEquals("file:/xxx/xxx/xxx", cliParser.getPrincipalFilePath());
+    assertEquals("test", cliParser.getSuperUser());
   }
 }

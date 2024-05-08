@@ -12,6 +12,7 @@ public class CliConstants {
   public static final String DATE = "date";
   public static final String PRINCIPAL_FILE_PATH = "principal_file_path";
   public static final String SKIP_TRASH = "skip_trash";
+  public static final String SUPER_USER = "super_user";
 
   private CliConstants() {}
 }

@@ -20,6 +20,7 @@ public class CliParser {
   private String date;
   private String principalFilePath;
   private Boolean skipTrash;
+  private String superUser;
 
   public CliParser(String[] args) {
     Options options = new Options();
@@ -29,6 +30,7 @@ public class CliParser {
     options.addOption(CliConstants.DATE, true, "date");
     options.addOption(CliConstants.PRINCIPAL_FILE_PATH, true, "principal file path");
     options.addOption(CliConstants.SKIP_TRASH, true, "skip clean files to trash");
+    options.addOption(CliConstants.SUPER_USER, true, "super user information");
     try {
       BasicParser basicParser = new BasicParser();
       CommandLine commandLine = basicParser.parse(options, args);
@@ -52,6 +54,9 @@ public class CliParser {
               "Principal file path should not be null");
       this.skipTrash =
           Boolean.valueOf(commandLine.getOptionValue(CliConstants.SKIP_TRASH, "false"));
+      this.superUser =
+          checkNotNull(
+              commandLine.getOptionValue(CliConstants.SUPER_USER), "Super user should not be null");
     } catch (ParseException e) {
       throw new RuntimeException("Failed to parse arguments, exception:", e);
     }
@@ -79,5 +84,9 @@ public class CliParser {
 
   public Boolean skipTrash() {
     return skipTrash;
+  }
+
+  public String getSuperUser() {
+    return superUser;
   }
 }
