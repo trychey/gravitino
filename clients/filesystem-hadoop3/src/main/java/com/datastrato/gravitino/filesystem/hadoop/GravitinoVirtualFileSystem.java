@@ -497,6 +497,14 @@ public class GravitinoVirtualFileSystem extends FileSystem {
         pattern.getExample(), maxLevel);
   }
 
+  private void logOperations(String methodName, FilesetContext context) {
+    Logger.debug(
+        "[{}]: Accessing fileset: `{}`'s path: `{}`.",
+        methodName,
+        context.getIdentifier().toString(),
+        context.getVirtualPath().toString());
+  }
+
   @Override
   public URI getUri() {
     return this.uri;
@@ -510,6 +518,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   @Override
   public synchronized void setWorkingDirectory(Path newDir) {
     FilesetContext context = getFilesetContext(newDir);
+    logOperations("setWorkingDirectory", context);
     context.getFileSystem().setWorkingDirectory(context.getActualPath());
     this.workingDirectory = newDir;
   }
@@ -517,6 +526,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   @Override
   public FSDataInputStream open(Path path, int bufferSize) throws IOException {
     FilesetContext context = getFilesetContext(path);
+    logOperations("open", context);
     return context.getFileSystem().open(context.getActualPath(), bufferSize);
   }
 
@@ -533,6 +543,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     FilesetContext context = getFilesetContext(path);
     // Create operation is only supported for files.
     checkPathValid(context, true);
+    logOperations("create", context);
     return context
         .getFileSystem()
         .create(
@@ -551,6 +562,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     FilesetContext context = getFilesetContext(path);
     // Append operation is only supported for files.
     checkPathValid(context, true);
+    logOperations("append", context);
     return context.getFileSystem().append(context.getActualPath(), bufferSize, progress);
   }
 
@@ -581,6 +593,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
 
     checkRenamePathValid(srcFileContext, dstFileContext);
 
+    logOperations("rename", srcFileContext);
     return srcFileContext
         .getFileSystem()
         .rename(srcFileContext.getActualPath(), dstFileContext.getActualPath());
@@ -589,6 +602,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   @Override
   public boolean delete(Path path, boolean recursive) throws IOException {
     FilesetContext context = getFilesetContext(path);
+    logOperations("delete", context);
     return context.getFileSystem().delete(context.getActualPath(), recursive);
   }
 
@@ -596,6 +610,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   public FileStatus getFileStatus(Path path) throws IOException {
     FilesetContext context = getFilesetContext(path);
     FileStatus fileStatus = context.getFileSystem().getFileStatus(context.getActualPath());
+    logOperations("getFileStatus", context);
     return convertFileStatusPathPrefix(
         fileStatus,
         context.getFileset().storageLocation(),
@@ -606,6 +621,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   public FileStatus[] listStatus(Path path) throws IOException {
     FilesetContext context = getFilesetContext(path);
     FileStatus[] fileStatusResults = context.getFileSystem().listStatus(context.getActualPath());
+    logOperations("listStatus", context);
     return Arrays.stream(fileStatusResults)
         .map(
             fileStatus ->
@@ -621,6 +637,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     FilesetContext context = getFilesetContext(path);
     // Mkdirs operation is only supported for dirs.
     checkPathValid(context, false);
+    logOperations("mkdirs", context);
     return context.getFileSystem().mkdirs(context.getActualPath(), permission);
   }
 
