@@ -424,21 +424,26 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   }
 
   private boolean checkSubDirValid(
-      FilesetContext context, Pattern pattern, FilesetPrefixProperties prefixProperties) {
+      FilesetContext context, FilesetPrefixProperties prefixProperties, boolean isFile) {
     Path storageLocation = new Path(context.getFileset().storageLocation());
     // match sub dir like `/xxx/yyy`
     String subDir =
         context.getActualPath().toString().substring(storageLocation.toString().length());
     if (StringUtils.isNotBlank(subDir)) {
-      Matcher matcher = pattern.matcher(subDir);
-      if (!matcher.matches()) {
-        // In this case, the sub dir level must be greater than the dir max level
+      // If the prefix is not match, return false immediately
+      if (!FilesetPrefixPatternUtils.checkPrefixValid(subDir, prefixProperties.getPattern())) {
+        return false;
+      }
+      // If the max level is not match, try to check if there is a temporary directory
+      if (!FilesetPrefixPatternUtils.checkLevelValid(
+          subDir, prefixProperties.getMaxLevel(), isFile)) {
+        // In this case, the sub dir level is greater than the dir max level
         String[] dirNames =
             subDir.startsWith(SLASH) ? subDir.substring(1).split(SLASH) : subDir.split(SLASH);
-        // Try to check subdirectories before max level having temporary directory,
+        // Try to check subdirectories before max level + 1 having temporary directory,
         // if so, we pass the check
         for (int index = 0;
-            index < prefixProperties.getMaxLevel() && index < dirNames.length;
+            index < prefixProperties.getMaxLevel() + 1 && index < dirNames.length;
             index++) {
           if (dirNames[index].startsWith(UNDER_SCORE) || dirNames[index].startsWith(DOT)) {
             return true;
@@ -452,10 +457,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
 
   private void checkPathValid(FilesetContext context, boolean isFile) {
     FilesetPrefixProperties prefixProperties = getFilesetPrefixProperties(context);
-    Pattern pattern =
-        FilesetPrefixPatternUtils.combinePrefixPattern(
-            prefixProperties.getPattern(), prefixProperties.getMaxLevel(), isFile);
-    boolean valid = checkSubDirValid(context, pattern, prefixProperties);
+    boolean valid = checkSubDirValid(context, prefixProperties, isFile);
     if (!valid) {
       throw new InvalidPathException(
           context.getVirtualPath().toString(),
@@ -469,20 +471,14 @@ public class GravitinoVirtualFileSystem extends FileSystem {
 
     FileStatus srcPathStatus = srcContext.getFileSystem().getFileStatus(srcContext.getActualPath());
     if (srcPathStatus != null) {
-      Pattern pattern =
-          FilesetPrefixPatternUtils.combinePrefixPattern(
-              prefixProperties.getPattern(),
-              prefixProperties.getMaxLevel(),
-              srcPathStatus.isFile());
-
-      boolean srcValid = checkSubDirValid(srcContext, pattern, prefixProperties);
+      boolean srcValid = checkSubDirValid(srcContext, prefixProperties, srcPathStatus.isFile());
       if (!srcValid) {
         throw new InvalidPathException(
             srcContext.getVirtualPath().toString(),
             prefixErrorMessage(prefixProperties.getPattern(), prefixProperties.getMaxLevel()));
       }
 
-      boolean dstValid = checkSubDirValid(dstContext, pattern, prefixProperties);
+      boolean dstValid = checkSubDirValid(dstContext, prefixProperties, srcPathStatus.isFile());
       if (!dstValid) {
         throw new InvalidPathException(
             dstContext.getVirtualPath().toString(),

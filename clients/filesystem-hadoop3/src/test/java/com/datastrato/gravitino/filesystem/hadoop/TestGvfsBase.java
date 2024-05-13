@@ -483,6 +483,19 @@ public class TestGvfsBase extends GravitinoMockServerBase {
       FileSystemTestUtils.create(validPath2, gravitinoFileSystem);
       assertTrue(gravitinoFileSystem.exists(validPath2));
       gravitinoFileSystem.delete(validPath2, true);
+
+      // test temporary dir 3
+      Path validPath3 = new Path(filesetD1Path + "/20240408/.temporary/xxx/ddd/zzz.parquet");
+      assertThrows(
+          InvalidPathException.class,
+          () -> FileSystemTestUtils.create(validPath3, gravitinoFileSystem));
+
+      // test temporary dir 4
+      Path validPath4 =
+          new Path(filesetD1Path + "/date=20240408/xxx/zzz/.temporary/xxx/ddd/zzz.parquet");
+      FileSystemTestUtils.create(validPath4, gravitinoFileSystem);
+      assertTrue(gravitinoFileSystem.exists(validPath4));
+      gravitinoFileSystem.delete(validPath4, true);
     }
   }
 
@@ -828,6 +841,33 @@ public class TestGvfsBase extends GravitinoMockServerBase {
       assertTrue(gravitinoFileSystem.exists(gvfsTmpDstLevelPath2));
       gravitinoFileSystem.delete(gvfsTmpDstLevelPath2, true);
       assertFalse(gravitinoFileSystem.exists(gvfsTmpDstLevelPath2));
+
+      // test invalid src temporary directory
+      String subValidSrcLevelPath4 = "/20240408/www.parquet";
+      String tmpDstLevelPath2 = "/20240408/_temp/ddd/xxx/zzz.parquet";
+      Path localSrcLevelPath2 = new Path(localRenamePath2 + subValidSrcLevelPath4);
+      Path gvfsSrcLevelPath2 = new Path(filesetRenamePath2 + subValidSrcLevelPath4);
+      Path gvfsTmpDstLevelPath3 = new Path(filesetRenamePath2 + tmpDstLevelPath2);
+      localFileSystem.create(localSrcLevelPath2);
+      assertTrue(localFileSystem.exists(localSrcLevelPath2));
+      assertTrue(gravitinoFileSystem.exists(gvfsSrcLevelPath2));
+      assertThrows(
+          InvalidPathException.class,
+          () -> gravitinoFileSystem.rename(gvfsSrcLevelPath2, gvfsTmpDstLevelPath3));
+
+      // test src temporary files
+      String subValidDstLevelPath5 = "/date=20240408/xxx.parquet";
+      String tmpSrcLevelPath2 = "/date=20240408/qqq/ddd/_temporary/zzz/ddd/www.parquet";
+      Path localTmpSrcLevelPath3 = new Path(localRenamePath2 + tmpSrcLevelPath2);
+      Path gvfsTmpSrcLevelPath3 = new Path(filesetRenamePath2 + tmpSrcLevelPath2);
+      Path gvfsValidDstLevelPath3 = new Path(filesetRenamePath2 + subValidDstLevelPath5);
+      localFileSystem.create(localTmpSrcLevelPath3);
+      assertTrue(localFileSystem.exists(localTmpSrcLevelPath3));
+      assertTrue(gravitinoFileSystem.exists(gvfsTmpSrcLevelPath3));
+      gravitinoFileSystem.rename(gvfsTmpSrcLevelPath3, gvfsValidDstLevelPath3);
+      assertTrue(gravitinoFileSystem.exists(gvfsValidDstLevelPath3));
+      gravitinoFileSystem.delete(gvfsValidDstLevelPath3, true);
+      assertFalse(gravitinoFileSystem.exists(gvfsValidDstLevelPath3));
     }
 
     // test file rename with any
@@ -1554,6 +1594,12 @@ public class TestGvfsBase extends GravitinoMockServerBase {
       FileSystemTestUtils.mkdirs(validPath2, gravitinoFileSystem);
       assertTrue(gravitinoFileSystem.exists(validPath2));
       gravitinoFileSystem.delete(validPath2, true);
+
+      // test temporary dir 3
+      Path validPath3 = new Path(filesetD1Path + "/20240408/.temporary/xxx/ddd/zzz");
+      assertThrows(
+          InvalidPathException.class,
+          () -> FileSystemTestUtils.mkdirs(validPath3, gravitinoFileSystem));
     }
   }
 
