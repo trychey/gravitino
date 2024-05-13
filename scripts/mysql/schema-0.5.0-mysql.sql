@@ -183,3 +183,9 @@ CREATE TABLE IF NOT EXISTS `group_role_rel` (
     UNIQUE KEY `uk_gi_ri_del` (`group_id`, `role_id`, `deleted_at`),
     KEY `idx_rid` (`group_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT 'group role relation';
+
+ALTER TABLE `role_meta`
+    CHANGE COLUMN `role_name` `role_name` VARCHAR(512) NOT NULL COMMENT 'role name';
+
+ALTER TABLE `role_meta`
+    CHANGE COLUMN `securable_object_full_name` `securable_object_full_name` VARCHAR(512) NOT NULL COMMENT 'securable object full name';
