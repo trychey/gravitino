@@ -3,5 +3,94 @@
   ~ This software is licensed under the Apache License version 2.
   -->
 <configuration>
+  <property>
+    <name>fs.defaultFS</name>
+    <value>hdfs://zjyprc-hadoop</value>
+  </property>
+
+  <property>
+    <name>ha.zookeeper.quorum</name>
+    <value>zjy-hadoop-prc-zk01.bj:11000,zjy-hadoop-prc-zk02.bj:11000,zjy-hadoop-prc-zk03.bj:11000,zjy-hadoop-prc-zk04.bj:11000,zjy-hadoop-prc-zk05.bj:11000</value>
+  </property>
+
+  <property>
+    <name>hadoop.http.staticuser.user</name>
+    <value>yarn</value>
+  </property>
+
+  <property>
+    <name>hadoop.proxyuser.hive_prc.groups</name>
+    <value>*</value>
+  </property>
+
+  <property>
+    <name>hadoop.proxyuser.hive_prc.hosts</name>
+    <value>*</value>
+  </property>
+
+  <property>
+    <name>hadoop.proxyuser.hue.groups</name>
+    <value>*</value>
+  </property>
+
+  <property>
+    <name>hadoop.proxyuser.hue.hosts</name>
+    <value>*</value>
+  </property>
+
+  <property>
+    <name>hadoop.security.authentication</name>
+    <value>kerberos</value>
+  </property>
+
+  <property>
+    <name>hadoop.security.authorization</name>
+    <value>true</value>
+  </property>
+
+  <property>
+    <name>hadoop.security.use-weak-http-crypto</name>
+    <value>false</value>
+  </property>
+
+  <property>
+    <name>hadoop.tmp.dir</name>
+    <value>/tmp/hadoop</value>
+  </property>
+
+  <property>
+    <name>io.file.buffer.size</name>
+    <value>131072</value>
+  </property>
+
+  <property>
+    <name>ipc.client.ping</name>
+    <value>false</value>
+  </property>
+
+  <property>
+    <name>hbase.regionsizecalculator.enable</name>
+    <value>false</value>
+  </property>
+
+  <property>
+    <name>hadoop.client.kerberos.principal</name>
+    <value>h_data_platform@XIAOMI.HADOOP</value>
+  </property>
+
+  <property>
+    <name>hadoop.client.keytab.file</name>
+    <value>/etc/hadoop/conf/h_data_platform.keytab</value>
+  </property>
+
+  <property>
+    <name>fs.AbstractFileSystem.hdfs.impl</name>
+    <value>org.apache.hadoop.fs.FederatedHdfs</value>
+  </property>
+
+  <property>
+    <name>fs.hdfs.impl</name>
+    <value>org.apache.hadoop.hdfs.FederatedDFSFileSystem</value>
+  </property>
 </configuration>
 

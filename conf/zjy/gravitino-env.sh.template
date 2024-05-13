@@ -10,4 +10,5 @@
 # export GRAVITINO_HOME
 # export GRAVITINO_CONF_DIR
 # export GRAVITINO_LOG_DIR     # Where log files are stored.  PWD by default.
-# export GRAVITINO_MEM         # Gravitino jvm mem options Default -Xms1024m -Xmx1024m -XX:MaxMetaspaceSize=512m
+# Gravitino jvm mem options Default -Xms1024m -Xmx1024m -XX:MaxMetaspaceSize=512m
+export GRAVITINO_MEM="-Xms4096m -Xmx8192m"

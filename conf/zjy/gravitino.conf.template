@@ -20,7 +20,7 @@ gravitino.server.webserver.stopTimeout = 30000
 # The timeout of idle connections
 gravitino.server.webserver.idleTimeout = 30000
 # The executor thread pool work queue size of the built-in web server
-gravitino.server.webserver.threadPoolWorkQueueSize = 100
+gravitino.server.webserver.threadPoolWorkQueueSize = 500
 # The request header size of the built-in web server
 gravitino.server.webserver.requestHeaderSize = 131072
 # The response header size of the built-in web server
@@ -28,14 +28,22 @@ gravitino.server.webserver.responseHeaderSize = 131072
 
 # THE CONFIGURATION FOR Gravitino ENTITY STORE
 # The entity store to use, kv or relational
-gravitino.entity.store = kv
+gravitino.entity.store = relational
 
 # The RocksDB entity store
-gravitino.entity.store.kv = RocksDBKvBackend
+# gravitino.entity.store.kv = RocksDBKvBackend
 # The storage path for RocksDB storage implementation, it supports both absolute and relative path,
 # If the value is a relative path, the final path is "${GRAVITINO_HOME}/${PATH_YOU_HAVA_SET}", default value
 # is "${GRAVITINO_HOME}/data/rocksdb", please uncomment and change it in your production environment.
 # gravitino.entity.store.kv.rocksdbPath = data/rocksdb
+
+# The JDBC entity store
+gravitino.entity.store.relational = JDBCBackend
+gravitino.entity.store.relational.jdbcUrl = jdbc:mysql://gaea.info.bigdata.mysql.srv:12206/gravitino_meta_zjy?useUnicode=true&characterEncoding=utf-8&useSSL=false
+gravitino.entity.store.relational.jdbcDriver = com.mysql.jdbc.Driver
+# Encrypt by keycenter, sid = `compute-infra-meta`
+gravitino.entity.store.relational.jdbcUser = GCDb1LY2S+EefsZ0CdYh7mn4lU87n1ZflbQNmmy+t/c0FhgSg6wh3pDUQmi0XXWi9eGsQVwBGBAFMAbvyPVMBq8+WAduVjXFGBSEJad5J8Z6/iFxf3XpdUR3iArcbAA=
+gravitino.entity.store.relational.jdbcPassword = GDCym31pxO6QddCos8tWM88NfUUwA4SJjB2YQHI7DYOhD86Hj06Z4JlWOoeBXbh6IFoYEoOsId6Q1EJotF11ovXhrEFcARgQrnTz+iH+SMip/Oz0bAiozBgUx+Q/1Ajx5krEwcmLrTI5wfsKobMA
 
 # THE CONFIGURATION FOR Gravitino CATALOG
 # The interval in milliseconds to evict the catalog cache
@@ -51,3 +59,10 @@ gravitino.auxService.iceberg-rest.host = 0.0.0.0
 # Iceberg REST service http port
 gravitino.auxService.iceberg-rest.httpPort = 9001
 
+# Enable the authorization
+gravitino.authorization.enable = true
+
+# Gravitino super users authenticated by Simple Authenticator. Will encrypted by KeyCenter.
+gravitino.authenticator.simple.superUsers=GHDw4MVPIXtoHD97ru1KrJGzextjItnZgz5AYEspv1pUnffGOtn/u4yyAtFJsn+8L9gq6fmUJYEsQM7RE77mSl3xAGqahFBEmH4KYihiSFAjiYeuB9o57AiFUAegU8XGwAXB3RrGYWZPaSUI8EB5yBofGBLg4P0xEVZPGqqFbLyUg+a7RgEYEJnNmz3bHkkirqvaIn92TxIYFMKSejDJ5EFTcsW/SAEUtpkKWe9VAA==
+# Disable local environment for Simple Authenticator.
+gravitino.authenticator.simple.localEnv=false
