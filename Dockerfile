@@ -5,7 +5,11 @@ RUN echo "Build cluster is: $BUILD_CLUSTER"
 WORKDIR /opt
 COPY . ./
 
-RUN ./gradlew clean compileDistribution -Pcluster=$BUILD_CLUSTER -x test -g /root/.gradle/caches/$CI_COMMIT_BRANCH/
+RUN if [ "$BUILD_CLUSTER" = "tjwq" ] || [ "$BUILD_CLUSTER" = "zjy" ] ; then \
+  ./gradlew clean compileDistribution -Pcluster=$BUILD_CLUSTER -x test -g /root/.gradle/caches/$CI_COMMIT_TAG/$BUILD_CLUSTER/ ; \
+else \
+  ./gradlew clean compileDistribution -Pcluster=$BUILD_CLUSTER -x test -g /root/.gradle/caches/$CI_COMMIT_BRANCH/ ; \
+fi
 
 FROM micr.cloud.mioffice.cn/container/xiaomi_centos7:openjdk1.8
 ENV TZ "Asia/Shanghai"
