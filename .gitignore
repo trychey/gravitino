@@ -36,7 +36,7 @@ out/**
 *.ipr
 
 distribution
-common/src/main/resources/project.properties
+common/src/main/resources/gravitino-build-info.properties
 
 dev/docker/*/packages
 docs/build
@@ -53,5 +53,5 @@ include clients/client-python/.gitignore
 integration-test/metastore_db
 catalogs/catalog-lakehouse-iceberg/spark-warehouse
 
-# ignore project.properties
-**/src/main/resources/project.properties
+# ignore gravitino-build-info.properties
+**/src/main/resources/gravitino-build-info.properties
