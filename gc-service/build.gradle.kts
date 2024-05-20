@@ -18,8 +18,10 @@ dependencies {
   compileOnly("org.apache.spark:spark-sql_2.12:$sparkVersion")
 
   testImplementation(libs.hadoop3.common)
+  testImplementation(libs.hadoop3.minicluster)
   testImplementation(libs.junit.jupiter.api)
   testImplementation(libs.junit.jupiter.params)
+  testImplementation(libs.junit4)
   testImplementation(libs.mockito.core)
   testRuntimeOnly(libs.junit.jupiter.engine)
 }

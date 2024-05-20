@@ -16,6 +16,7 @@ import com.datastrato.gravitino.gc.utils.CliParser;
 import com.datastrato.gravitino.properties.FilesetProperties;
 import com.datastrato.gravitino.shaded.org.apache.commons.lang3.tuple.Pair;
 import com.google.common.collect.Maps;
+import java.io.File;
 import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
@@ -24,13 +25,20 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.TrashPolicy;
+import org.apache.hadoop.hdfs.MiniDFSCluster;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 
 public class TestFilesetGarbageCleanJob {
   private static final String LOCAL_FS_PREFIX =
       "file:/tmp/gravitino_test_clean_job_" + UUID.randomUUID().toString().replace("-", "");
+  @TempDir private static File tempDir;
+
+  private static MiniDFSCluster hdfsCluster;
 
   @BeforeAll
   public static void setUp() {
@@ -39,6 +47,34 @@ public class TestFilesetGarbageCleanJob {
     Mockito.when(cliParser.getDate()).thenReturn("20240401");
     Mockito.when(cliParser.getGravitinoMetalake()).thenReturn("metalake_1");
     Mockito.when(cliParser.getFilesetCatalog()).thenReturn("catalog_1");
+    try {
+      if (!tempDir.exists()) {
+        tempDir.mkdirs();
+      }
+      Configuration conf = new Configuration();
+      conf.set("fs.trash.interval", "1440");
+      conf.set(MiniDFSCluster.HDFS_MINIDFS_BASEDIR, tempDir.getAbsolutePath());
+      hdfsCluster = new MiniDFSCluster.Builder(conf).build();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @AfterAll
+  public static void tearDown() {
+    try (FileSystem fs = hdfsCluster.getFileSystem()) {
+      fs.delete(fs.getHomeDirectory(), true);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+    hdfsCluster.shutdown();
+    File localDir = new File(LOCAL_FS_PREFIX);
+    if (localDir.exists()) {
+      localDir.delete();
+    }
+    if (tempDir.exists()) {
+      tempDir.delete();
+    }
   }
 
   @Test
@@ -254,7 +290,7 @@ public class TestFilesetGarbageCleanJob {
     Pattern dayDirNamePattern = Pattern.compile("^day=(\\d{2})");
 
     FileStatus fileStatus = Mockito.mock(FileStatus.class);
-    Path dirPath = new Path("hdfs://localhost:8080/catalog/db/fileset/year=2024/month=01");
+    Path dirPath = new Path(LOCAL_FS_PREFIX + "/catalog/db/fileset/year=2024/month=01");
     Mockito.when(fileStatus.getPath()).thenReturn(dirPath);
     Mockito.when(fileStatus.isDirectory()).thenReturn(true);
 
@@ -263,8 +299,7 @@ public class TestFilesetGarbageCleanJob {
 
     for (int i = 0; i < 5; i++) {
       FileStatus dayStatus = Mockito.mock(FileStatus.class);
-      Path dayPath =
-          new Path("hdfs://localhost:8080/catalog/db/fileset/year=2024/month=01/day=0" + i);
+      Path dayPath = new Path(LOCAL_FS_PREFIX + "/catalog/db/fileset/year=2024/month=01/day=0" + i);
       Mockito.when(dayStatus.getPath()).thenReturn(dayPath);
       Mockito.when(dayStatus.isDirectory()).thenReturn(true);
       dayDirs[i] = dayStatus;
@@ -299,7 +334,7 @@ public class TestFilesetGarbageCleanJob {
     NameIdentifier identifier =
         NameIdentifier.ofFileset("test_metalake", "test_catalog", "test_schema", "test_fileset");
     FileStatus fileStatus = Mockito.mock(FileStatus.class);
-    Path dirPath = new Path("hdfs://localhost:8080/catalog/db/fileset/year=2024/month=01/day=01");
+    Path dirPath = new Path(LOCAL_FS_PREFIX + "/catalog/db/fileset/year=2024/month=01/day=01");
     Pattern dayDirNamePattern = Pattern.compile("^day=(\\d{2})");
     Mockito.when(fileStatus.getPath()).thenReturn(dirPath);
     Mockito.when(fileStatus.isDirectory()).thenReturn(true);
@@ -307,13 +342,13 @@ public class TestFilesetGarbageCleanJob {
     String extractedMonth = "01";
     Integer ttlDate = 20240401;
     FileSystem fs = Mockito.mock(FileSystem.class);
-    Mockito.when(fs.delete(dirPath, true, false)).thenReturn(true);
+    Mockito.when(fs.delete(dirPath, true)).thenReturn(true);
     assertTrue(
         FilesetGarbageCleanJob.processDayDir(
             identifier, fileStatus, dayDirNamePattern, extractedYear, extractedMonth, ttlDate, fs));
 
     FileSystem fs1 = Mockito.mock(FileSystem.class);
-    Mockito.when(fs.delete(dirPath, true, false)).thenThrow(IOException.class);
+    Mockito.when(fs.delete(dirPath, true)).thenThrow(IOException.class);
     assertFalse(
         FilesetGarbageCleanJob.processDayDir(
             identifier,
@@ -336,5 +371,20 @@ public class TestFilesetGarbageCleanJob {
             extractedMonth,
             ttlDate,
             fs));
+  }
+
+  @Test
+  @SuppressWarnings("deprecation")
+  public void testMoveToTrash() throws IOException {
+    try (FileSystem fs = hdfsCluster.getFileSystem()) {
+      Path hdfsPath = new Path(fs.getHomeDirectory() + "/tmp/test");
+      fs.mkdirs(hdfsPath);
+      FileStatus pathStatus = fs.getFileStatus(hdfsPath);
+      Mockito.when(FilesetGarbageCleanJob.cliParser.skipTrash()).thenReturn(false);
+      FilesetGarbageCleanJob.tryToDelete(fs, pathStatus);
+      TrashPolicy trashPolicy = TrashPolicy.getInstance(fs.getConf(), fs, fs.getHomeDirectory());
+      Path trashPath = Path.mergePaths(trashPolicy.getCurrentTrashDir(), hdfsPath);
+      assertTrue(fs.exists(trashPath));
+    }
   }
 }

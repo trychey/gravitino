@@ -31,6 +31,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.Trash;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
@@ -264,7 +265,7 @@ public class FilesetGarbageCleanJob {
                     subDir.getPath(),
                     ttlDate,
                     filesetPair.getLeft());
-                fs.delete(subDir.getPath(), true, cliParser.skipTrash());
+                tryToDelete(fs, subDir);
               }
             }
           }
@@ -282,7 +283,7 @@ public class FilesetGarbageCleanJob {
                     : Integer.parseInt(nameMatcher.group(1));
             if (extractedDate < ttlDate) {
               LOG.info(TRY_TO_DELETE_DIR_MESSAGE, subDir.getPath(), ttlDate, filesetPair.getLeft());
-              fs.delete(subDir.getPath(), true, cliParser.skipTrash());
+              tryToDelete(fs, subDir);
             }
           }
           break;
@@ -339,7 +340,7 @@ public class FilesetGarbageCleanJob {
                 subDir.getPath(),
                 ttlDate,
                 identifier);
-            return fs.delete(subDir.getPath(), true, cliParser.skipTrash());
+            return tryToDelete(fs, subDir);
           }
         }
       }
@@ -367,7 +368,7 @@ public class FilesetGarbageCleanJob {
         int dirDate = Integer.parseInt(extractedYear + extractedMonth + extractedDay);
         if (dirDate < ttlDate) {
           LOG.info(TRY_TO_DELETE_DIR_MESSAGE, subDir.getPath(), ttlDate, identifier);
-          return fs.delete(subDir.getPath(), true, cliParser.skipTrash());
+          return tryToDelete(fs, subDir);
         }
       }
     } catch (Exception e) {
@@ -375,5 +376,14 @@ public class FilesetGarbageCleanJob {
       return false;
     }
     return true;
+  }
+
+  @VisibleForTesting
+  static boolean tryToDelete(FileSystem fs, FileStatus subDir) throws IOException {
+    if (!cliParser.skipTrash() && subDir.getPath().toString().toLowerCase().startsWith("hdfs://")) {
+      return Trash.moveToAppropriateTrash(fs, subDir.getPath(), fs.getConf());
+    } else {
+      return fs.delete(subDir.getPath(), true);
+    }
   }
 }
