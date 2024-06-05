@@ -45,6 +45,8 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.InvalidPathException;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.security.Credentials;
+import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.util.Progressable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -635,6 +637,17 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     checkPathValid(context, false);
     logOperations("mkdirs", context);
     return context.getFileSystem().mkdirs(context.getActualPath(), permission);
+  }
+
+  @Override
+  public Token<?>[] addDelegationTokens(String renewer, Credentials credentials)
+      throws IOException {
+    return null;
+  }
+
+  @Override
+  public String getScheme() {
+    return "gvfs";
   }
 
   @Override
