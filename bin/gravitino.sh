@@ -127,6 +127,12 @@ HOSTNAME=$(hostname)
 GRAVITINO_OUTFILE="${GRAVITINO_LOG_DIR}/gravitino-server.out"
 GRAVITINO_SERVER_NAME=com.datastrato.gravitino.server.GravitinoServer
 
+HERA_AGENT_JAR_PATH="/home/work/app/mitelemetry/agent/opentelemetry-javaagent-all.jar"
+if [ -e "$HERA_AGENT_JAR_PATH" ]; then
+    echo "$HERA_AGENT_JAR_PATH is existed, start with the Hera probe."
+    JAVA_OPTS+=" -javaagent:$HERA_AGENT_JAR_PATH"
+fi
+
 JAVA_OPTS+=" -Dfile.encoding=UTF-8"
 JAVA_OPTS+=" -Dlog4j2.configurationFile=file://${GRAVITINO_CONF_DIR}/log4j2.properties"
 JAVA_OPTS+=" -Dgravitino.log.path=${GRAVITINO_LOG_DIR} ${GRAVITINO_MEM}"

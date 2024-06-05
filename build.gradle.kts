@@ -592,8 +592,8 @@ tasks {
     val cluster = if (project.hasProperty("cluster")) {
       project.property("cluster") as String
     } else {
-      println("Has no cluster property, use default cluster: staging")
-      "staging"
+      println("Has no cluster property, use default cluster: template")
+      "template"
     }
 
     println("Current cluster is : $cluster")
