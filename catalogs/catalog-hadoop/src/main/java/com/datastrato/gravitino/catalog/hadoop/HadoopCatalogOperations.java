@@ -54,7 +54,11 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.LocalFileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.AclEntry;
+import org.apache.hadoop.fs.permission.FsAction;
+import org.apache.hadoop.fs.permission.FsPermission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -767,10 +771,34 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
         LOG.warn(
             "Using existing managed storage location: `{}` for fileset: `{}`", filesetPath, ident);
       }
+      setPathPermission(fs, filesetPath);
+
       LOG.info("Created managed fileset {} location {}", ident, filesetPath);
     } catch (IOException ioe) {
       throw new RuntimeException(
           "Failed to create managed fileset " + ident + " location " + filesetPath, ioe);
+    }
+  }
+
+  private void setPathPermission(FileSystem fs, Path filesetPath) {
+    if (fs instanceof LocalFileSystem) {
+      // skip unit test
+      return;
+    }
+
+    try {
+      FsPermission permission = new FsPermission(FsAction.ALL, FsAction.ALL, FsAction.NONE);
+      fs.setPermission(filesetPath, permission);
+
+      String platformAcl = "user:h_data_platform:rwx,default:user:h_data_platform:rwx";
+      String sqlPrcAcl = "user:sql_prc:rwx,default:user:sql_prc:rwx";
+      String otherAcl = "other::---,default:other::r-x";
+      List<AclEntry> aclEntries =
+          AclEntry.parseAclSpec(String.join(",", platformAcl, sqlPrcAcl, otherAcl), true);
+
+      fs.modifyAclEntries(filesetPath, aclEntries);
+    } catch (IOException ioe) {
+      throw new RuntimeException("Failed to set permission for fileset " + filesetPath, ioe);
     }
   }
 

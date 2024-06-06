@@ -23,10 +23,15 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.AclEntry;
+import org.apache.hadoop.fs.permission.AclStatus;
+import org.apache.hadoop.fs.permission.FsAction;
+import org.apache.hadoop.fs.permission.FsPermission;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -612,6 +617,22 @@ public class HadoopCatalogIT extends AbstractIT {
         "fileset should be exists");
     Assertions.assertTrue(
         hdfs.exists(new Path(storageLocation(filesetName))), "storage location should be exists");
+  }
+
+  private void assertLocationPermission(FileSystem hdfs, String storageLocation)
+      throws IOException {
+    AclStatus aclStatus = hdfs.getAclStatus(new Path(storageLocation));
+    FsPermission permission = aclStatus.getPermission();
+    List<AclEntry> entries = aclStatus.getEntries();
+
+    Assertions.assertEquals(FsAction.NONE, permission.getOtherAction());
+    Assertions.assertTrue(
+        entries.contains(AclEntry.parseAclEntry("user:h_data_platform:rwx", true)));
+    Assertions.assertTrue(
+        entries.contains(AclEntry.parseAclEntry("default:user:h_data_platform:rwx", true)));
+    Assertions.assertTrue(entries.contains(AclEntry.parseAclEntry("user:sql_prc:rwx", true)));
+    Assertions.assertTrue(
+        entries.contains(AclEntry.parseAclEntry("default:user:sql_prc:rwx", true)));
   }
 
   private static String defaultBaseLocation() {
