@@ -3,7 +3,7 @@ Copyright 2024 Datastrato Pvt Ltd.
 This software is licensed under the Apache License version 2.
 """
 from abc import ABC
-from dataclasses import field
+from dataclasses import dataclass, field
 
 from dataclasses_json import config
 
@@ -36,15 +36,12 @@ class SchemaChange(ABC):
         """
         return SchemaChange.RemoveProperty(schema_property)
 
+    @dataclass
     class SetProperty:
         """SchemaChange class to set the property and value pairs for the schema."""
 
         _property: str = field(metadata=config(field_name='property'))
         _value: str = field(metadata=config(field_name='value'))
-
-        def __init__(self, schema_property: str, value: str):
-            self._property = schema_property
-            self._value = value
 
         def property(self):
             """Retrieves the name of the property to be set.
@@ -94,13 +91,11 @@ class SchemaChange(ABC):
             """
             return f"SETPROPERTY {self._property} {self._value}"
 
+    @dataclass
     class RemoveProperty:
         """SchemaChange class to remove a property from the schema."""
 
         _property: str = field(metadata=config(field_name='property'))
-
-        def __init__(self, schema_property: str):
-            self._property = schema_property
 
         def property(self):
             """Retrieves the name of the property to be removed.
