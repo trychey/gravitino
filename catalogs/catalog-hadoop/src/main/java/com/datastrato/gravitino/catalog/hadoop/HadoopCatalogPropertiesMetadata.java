@@ -18,6 +18,11 @@ public class HadoopCatalogPropertiesMetadata extends BaseCatalogPropertiesMetada
   // If not, users have to specify the storage location in the Schema or Fileset level.
   public static final String LOCATION = "location";
 
+  // match location like hdfs://zjyprc-hadoop/user/h_data_platform/fileset/catalog1/db1/fileset1
+  // split by ","
+  public static final String VALID_MANAGED_PATHS = "gvfs.valid.managed-paths";
+  public static final String VALID_EXTERNAL_PATHS = "gvfs.valid.external-paths";
+
   private static final Map<String, PropertyEntry<?>> HADOOP_CATALOG_PROPERTY_ENTRIES =
       ImmutableMap.<String, PropertyEntry<?>>builder()
           .put(

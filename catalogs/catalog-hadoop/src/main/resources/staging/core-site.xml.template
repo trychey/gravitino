@@ -80,13 +80,13 @@
   </property>
 
   <property>
-      <name>hadoop.client.kerberos.principal</name>
-      <value>h_data_platform@XIAOMI.HADOOP</value>
+    <name>hadoop.client.kerberos.principal</name>
+    <value>h_data_platform@XIAOMI.HADOOP</value>
   </property>
 
   <property>
-      <name>hadoop.client.keytab.file</name>
-      <value>/etc/hadoop/conf/h_data_platform.keytab</value>
+    <name>hadoop.client.keytab.file</name>
+    <value>/etc/hadoop/conf/h_data_platform.keytab</value>
   </property>
 
   <property>
@@ -97,6 +97,53 @@
   <property>
     <name>fs.hdfs.impl</name>
     <value>org.apache.hadoop.hdfs.FederatedDFSFileSystem</value>
+  </property>
+
+  <property>
+    <name>fs.lavafs.impl</name>
+    <value>com.xiaomi.lavafs.LavaHadoopFileSystem</value>
+  </property>
+  <property>
+    <name>fs.AbstractFileSystem.lavafs.impl</name>
+    <value>com.xiaomi.lavafs.LavaFs</value>
+  </property>
+
+  <property>
+    <name>lavafs.client.metaserver.list.provider.class</name>
+    <value>com.xiaomi.lavafs.client.metaserver.ClusterInfoMetaServerListProvider</value>
+  </property>
+  <property>
+    <name>lavafs.client.dataserver.list.provider.class</name>
+    <value>com.xiaomi.lavafs.client.dataserver.provider.HeartbeatDataServerListProvider</value>
+  </property>
+
+  <property>
+    <name>lavafs.security.authentication</name>
+    <value>kerberos</value>
+  </property>
+  <property>
+    <name>hadoop.security.authentication</name>
+    <value>kerberos</value>
+  </property>
+
+  <property>
+    <name>lavafs.client.kerberos.principal</name>
+    <value>h_data_platform@XIAOMI.HADOOP</value>
+  </property>
+
+  <property>
+    <name>lavafs.client.keytab.file</name>
+    <value>/etc/hadoop/conf/h_data_platform.keytab</value>
+  </property>
+
+  <property>
+    <name>gvfs.valid.managed-paths</name>
+    <value>^hdfs://tjwqstaging-hdd/user/h_data_platform/fileset/%s/%s/%s$,^lavafs://tjwq-staging/user/h_data_platform/fileset/%s/%s/%s$</value>
+  </property>
+
+  <property>
+    <name>gvfs.valid.external-paths</name>
+    <value>^hdfs://tjwqstaging-hdd/.+,^lavafs://tjwq-staging/.+</value>
   </property>
 
 </configuration>

@@ -25,6 +25,7 @@ include(
   "clients:client-java-runtime",
   "clients:filesystem-hadoop3",
   "clients:filesystem-hadoop3-runtime",
+  "clients:filesystem-hadoop3-bundled",
   "clients:client-python"
 )
 include("trino-connector")

@@ -10,8 +10,8 @@ plugins {
 
 repositories {
   maven {
-    name = "remoteVirtual"
-    url = uri("https://pkgs.d.xiaomi.net:443/artifactory/maven-remote-virtual/")
+    name = "publicVirtual"
+    url = uri("https://pkgs.d.xiaomi.net/artifactory/maven-public-virtual/")
   }
   maven {
     name = "releaseVirtual"

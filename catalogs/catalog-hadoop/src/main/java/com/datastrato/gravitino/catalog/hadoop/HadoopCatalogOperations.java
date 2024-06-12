@@ -39,6 +39,7 @@ import com.datastrato.gravitino.storage.relational.RelationalEntityStore;
 import com.datastrato.gravitino.utils.PrincipalUtils;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import java.io.IOException;
@@ -78,24 +79,14 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
   private static final HadoopFilesetPropertiesMetadata FILESET_PROPERTIES_METADATA =
       new HadoopFilesetPropertiesMetadata();
 
-  // match location like hdfs://zjyprc-hadoop/user/h_data_platform/fileset/catalog1/db1/fileset1
-  private static final String HDFS_VALID_MANAGED_PATH =
-      "^hdfs://[^/]+/user/h_data_platform/fileset/%s/%s/%s$";
-  // just for tests
-  private static final String LOCAL_VALID_MANAGED_PATH = "^file:/[^/]+/[^/]+/%s/%s/%s$";
-  private static final List<String> VALID_MANAGED_PATHS =
-      ImmutableList.of(HDFS_VALID_MANAGED_PATH, LOCAL_VALID_MANAGED_PATH);
-  private static final String HDFS_VALID_EXTERNAL_PATH = "^hdfs://[^/]+/.+";
-  // just for tests
-  private static final String LOCAL_VALID_EXTERNAL_PATH = "^file:/[^/]+/.+";
-  private static final List<String> VALID_EXTERNAL_PATHS =
-      ImmutableList.of(HDFS_VALID_EXTERNAL_PATH, LOCAL_VALID_EXTERNAL_PATH);
-
   private final EntityStore store;
 
   @VisibleForTesting Configuration hadoopConf;
 
   @VisibleForTesting Optional<Path> catalogStorageLocation;
+
+  private List<String> validManagedPaths;
+  private List<String> validExternalPaths;
 
   // For testing only.
   HadoopCatalogOperations(EntityStore store) {
@@ -123,6 +114,23 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
         (String)
             CATALOG_PROPERTIES_METADATA.getOrDefault(
                 config, HadoopCatalogPropertiesMetadata.LOCATION);
+
+    String validManagedPathString =
+        hadoopConf.get(HadoopCatalogPropertiesMetadata.VALID_MANAGED_PATHS, "");
+    if (StringUtils.isNotBlank(validManagedPathString)) {
+      this.validManagedPaths = Splitter.on(',').splitToList(validManagedPathString);
+    } else {
+      this.validManagedPaths = ImmutableList.of();
+    }
+
+    String validExternalPathString =
+        hadoopConf.get(HadoopCatalogPropertiesMetadata.VALID_EXTERNAL_PATHS, "");
+    if (StringUtils.isNotBlank(validExternalPathString)) {
+      this.validExternalPaths = Splitter.on(',').splitToList(validExternalPathString);
+    } else {
+      this.validExternalPaths = ImmutableList.of();
+    }
+
     this.catalogStorageLocation = Optional.ofNullable(catalogLocation).map(Path::new);
   }
 
@@ -736,29 +744,31 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
   private void checkAndCreateManagedStorageLocation(NameIdentifier ident, Path filesetPath) {
     try {
       String checkedPathString = filesetPath.toString();
-      // Check if the storage location is set in the valid managed locations
-      boolean isValidManagedPath =
-          VALID_MANAGED_PATHS.stream()
-              .anyMatch(
-                  patternString -> {
-                    Pattern pattern =
-                        Pattern.compile(
-                            String.format(
-                                patternString,
-                                ident.namespace().level(1),
-                                ident.namespace().level(2),
-                                ident.name()));
-                    Matcher matcher = pattern.matcher(checkedPathString);
-                    return matcher.matches();
-                  });
-      if (!isValidManagedPath) {
-        throw new RuntimeException(
-            String.format(
-                "The storage location: %s is not valid for managed fileset: %s.%s.%s.",
-                checkedPathString,
-                ident.namespace().level(1),
-                ident.namespace().level(2),
-                ident.name()));
+      if (!this.validManagedPaths.isEmpty()) {
+        // Check if the storage location is set in the valid managed locations
+        boolean isValidManagedPath =
+            this.validManagedPaths.stream()
+                .anyMatch(
+                    patternString -> {
+                      Pattern pattern =
+                          Pattern.compile(
+                              String.format(
+                                  patternString,
+                                  ident.namespace().level(1),
+                                  ident.namespace().level(2),
+                                  ident.name()));
+                      Matcher matcher = pattern.matcher(checkedPathString);
+                      return matcher.matches();
+                    });
+        if (!isValidManagedPath) {
+          throw new RuntimeException(
+              String.format(
+                  "The storage location: %s is not valid for managed fileset: %s.%s.%s.",
+                  checkedPathString,
+                  ident.namespace().level(1),
+                  ident.namespace().level(2),
+                  ident.name()));
+        }
       }
 
       FileSystem fs = filesetPath.getFileSystem(hadoopConf);
@@ -805,43 +815,47 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
   private void checkExternalStorageLocation(NameIdentifier ident, Path filesetPath) {
     try {
       String checkedPathString = filesetPath.toString();
-      // Check if the storage location is in the valid managed locations
-      boolean isValidManagedPath =
-          VALID_MANAGED_PATHS.stream()
-              .anyMatch(
-                  patternString -> {
-                    Pattern pattern =
-                        Pattern.compile(
-                            String.format(
-                                patternString,
-                                ident.namespace().level(1),
-                                ident.namespace().level(2),
-                                ident.name()));
-                    Matcher matcher = pattern.matcher(checkedPathString);
-                    return matcher.matches();
-                  });
-      // Cannot set the managed storage location for external filesets
-      if (isValidManagedPath) {
-        throw new RuntimeException(
-            String.format(
-                "The managed storage location: %s cannot set for external filesets.",
-                checkedPathString));
+      if (!this.validManagedPaths.isEmpty()) {
+        // Check if the storage location is in the valid managed locations
+        boolean isValidManagedPath =
+            this.validManagedPaths.stream()
+                .anyMatch(
+                    patternString -> {
+                      Pattern pattern =
+                          Pattern.compile(
+                              String.format(
+                                  patternString,
+                                  ident.namespace().level(1),
+                                  ident.namespace().level(2),
+                                  ident.name()));
+                      Matcher matcher = pattern.matcher(checkedPathString);
+                      return matcher.matches();
+                    });
+        // Cannot set the managed storage location for external filesets
+        if (isValidManagedPath) {
+          throw new RuntimeException(
+              String.format(
+                  "The managed storage location: %s cannot set for external filesets.",
+                  checkedPathString));
+        }
       }
 
-      // Check if the storage location is in the valid external locations
-      boolean isValidExternalPath =
-          VALID_EXTERNAL_PATHS.stream()
-              .anyMatch(
-                  patternString -> {
-                    Pattern pattern = Pattern.compile(patternString);
-                    Matcher matcher = pattern.matcher(checkedPathString);
-                    return matcher.matches();
-                  });
-      if (!isValidExternalPath) {
-        throw new RuntimeException(
-            String.format(
-                "The external storage location: %s cannot set for external filesets.",
-                checkedPathString));
+      if (!this.validExternalPaths.isEmpty()) {
+        // Check if the storage location is in the valid external locations
+        boolean isValidExternalPath =
+            this.validExternalPaths.stream()
+                .anyMatch(
+                    patternString -> {
+                      Pattern pattern = Pattern.compile(patternString);
+                      Matcher matcher = pattern.matcher(checkedPathString);
+                      return matcher.matches();
+                    });
+        if (!isValidExternalPath) {
+          throw new RuntimeException(
+              String.format(
+                  "The external storage location: %s cannot set for external filesets.",
+                  checkedPathString));
+        }
       }
 
       // Fetch an external fileset name the storage location is already mounted,

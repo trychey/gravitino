@@ -24,18 +24,6 @@ tasks.withType<ShadowJar>(ShadowJar::class.java) {
   relocate("com.google", "com.datastrato.gravitino.shaded.com.google")
   relocate("com.github.benmanes.caffeine", "com.datastrato.gravitino.shaded.com.github.benmanes.caffeine")
   relocate("google", "com.datastrato.gravitino.shaded.google")
-  relocate("javax.annotation", "com.datastrato.gravitino.shaded.javax.annotation")
-  relocate("org.apache.hc", "com.datastrato.gravitino.shaded.org.apache.hc")
-  // Will be conflict with log4j2 in Spark, so we need exclude it rather than shade
-  //  relocate("org.apache.log4j", "com.datastrato.gravitino.shaded.org.apache.log4j")
-  relocate("org.apache.logging", "com.datastrato.gravitino.shaded.org.apache.logging")
-  relocate("org.checkerframework", "com.datastrato.gravitino.shaded.org.checkerframework")
-  relocate("org.slf4j", "com.datastrato.gravitino.shaded.org.slf4j")
-  relocate("org.apache.commons", "com.datastrato.gravitino.shaded.org.apache.commons")
-
-  dependencies {
-    exclude("/org/apache/log4j/**")
-  }
 }
 
 tasks.jar {

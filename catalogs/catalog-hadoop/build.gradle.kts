@@ -26,6 +26,12 @@ dependencies {
     exclude("javax.servlet", "servlet-api")
   }
   implementation(libs.hadoop3.client)
+  implementation(
+    group = "com.xiaomi.lavafs",
+    name = "lavafs-hadoop-sdk",
+    version = libs.versions.lavafs.get(),
+    classifier = "shaded"
+  )
 
   implementation(libs.slf4j.api)
 
