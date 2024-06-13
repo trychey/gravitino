@@ -1,0 +1,168 @@
+#
+# Copyright 2024 Datastrato Pvt Ltd.
+# This software is licensed under the Apache License version 2.
+#
+variables:
+  KUBERNETES_CPU_REQUEST: 16000m
+  KUBERNETES_CPU_LIMIT: 16000m
+  KUBERNETES_MEMORY_REQUEST: 16Gi
+  KUBERNETES_MEMORY_LIMIT: 16Gi
+
+stages:
+  - spotless_check
+  - unit_test
+  - staging_deploy
+  - online_deploy
+
+before_script:
+  - echo 'current time:'$(date "+%Y-%m-%d %H:%M:%S")
+
+# Check style
+checkstyle:
+  stage: spotless_check
+  rules:
+    - if: '$CI_COMMIT_BRANCH != "main"'
+      when: always
+  script:
+    - |
+      echo '--------------------------------------------------------------------------------------------------------------------'
+      echo 'Run `./gradlew spotlessApply -x test --no-build-cache` if this stage failed!'
+      echo '--------------------------------------------------------------------------------------------------------------------'
+    - ./gradlew clean spotlessCheck -x test --no-build-cache
+  allow_failure: false
+  interruptible: true
+
+# Unit tests
+unit-test:
+  stage: unit_test
+  rules:
+    - if: '$CI_COMMIT_BRANCH != "main"'
+      when: always
+  script:
+    - ./gradlew clean test -PskipITs --no-build-cache
+      "-Dorg.gradle.jvmargs=-Xmx16g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
+  allow_failure: false
+  interruptible: true
+
+# Build staging env docker image
+build-staging-docker:
+  stage: staging_deploy
+  variables:
+    REGISTRY_SERVER: micr.cloud.mioffice.cn
+    IMAGE: micr.cloud.mioffice.cn/meta/gravitino:staging-$CI_COMMIT_SHORT_SHA
+  image: micr.cloud.mioffice.cn/containercloud/kaniko-executor-xiaomi:release
+  script:
+    - echo "{\"auths\":{\"$REGISTRY_SERVER\":{\"username\":\"$REGISTRY_USER\",\"password\":\"$REGISTRY_PASS\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --build-arg BUILD_CLUSTER=staging --destination $IMAGE --registry-mirror micr.cloud.mioffice.cn
+  interruptible: true
+  allow_failure: false
+  only:
+    - branch-0.5-mdh-staging
+
+# Publish artifactory
+publish-api:
+  stage: online_deploy
+  script:
+    - ./gradlew clean :api:artifactoryPublish -x test --no-build-cache
+      "-Dorg.gradle.jvmargs=-Xmx16g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
+      -Partifactory_user=${MAVEN_REPO_USER} -Partifactory_password=${MAVEN_REPO_PASS}
+  when: manual
+  allow_failure: false
+  only:
+    - /^prod-v.*/
+
+publish-common:
+  stage: online_deploy
+  script:
+    - ./gradlew clean :common:artifactoryPublish -x test --no-build-cache
+      "-Dorg.gradle.jvmargs=-Xmx16g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
+      -Partifactory_user=${MAVEN_REPO_USER} -Partifactory_password=${MAVEN_REPO_PASS}
+  when: manual
+  allow_failure: false
+  only:
+    - /^prod-v.*/
+
+publish-client-java:
+  stage: online_deploy
+  script:
+    - ./gradlew clean :clients:client-java:artifactoryPublish -x test --no-build-cache
+      "-Dorg.gradle.jvmargs=-Xmx16g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
+      -Partifactory_user=${MAVEN_REPO_USER} -Partifactory_password=${MAVEN_REPO_PASS}
+  when: manual
+  allow_failure: false
+  only:
+    - /^prod-v.*/
+
+publish-client-java-runtime:
+  stage: online_deploy
+  script:
+    - ./gradlew clean :clients:client-java-runtime:artifactoryPublish -x test --no-build-cache
+      "-Dorg.gradle.jvmargs=-Xmx16g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
+      -Partifactory_user=${MAVEN_REPO_USER} -Partifactory_password=${MAVEN_REPO_PASS}
+  when: manual
+  allow_failure: false
+  only:
+    - /^prod-v.*/
+
+publish-filesystem-hadoop3:
+  stage: online_deploy
+  script:
+    - ./gradlew clean :clients:filesystem-hadoop3:artifactoryPublish -x test --no-build-cache
+      "-Dorg.gradle.jvmargs=-Xmx16g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
+      -Partifactory_user=${MAVEN_REPO_USER} -Partifactory_password=${MAVEN_REPO_PASS}
+  when: manual
+  allow_failure: false
+  only:
+    - /^prod-v.*/
+
+publish-filesystem-hadoop3-runtime:
+  stage: online_deploy
+  script:
+    - ./gradlew clean :clients:filesystem-hadoop3-runtime:artifactoryPublish -x test --no-build-cache
+      "-Dorg.gradle.jvmargs=-Xmx16g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
+      -Partifactory_user=${MAVEN_REPO_USER} -Partifactory_password=${MAVEN_REPO_PASS}
+  when: manual
+  allow_failure: false
+  only:
+    - /^prod-v.*/
+
+publish-filesystem-hadoop3-bundled:
+  stage: online_deploy
+  script:
+    - ./gradlew clean :clients:filesystem-hadoop3-bundled:artifactoryPublish -x test --no-build-cache
+      "-Dorg.gradle.jvmargs=-Xmx16g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
+      -Partifactory_user=${MAVEN_REPO_USER} -Partifactory_password=${MAVEN_REPO_PASS}
+  when: manual
+  allow_failure: false
+  only:
+    - /^prod-v.*/
+
+# Build tjwq env docker image
+build-tjwq-docker:
+  stage: online_deploy
+  variables:
+    REGISTRY_SERVER: micr.cloud.mioffice.cn
+    IMAGE: micr.cloud.mioffice.cn/meta/gravitino:tjwq-$CI_COMMIT_TAG
+  image: micr.cloud.mioffice.cn/containercloud/kaniko-executor-xiaomi:release
+  script:
+    - echo "{\"auths\":{\"$REGISTRY_SERVER\":{\"username\":\"$REGISTRY_USER\",\"password\":\"$REGISTRY_PASS\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --build-arg BUILD_CLUSTER=tjwq --destination $IMAGE --registry-mirror micr.cloud.mioffice.cn
+  interruptible: true
+  allow_failure: false
+  only:
+    - /^prod-v.*/
+
+# Build zjy env docker image
+build-zjy-docker:
+  stage: online_deploy
+  variables:
+    REGISTRY_SERVER: micr.cloud.mioffice.cn
+    IMAGE: micr.cloud.mioffice.cn/meta/gravitino:zjy-$CI_COMMIT_TAG
+  image: micr.cloud.mioffice.cn/containercloud/kaniko-executor-xiaomi:release
+  script:
+    - echo "{\"auths\":{\"$REGISTRY_SERVER\":{\"username\":\"$REGISTRY_USER\",\"password\":\"$REGISTRY_PASS\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --build-arg BUILD_CLUSTER=zjy --destination $IMAGE --registry-mirror micr.cloud.mioffice.cn
+  interruptible: true
+  allow_failure: false
+  only:
+    - /^prod-v.*/
