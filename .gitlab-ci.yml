@@ -41,6 +41,8 @@ checkstyle:
       echo 'Run `./gradlew spotlessApply -x test --no-build-cache` if this stage failed!'
       echo '--------------------------------------------------------------------------------------------------------------------'
     - ./gradlew clean spotlessCheck -x test --no-build-cache
+      "-Dorg.gradle.jvmargs=-Xmx16g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
+
   allow_failure: false
   interruptible: true
 
@@ -62,7 +64,7 @@ unit-test:
     - if: ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "branch-0.5")
       when: never
     - if: ($CI_PIPELINE_SOURCE == "merge_request_event"
-        || $CI_COMMIT_BRANCH == "branch-0.5-mhd-master"
+        || $CI_COMMIT_BRANCH == "branch-0.5-mdh-master"
         || $CI_COMMIT_TAG =~ /^prod-v.*/)
       when: on_success
     - when: never
