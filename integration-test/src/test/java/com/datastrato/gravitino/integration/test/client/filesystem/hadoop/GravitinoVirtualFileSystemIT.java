@@ -74,6 +74,7 @@ public class GravitinoVirtualFileSystemIT extends AbstractIT {
     conf.set("fs.gvfs.impl.disable.cache", "true");
     conf.set("fs.gravitino.server.uri", serverUri);
     conf.set("fs.gravitino.client.metalake", metalakeName);
+    conf.set("fs.gravitino.testing", "true");
   }
 
   @AfterAll

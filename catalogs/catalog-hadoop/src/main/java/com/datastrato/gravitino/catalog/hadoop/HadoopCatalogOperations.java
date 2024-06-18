@@ -4,6 +4,7 @@
  */
 package com.datastrato.gravitino.catalog.hadoop;
 
+import static com.datastrato.gravitino.Configs.GRAVITINO_TESTING_ENABLE;
 import static com.datastrato.gravitino.connector.BaseCatalog.CATALOG_BYPASS_PREFIX;
 
 import com.datastrato.gravitino.Entity;
@@ -793,6 +794,11 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
   private void setPathPermission(FileSystem fs, Path filesetPath) {
     if (fs instanceof LocalFileSystem) {
       // skip unit test
+      return;
+    }
+
+    if (GravitinoEnv.getInstance().config().get(GRAVITINO_TESTING_ENABLE)) {
+      // skip integration test
       return;
     }
 

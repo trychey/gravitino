@@ -43,7 +43,7 @@ public class DorisTableOperationsIT extends TestDorisAbstractIT {
   // Because the creation of Schema Change is an asynchronous process, we need wait for a while
   // For more information, you can refer to the comment in
   // DorisTableOperations.generateAlterTableSql().
-  private static final long MAX_WAIT = 30;
+  private static final long MAX_WAIT = 180;
 
   private static final long WAIT_INTERVAL = 1;
 

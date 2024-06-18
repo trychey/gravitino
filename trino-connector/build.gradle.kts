@@ -21,7 +21,10 @@ repositories {
     name = "snapshotVirtual"
     url = uri("https://pkgs.d.xiaomi.net:443/artifactory/maven-snapshot-virtual/")
   }
-  mavenCentral()
+  maven {
+    name = "aliyunMavenCentral"
+    url = uri("https://pkgs.d.xiaomi.net:443/artifactory/aliyun-maven-central/")
+  }
 }
 
 dependencies {

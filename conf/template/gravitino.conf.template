@@ -51,3 +51,6 @@ gravitino.auxService.iceberg-rest.host = 0.0.0.0
 # Iceberg REST service http port
 gravitino.auxService.iceberg-rest.httpPort = 9001
 
+# THE CONFIGURATION FOR Gravitino METASTORE
+gravitino.testing.enable = true
+

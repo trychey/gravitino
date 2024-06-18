@@ -26,12 +26,16 @@ dependencies {
     exclude("javax.servlet", "servlet-api")
   }
   implementation(libs.hadoop3.client)
-  implementation(
-    group = "com.xiaomi.lavafs",
-    name = "lavafs-hadoop-sdk",
-    version = libs.versions.lavafs.get(),
-    classifier = "shaded"
-  )
+
+  val testMode = project.properties["testMode"] as? String ?: "deploy"
+  if (testMode != "embedded") {
+    implementation(
+      group = "com.xiaomi.lavafs",
+      name = "lavafs-hadoop-sdk",
+      version = libs.versions.lavafs.get(),
+      classifier = "shaded"
+    )
+  }
 
   implementation(libs.slf4j.api)
 
@@ -120,7 +124,7 @@ tasks.test {
     dependsOn(tasks.jar)
 
     doFirst {
-      environment("GRAVITINO_CI_HIVE_DOCKER_IMAGE", "datastrato/gravitino-ci-hive:0.1.10")
+      environment("GRAVITINO_CI_HIVE_DOCKER_IMAGE", "datastrato/gravitino-ci-hive:0.1.11")
     }
 
     val init = project.extra.get("initIntegrationTest") as (Test) -> Unit

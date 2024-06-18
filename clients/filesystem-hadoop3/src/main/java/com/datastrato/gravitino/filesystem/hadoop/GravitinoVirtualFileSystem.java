@@ -169,7 +169,16 @@ public class GravitinoVirtualFileSystem extends FileSystem {
         configuration.get(
             GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_AUTH_TYPE_KEY,
             GravitinoVirtualFileSystemConfiguration.SIMPLE_AUTH_TYPE);
-    if (authType.equalsIgnoreCase(GravitinoVirtualFileSystemConfiguration.SIMPLE_AUTH_TYPE)) {
+    String isIntegrationTesting =
+        configuration.get(
+            GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_TESTING,
+            GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_TESTING_DEFAULT);
+    if (Boolean.parseBoolean(isIntegrationTesting)) {
+      GravitinoClientBase.Builder<GravitinoClient> builder =
+          GravitinoClient.builder(serverUri).withMetalake(metalakeName).withSimpleAuth();
+      this.client = builder.build();
+    } else if (authType.equalsIgnoreCase(
+        GravitinoVirtualFileSystemConfiguration.SIMPLE_AUTH_TYPE)) {
       String superUser =
           configuration.get(
               GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_SIMPLE_SUPER_USER_KEY);

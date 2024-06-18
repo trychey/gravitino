@@ -114,7 +114,11 @@ repositories {
     name = "snapshotVirtual"
     url = uri("https://pkgs.d.xiaomi.net:443/artifactory/maven-snapshot-virtual/")
   }
-  mavenCentral()
+  maven {
+    name = "aliyunMavenCentral"
+    url = uri("https://pkgs.d.xiaomi.net:443/artifactory/aliyun-maven-central/")
+  }
+  mavenLocal()
 }
 
 allprojects {
@@ -126,7 +130,6 @@ allprojects {
   apply(plugin = "com.diffplug.spotless")
   apply(plugin = "com.jfrog.artifactory")
   repositories {
-
     maven {
       name = "publicVirtual"
       url = uri("https://pkgs.d.xiaomi.net/artifactory/maven-public-virtual/")
@@ -139,7 +142,10 @@ allprojects {
       name = "snapshotVirtual"
       url = uri("https://pkgs.d.xiaomi.net:443/artifactory/maven-snapshot-virtual/")
     }
-    mavenCentral()
+    maven {
+      name = "aliyunMavenCentral"
+      url = uri("https://pkgs.d.xiaomi.net:443/artifactory/aliyun-maven-central/")
+    }
     mavenLocal()
   }
 
@@ -275,7 +281,10 @@ subprojects {
       name = "snapshotVirtual"
       url = uri("https://pkgs.d.xiaomi.net:443/artifactory/maven-snapshot-virtual/")
     }
-    mavenCentral()
+    maven {
+      name = "aliyunMavenCentral"
+      url = uri("https://pkgs.d.xiaomi.net:443/artifactory/aliyun-maven-central/")
+    }
     mavenLocal()
   }
 
@@ -312,6 +321,7 @@ subprojects {
           "-Werror"
         )
       )
+      options.encoding = "UTF-8"
     }
   }
 

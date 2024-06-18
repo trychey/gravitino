@@ -66,6 +66,10 @@ class GravitinoVirtualFileSystemConfiguration {
   public static final long FS_GRAVITINO_FILESET_CACHE_EVICTION_MILLS_AFTER_ACCESS_DEFAULT =
       1000L * 60 * 5;
 
+  public static final String FS_GRAVITINO_TESTING = "fs.gravitino.testing";
+
+  public static final String FS_GRAVITINO_TESTING_DEFAULT = "false";
+
   public static final String SLASH = "/";
 
   public static final String UNDER_SCORE = "_";

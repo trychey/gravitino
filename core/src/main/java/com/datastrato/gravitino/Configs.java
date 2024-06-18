@@ -264,4 +264,11 @@ public interface Configs {
           .version(ConfigConstants.VERSION_0_5_0)
           .longConf()
           .createWithDefault(60 * 60 * 1000L);
+
+  ConfigEntry<Boolean> GRAVITINO_TESTING_ENABLE =
+      new ConfigBuilder("gravitino.testing.enable")
+          .doc("Enable test environment for Gravitino")
+          .version(ConfigConstants.VERSION_0_5_0)
+          .booleanConf()
+          .createWithDefault(false);
 }

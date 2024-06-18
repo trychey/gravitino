@@ -152,7 +152,7 @@ public class HadoopCatalogIT extends AbstractIT {
     Assertions.assertEquals("comment", fileset.comment());
     Assertions.assertEquals(Fileset.Type.MANAGED, fileset.type());
     Assertions.assertEquals(storageLocation, fileset.storageLocation());
-    Assertions.assertEquals(1, fileset.properties().size());
+    Assertions.assertEquals(5, fileset.properties().size());
     Assertions.assertEquals("v1", fileset.properties().get("k1"));
 
     // test create a fileset that already exist
@@ -169,16 +169,30 @@ public class HadoopCatalogIT extends AbstractIT {
 
     // create fileset with null storage location
     String filesetName2 = "test_create_fileset_no_storage_location";
-    Fileset fileset2 = createFileset(filesetName2, null, Fileset.Type.MANAGED, null, null);
-    assertFilesetExists(filesetName2);
-    Assertions.assertNotNull(fileset2, "fileset should be created");
-    Assertions.assertNull(fileset2.comment(), "comment should be null");
-    Assertions.assertEquals(Fileset.Type.MANAGED, fileset2.type(), "type should be MANAGED");
-    Assertions.assertEquals(
-        storageLocation(filesetName2),
-        fileset2.storageLocation(),
-        "storage location should be created");
-    Assertions.assertEquals(ImmutableMap.of(), fileset2.properties(), "properties should be empty");
+
+    // internal version must have storage location, so it will throw exception
+    // while creating fileset
+    Assertions.assertThrows(
+        IllegalArgumentException.class,
+        () -> {
+          createFileset(filesetName2, null, Fileset.Type.MANAGED, null, null);
+        },
+        "Should throw IllegalArgumentException when storage location is null");
+
+    // as stated above,
+    // internal version will not create fileset with null storage location
+    // therefore, comment out the following assertion
+
+    //    assertFilesetExists(filesetName2);
+    //    Assertions.assertNotNull(fileset2, "fileset should be created");
+    //    Assertions.assertNull(fileset2.comment(), "comment should be null");
+    //    Assertions.assertEquals(Fileset.Type.MANAGED, fileset2.type(), "type should be MANAGED");
+    //    Assertions.assertEquals(
+    //        storageLocation(filesetName2),
+    //        fileset2.storageLocation(),
+    //        "storage location should be created");
+    //    Assertions.assertEquals(ImmutableMap.of(), fileset2.properties(), "properties should be
+    // empty");
 
     // create fileset with null fileset name
     Assertions.assertThrows(
@@ -223,7 +237,7 @@ public class HadoopCatalogIT extends AbstractIT {
     Assertions.assertEquals("这是中文comment", fileset.comment());
     Assertions.assertEquals(Fileset.Type.MANAGED, fileset.type());
     Assertions.assertEquals(storageLocation, fileset.storageLocation());
-    Assertions.assertEquals(1, fileset.properties().size());
+    Assertions.assertEquals(5, fileset.properties().size());
     Assertions.assertEquals("v1", fileset.properties().get("k1"));
   }
 
@@ -232,6 +246,12 @@ public class HadoopCatalogIT extends AbstractIT {
     // create fileset
     String filesetName = "test_external_fileset";
     String storageLocation = storageLocation(filesetName);
+
+    // internal version create EXTERNAL fileset need exist file dir
+    Path filesetPath = new Path(storageLocation);
+    FileSystem fs = filesetPath.getFileSystem(new Configuration());
+    fs.mkdirs(filesetPath);
+
     Fileset fileset =
         createFileset(
             filesetName,
@@ -246,7 +266,7 @@ public class HadoopCatalogIT extends AbstractIT {
     Assertions.assertEquals("comment", fileset.comment());
     Assertions.assertEquals(Fileset.Type.EXTERNAL, fileset.type());
     Assertions.assertEquals(storageLocation, fileset.storageLocation());
-    Assertions.assertEquals(1, fileset.properties().size());
+    Assertions.assertEquals(5, fileset.properties().size());
     Assertions.assertEquals("v1", fileset.properties().get("k1"));
     Assertions.assertTrue(
         hdfs.exists(new Path(storageLocation)), "storage location should be created");
@@ -347,6 +367,11 @@ public class HadoopCatalogIT extends AbstractIT {
     // create fileset
     String filesetName = "test_drop_external_fileset";
     String storageLocation = storageLocation(filesetName);
+
+    // internal version create EXTERNAL fileset need exist file dir
+    Path filesetPath = new Path(storageLocation);
+    FileSystem fs = filesetPath.getFileSystem(new Configuration());
+    fs.mkdirs(filesetPath);
 
     createFileset(
         filesetName,
@@ -449,7 +474,7 @@ public class HadoopCatalogIT extends AbstractIT {
     Assertions.assertEquals(Fileset.Type.MANAGED, newFileset.type(), "type should not be change");
     Assertions.assertEquals(
         storageLocation, newFileset.storageLocation(), "storage location should not be change");
-    Assertions.assertEquals(1, newFileset.properties().size(), "properties should not be change");
+    Assertions.assertEquals(5, newFileset.properties().size(), "properties should not be change");
     Assertions.assertEquals(
         "v1", newFileset.properties().get("k1"), "properties should not be change");
   }
@@ -480,7 +505,7 @@ public class HadoopCatalogIT extends AbstractIT {
     Assertions.assertEquals(Fileset.Type.MANAGED, newFileset.type(), "type should not be change");
     Assertions.assertEquals(
         storageLocation, newFileset.storageLocation(), "storage location should not be change");
-    Assertions.assertEquals(1, newFileset.properties().size(), "properties should not be change");
+    Assertions.assertEquals(5, newFileset.properties().size(), "properties should not be change");
     Assertions.assertEquals(
         "v1", newFileset.properties().get("k1"), "properties should not be change");
   }
@@ -510,7 +535,7 @@ public class HadoopCatalogIT extends AbstractIT {
     Assertions.assertEquals(Fileset.Type.MANAGED, newFileset.type(), "type should not be change");
     Assertions.assertEquals(
         storageLocation, newFileset.storageLocation(), "storage location should not be change");
-    Assertions.assertEquals(1, newFileset.properties().size(), "properties should not be change");
+    Assertions.assertEquals(5, newFileset.properties().size(), "properties should not be change");
     Assertions.assertEquals(
         "v2", newFileset.properties().get("k1"), "properties should be updated");
   }
@@ -540,7 +565,7 @@ public class HadoopCatalogIT extends AbstractIT {
     Assertions.assertEquals(Fileset.Type.MANAGED, newFileset.type(), "type should not be change");
     Assertions.assertEquals(
         storageLocation, newFileset.storageLocation(), "storage location should not be change");
-    Assertions.assertEquals(0, newFileset.properties().size(), "properties should be removed");
+    Assertions.assertEquals(4, newFileset.properties().size(), "properties should be removed");
   }
 
   @Test
