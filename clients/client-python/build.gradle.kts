@@ -5,7 +5,7 @@
 import io.github.piyushroshan.python.VenvTask
 
 plugins {
-  id("io.github.piyushroshan.python-gradle-miniforge-plugin") version "1.0.0"
+  id("io.github.piyushroshan.python-gradle-miniforge-plugin") version "snapshot-2.0.0"
 }
 
 pythonPlugin {
@@ -33,9 +33,16 @@ fun gravitinoServer(operation: String) {
 }
 
 tasks {
+  val changePipSource by registering(VenvTask::class) {
+    venvExec = "pip"
+    args = listOf("config", "set", "global.index-url",
+      "https://pkgs.d.xiaomi.net/artifactory/api/pypi/pypi-virtual/simple")
+  }
+
   val pipInstall by registering(VenvTask::class) {
     venvExec = "pip"
     args = listOf("install", "-e", ".[dev]")
+    dependsOn(changePipSource)
   }
 
   val black by registering(VenvTask::class) {
@@ -98,15 +105,10 @@ tasks {
       deleteCacheDir("__pycache__")
     }
   }
-
   matching {
     it.name.endsWith("envSetup")
   }.all {
     // add install package and code formatting before any tasks
     finalizedBy(pipInstall, black, pylint)
   }
-}
-
-tasks.all {
-  enabled = false
 }
