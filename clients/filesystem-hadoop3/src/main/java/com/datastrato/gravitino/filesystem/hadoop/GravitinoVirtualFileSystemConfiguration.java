@@ -54,7 +54,7 @@ class GravitinoVirtualFileSystemConfiguration {
   public static final String FS_GRAVITINO_FILESET_CACHE_MAX_CAPACITY_KEY =
       "fs.gravitino.fileset.cache.maxCapacity";
 
-  public static final int FS_GRAVITINO_FILESET_CACHE_MAX_CAPACITY_DEFAULT = 20;
+  public static final int FS_GRAVITINO_FILESET_CACHE_MAX_CAPACITY_DEFAULT = 1000;
 
   /**
    * The configuration key for the eviction time of the Gravitino fileset cache, measured in mills
@@ -64,7 +64,7 @@ class GravitinoVirtualFileSystemConfiguration {
       "fs.gravitino.fileset.cache.evictionMillsAfterAccess";
 
   public static final long FS_GRAVITINO_FILESET_CACHE_EVICTION_MILLS_AFTER_ACCESS_DEFAULT =
-      1000L * 60 * 5;
+      1000L * 60 * 60 * 24 * 3;
 
   public static final String FS_GRAVITINO_TESTING = "fs.gravitino.testing";
 
