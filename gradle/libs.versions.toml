@@ -111,6 +111,7 @@ hadoop2-mapreduce-client-core = { group = "org.apache.hadoop", name = "hadoop-ma
 hadoop3-hdfs = { group = "org.apache.hadoop", name = "hadoop-hdfs", version.ref = "hadoop3" }
 hadoop3-common = { group = "org.apache.hadoop", name = "hadoop-common", version.ref = "hadoop3"}
 hadoop3-client = { group = "org.apache.hadoop", name = "hadoop-client", version.ref = "hadoop3"}
+hadoop3-hdfs-client = { group = "org.apache.hadoop", name = "hadoop-hdfs-client", version.ref = "hadoop3"}
 hadoop3-mapreduce-client-core = { group = "org.apache.hadoop", name = "hadoop-mapreduce-client-core", version.ref = "hadoop3"}
 hadoop3-minicluster = { group = "org.apache.hadoop", name = "hadoop-minicluster", version.ref = "hadoop3" }
 airlift-units = { group = "io.airlift", name = "units", version.ref = "airlift-units"}

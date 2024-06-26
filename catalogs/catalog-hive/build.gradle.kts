@@ -62,10 +62,10 @@ dependencies {
     exclude("org.slf4j")
   }
 
-  implementation(libs.hadoop2.common) {
+  implementation(libs.hadoop3.common) {
     exclude("*")
   }
-  implementation(libs.hadoop2.mapreduce.client.core) {
+  implementation(libs.hadoop3.mapreduce.client.core) {
     exclude("*")
   }
   implementation(libs.slf4j.api)
@@ -85,7 +85,8 @@ dependencies {
   testImplementation(libs.bundles.jetty)
   testImplementation(libs.bundles.jersey)
   testImplementation(libs.bundles.log4j)
-  testImplementation(libs.hadoop2.hdfs)
+  testImplementation(libs.hadoop3.hdfs)
+  testImplementation(libs.hadoop3.hdfs.client)
   testImplementation(libs.hive2.common) {
     exclude("org.eclipse.jetty.aggregate", "jetty-all")
     exclude("org.eclipse.jetty.orbit", "javax.servlet")

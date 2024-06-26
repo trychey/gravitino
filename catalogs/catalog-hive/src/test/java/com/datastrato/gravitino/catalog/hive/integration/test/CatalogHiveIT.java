@@ -190,6 +190,7 @@ public class CatalogHiveIT extends AbstractIT {
             "hdfs://%s:%d",
             containerSuite.getHiveContainer().getContainerIpAddress(),
             HiveContainer.HDFS_DEFAULTFS_PORT));
+    conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
     hdfs = FileSystem.get(conf);
 
     createMetalake();
