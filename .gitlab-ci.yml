@@ -140,7 +140,7 @@ python-integration-test:
     - ./gradlew --stop
     - ./gradlew compileDistribution -x test -PjdkVersion=8 --no-build-cache
       "-Dorg.gradle.jvmargs=-Xmx16g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
-    - for pythonVersion in "3.8"; do
+    - for pythonVersion in "3.8" "3.9" "3.10" "3.11"; do
       echo "Use Python version ${pythonVersion} to test the Python client.";
       ./gradlew -PjdkVersion=8 -PskipTests -PpythonVersion=${pythonVersion} :client:client-python:test
       "-Dorg.gradle.jvmargs=-Xmx16g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
