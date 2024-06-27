@@ -26,7 +26,7 @@ before_script:
       when: on_success
     - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
       when: never
-    - if: $CI_COMMIT_BRANCH
+    - if: ($CI_COMMIT_BRANCH || $CI_COMMIT_TAG =~ /^prod-v.*/)
       when: on_success
     - when: never
 
@@ -76,7 +76,6 @@ unit-test:
   allow_failure: false
   retry: 1
   interruptible: true
-  needs: [checkstyle]
 
 # Integration test
 backend-embedded-integration-test:
@@ -99,7 +98,6 @@ backend-embedded-integration-test:
   interruptible: true
   tags:
     - grav-it
-  needs: [checkstyle]
 
 backend-deploy-integration-test:
   stage: integration_test
@@ -123,7 +121,6 @@ backend-deploy-integration-test:
   interruptible: true
   tags:
     - grav-it
-  needs: [checkstyle]
 
 python-integration-test:
   stage: integration_test
@@ -152,7 +149,6 @@ python-integration-test:
   interruptible: true
   tags:
     - grav-it
-  needs: [checkstyle]
 
 # Build staging env docker image
 build-staging-docker:
