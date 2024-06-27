@@ -40,6 +40,10 @@ class TestFilesetCatalog(IntegrationTestEnv):
     fileset_properties: Dict[str, str] = {
         fileset_properties_key1: fileset_properties_value1,
         fileset_properties_key2: fileset_properties_value2,
+        "dir-max-level": "3",
+        "lifecycle-time-num": "-1",
+        "lifecycle-time-unit": "RETENTION_DAY",
+        "prefix-pattern": "ANY",
     }
     fileset_new_name = fileset_name + "_new"
 

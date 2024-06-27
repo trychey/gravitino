@@ -75,11 +75,11 @@ public class MiniGravitino {
 
     // Generate random Gravitino Server port and backend storage path, avoiding conflicts
     customizeConfigFile(
-        ITUtils.joinPath(gravitinoRootDir, "conf", "gravitino.conf.template"),
+        ITUtils.joinPath(gravitinoRootDir, "conf/template", "gravitino.conf.template"),
         ITUtils.joinPath(mockConfDir.getAbsolutePath(), GravitinoServer.CONF_FILE));
 
     Files.copy(
-        Paths.get(ITUtils.joinPath(gravitinoRootDir, "conf", "gravitino-env.sh.template")),
+        Paths.get(ITUtils.joinPath(gravitinoRootDir, "conf/template", "gravitino-env.sh.template")),
         Paths.get(ITUtils.joinPath(mockConfDir.getAbsolutePath(), "gravitino-env.sh")));
 
     properties =
