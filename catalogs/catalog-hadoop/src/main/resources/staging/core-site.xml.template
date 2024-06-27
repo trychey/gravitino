@@ -138,12 +138,12 @@
 
   <property>
     <name>gvfs.valid.managed-paths</name>
-    <value>^hdfs://tjwqstaging-hdd/user/h_data_platform/fileset/%s/%s/%s$,^lavafs://tjwq-staging/user/h_data_platform/fileset/%s/%s/%s$</value>
+    <value>^hdfs://tjwqstaging-hdd/user/h_data_platform/fileset/%s/%s/%s$,^lavafs://tjwq-staging/user/h_data_platform/fileset/%s/%s/%s$,^lavafs://tjwqstaging-common/user/h_data_platform/fileset/%s/%s/%s$</value>
   </property>
 
   <property>
     <name>gvfs.valid.external-paths</name>
-    <value>^hdfs://tjwqstaging-hdd/.+,^lavafs://tjwq-staging/.+</value>
+    <value>^hdfs://tjwqstaging-hdd/.+,^lavafs://tjwq-staging/.+,^lavafs://tjwqstaging-common/.+</value>
   </property>
 
 </configuration>

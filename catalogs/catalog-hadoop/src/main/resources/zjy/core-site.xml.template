@@ -132,12 +132,12 @@
 
   <property>
     <name>gvfs.valid.managed-paths</name>
-    <value>^hdfs://zjyprc-hadoop/user/h_data_platform/fileset/%s/%s/%s$,^lavafs://ak-prc/user/h_data_platform/fileset/%s/%s/%s$</value>
+    <value>^hdfs://zjyprc-hadoop/user/h_data_platform/fileset/%s/%s/%s$,^lavafs://ak-prc/user/h_data_platform/fileset/%s/%s/%s$,^lavafs://akprc-common/user/h_data_platform/fileset/%s/%s/%s$</value>
   </property>
 
   <property>
     <name>gvfs.valid.external-paths</name>
-    <value>^hdfs://zjyprc-hadoop/.+,^lavafs://ak-prc/.+</value>
+    <value>^hdfs://zjyprc-hadoop/.+,^lavafs://ak-prc/.+,^lavafs://akprc-common/.+</value>
   </property>
 </configuration>
 
