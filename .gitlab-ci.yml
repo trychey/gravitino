@@ -47,6 +47,7 @@ before_script:
     - docker stop $(docker ps -aq)
     - docker rm $(docker ps -aq)
     - docker network rm trino-net
+    - ps -ef | grep gravitino | awk '{print $2}' | xargs kill -9
     - set -e
 
 # Check style
