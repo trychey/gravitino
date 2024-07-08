@@ -42,17 +42,11 @@ public class SchemaEntity implements Entity, Auditable, HasIdentifier {
   public static final Field PROPERTIES =
       Field.optional("properties", Map.class, "The properties of the schema");
 
-  private Long id;
-
-  private String name;
-
-  private String comment;
-
   private AuditInfo auditInfo;
 
   protected Namespace namespace;
 
-  private Map<String, String> properties;
+  private EntityMetadata entityMetadata = new EntityMetadata(null, null, null, null);
 
   private SchemaEntity() {}
 
@@ -68,11 +62,11 @@ public class SchemaEntity implements Entity, Auditable, HasIdentifier {
   @Override
   public Map<Field, Object> fields() {
     Map<Field, Object> fields = Maps.newHashMap();
-    fields.put(ID, id);
-    fields.put(NAME, name);
+    fields.put(ID, entityMetadata.getId());
+    fields.put(NAME, entityMetadata.getName());
     fields.put(AUDIT_INFO, auditInfo);
-    fields.put(COMMENT, comment);
-    fields.put(PROPERTIES, properties);
+    fields.put(COMMENT, entityMetadata.getComment());
+    fields.put(PROPERTIES, entityMetadata.getProperties());
 
     return Collections.unmodifiableMap(fields);
   }
@@ -84,7 +78,7 @@ public class SchemaEntity implements Entity, Auditable, HasIdentifier {
    */
   @Override
   public String name() {
-    return name;
+    return entityMetadata.getName();
   }
 
   /**
@@ -94,7 +88,7 @@ public class SchemaEntity implements Entity, Auditable, HasIdentifier {
    */
   @Override
   public Long id() {
-    return id;
+    return entityMetadata.getId();
   }
 
   /**
@@ -124,7 +118,7 @@ public class SchemaEntity implements Entity, Auditable, HasIdentifier {
    * @return The comment of the schema.
    */
   public String comment() {
-    return comment;
+    return entityMetadata.getComment();
   }
 
   /**
@@ -134,7 +128,7 @@ public class SchemaEntity implements Entity, Auditable, HasIdentifier {
    * @return The properties of the schema.
    */
   public Map<String, String> properties() {
-    return properties;
+    return entityMetadata.getProperties();
   }
 
   /**
@@ -157,17 +151,22 @@ public class SchemaEntity implements Entity, Auditable, HasIdentifier {
       return false;
     }
     SchemaEntity schema = (SchemaEntity) o;
-    return Objects.equal(id, schema.id)
-        && Objects.equal(name, schema.name)
+    return Objects.equal(entityMetadata.getId(), schema.entityMetadata.getId())
+        && Objects.equal(entityMetadata.getName(), schema.entityMetadata.getName())
         && Objects.equal(namespace, schema.namespace)
-        && Objects.equal(comment, schema.comment)
-        && Objects.equal(properties, schema.properties)
+        && Objects.equal(entityMetadata.getComment(), schema.entityMetadata.getComment())
+        && Objects.equal(entityMetadata.getProperties(), schema.entityMetadata.getProperties())
         && Objects.equal(auditInfo, schema.auditInfo);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(id, name, auditInfo, comment, properties);
+    return Objects.hashCode(
+        entityMetadata.getId(),
+        entityMetadata.getName(),
+        auditInfo,
+        entityMetadata.getComment(),
+        entityMetadata.getProperties());
   }
 
   /** A builder class for {@link SchemaEntity}. */
@@ -186,7 +185,7 @@ public class SchemaEntity implements Entity, Auditable, HasIdentifier {
      * @return The builder instance.
      */
     public Builder withId(Long id) {
-      schema.id = id;
+      schema.entityMetadata.setId(id);
       return this;
     }
 
@@ -197,7 +196,7 @@ public class SchemaEntity implements Entity, Auditable, HasIdentifier {
      * @return The builder instance.
      */
     public Builder withName(String name) {
-      schema.name = name;
+      schema.entityMetadata.setName(name);
       return this;
     }
 
@@ -219,7 +218,7 @@ public class SchemaEntity implements Entity, Auditable, HasIdentifier {
      * @return The builder instance.
      */
     public Builder withComment(String comment) {
-      schema.comment = comment;
+      schema.entityMetadata.setComment(comment);
       return this;
     }
 
@@ -230,7 +229,7 @@ public class SchemaEntity implements Entity, Auditable, HasIdentifier {
      * @return The builder instance.
      */
     public Builder withProperties(Map<String, String> properties) {
-      schema.properties = properties;
+      schema.entityMetadata.setProperties(properties);
       return this;
     }
 
