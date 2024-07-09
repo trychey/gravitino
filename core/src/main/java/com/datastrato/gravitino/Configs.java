@@ -271,4 +271,11 @@ public interface Configs {
           .version(ConfigConstants.VERSION_0_5_0)
           .booleanConf()
           .createWithDefault(false);
+  public static final int DEFAULT_METRICS_TIME_SLIDING_WINDOW_SECONDS = 60;
+  public static final ConfigEntry<Integer> METRICS_TIME_SLIDING_WINDOW_SECONDS =
+      new ConfigBuilder("gravitino.metrics.timeSlidingWindowSecs")
+          .doc("The seconds of Gravitino metrics time sliding window")
+          .version(ConfigConstants.VERSION_0_5_1)
+          .intConf()
+          .createWithDefault(DEFAULT_METRICS_TIME_SLIDING_WINDOW_SECONDS);
 }

@@ -7,7 +7,10 @@ package com.datastrato.gravitino.storage.relational.session;
 
 import com.datastrato.gravitino.Config;
 import com.datastrato.gravitino.Configs;
+import com.datastrato.gravitino.GravitinoEnv;
 import com.datastrato.gravitino.cipher.CipherUtils;
+import com.datastrato.gravitino.metrics.MetricsSystem;
+import com.datastrato.gravitino.metrics.source.MetricsSource;
 import com.datastrato.gravitino.storage.relational.mapper.CatalogMetaMapper;
 import com.datastrato.gravitino.storage.relational.mapper.FilesetMetaMapper;
 import com.datastrato.gravitino.storage.relational.mapper.FilesetVersionMapper;
@@ -84,6 +87,13 @@ public class SqlSessionFactoryHelper {
     dataSource.setSoftMinEvictableIdleTimeMillis(
         BaseObjectPoolConfig.DEFAULT_SOFT_MIN_EVICTABLE_IDLE_TIME.toMillis());
     dataSource.setLifo(BaseObjectPoolConfig.DEFAULT_LIFO);
+
+    MetricsSystem metricsSystem = GravitinoEnv.getInstance().metricsSystem();
+    if (metricsSystem != null) {
+      SqlSessionMetricsSource sqlSessionMetricsSource =
+          new SqlSessionMetricsSource(MetricsSource.RELATIONAL_STORAGE_METRIC_NAME, dataSource);
+      metricsSystem.register(sqlSessionMetricsSource);
+    }
 
     // Create the transaction factory and env
     TransactionFactory transactionFactory = new JdbcTransactionFactory();
