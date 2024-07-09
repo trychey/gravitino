@@ -482,6 +482,7 @@ public class TestCatalogOperations
     Map<String, String> newProps =
         fileset.properties() != null ? Maps.newHashMap(fileset.properties()) : Maps.newHashMap();
     NameIdentifier newIdent = ident;
+    String newComment = fileset.comment();
 
     for (FilesetChange change : changes) {
       if (change instanceof FilesetChange.SetProperty) {
@@ -497,6 +498,10 @@ public class TestCatalogOperations
           throw new FilesetAlreadyExistsException("Fileset %s already exists", ident);
         }
         filesets.remove(ident);
+      } else if (change instanceof FilesetChange.UpdateFilesetComment) {
+        newComment = ((FilesetChange.UpdateFilesetComment) change).getNewComment();
+      } else if (change instanceof FilesetChange.RemoveComment) {
+        newComment = null;
       } else {
         throw new IllegalArgumentException("Unsupported fileset change: " + change);
       }
@@ -507,7 +512,7 @@ public class TestCatalogOperations
     TestFileset updatedFileset =
         TestFileset.builder()
             .withName(newIdent.name())
-            .withComment(fileset.comment())
+            .withComment(newComment)
             .withProperties(newProps)
             .withAuditInfo(updatedAuditInfo)
             .withType(fileset.type())

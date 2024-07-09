@@ -55,6 +55,15 @@ public interface FilesetChange {
     return new RemoveProperty(property);
   }
 
+  /**
+   * Creates a new fileset change to remove comment from the fileset.
+   *
+   * @return The fileset change.
+   */
+  static FilesetChange removeComment() {
+    return RemoveComment.getInstance();
+  }
+
   /** A fileset change to rename the fileset. */
   final class RenameFileset implements FilesetChange {
     private final String newName;
@@ -284,6 +293,50 @@ public interface FilesetChange {
     @Override
     public String toString() {
       return "REMOVEPROPERTY " + property;
+    }
+  }
+
+  /** A fileset change to remove comment from the fileset. */
+  final class RemoveComment implements FilesetChange {
+    private static final RemoveComment INSTANCE = new RemoveComment();
+
+    private static RemoveComment getInstance() {
+      return INSTANCE;
+    }
+
+    /**
+     * Compares this RemoveComment instance with another object for equality. Two instances are
+     * considered equal if they are RemoveComment instance.
+     *
+     * @param o The object to compare with this instance.
+     * @return true if the given object represents remove comment change; false otherwise.
+     */
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) return true;
+      return o != null && getClass() == o.getClass();
+    }
+
+    /**
+     * Generates a hash code for this RemoveComment instance. The hash code is based on the
+     * RemoveComment instance name.
+     *
+     * @return A hash code value for instance.
+     */
+    @Override
+    public int hashCode() {
+      return Objects.hash("REMOVECOMMENT");
+    }
+
+    /**
+     * Provides a string representation of the RemoveComment instance. This string format includes
+     * the class name.
+     *
+     * @return A string summary of the comment removal operation.
+     */
+    @Override
+    public String toString() {
+      return "REMOVECOMMENT";
     }
   }
 }
