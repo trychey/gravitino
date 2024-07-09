@@ -63,8 +63,7 @@ class GravitinoVirtualFileSystemConfiguration {
   public static final String FS_GRAVITINO_FILESET_CACHE_EVICTION_MILLS_AFTER_ACCESS_KEY =
       "fs.gravitino.fileset.cache.evictionMillsAfterAccess";
 
-  public static final long FS_GRAVITINO_FILESET_CACHE_EVICTION_MILLS_AFTER_ACCESS_DEFAULT =
-      1000L * 60 * 60 * 24 * 3;
+  public static final long FS_GRAVITINO_FILESET_CACHE_EVICTION_MILLS_AFTER_ACCESS_DEFAULT = -1L;
 
   public static final String FS_GRAVITINO_TESTING = "fs.gravitino.testing";
 

@@ -9,7 +9,7 @@ from typing import Dict, Tuple
 import re
 import fsspec
 
-from cachetools import TTLCache
+from cachetools import TTLCache, LRUCache
 from fsspec import AbstractFileSystem
 from fsspec.implementations.local import LocalFileSystem
 from fsspec.implementations.arrow import ArrowFSWrapper
@@ -83,14 +83,19 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
         server_uri=None,
         metalake_name=None,
         cache_size=20,
-        cache_expired_time=300,
+        cache_expired_time=-1,
         **kwargs,
     ):
         self._metalake = metalake_name
         self._client = GravitinoClient(
             uri=server_uri, metalake_name=metalake_name, check_version=False
         )
-        self._cache = TTLCache(maxsize=cache_size, ttl=cache_expired_time)
+        assert cache_expired_time != 0, "Cache expired time cannot be 0."
+        assert cache_size > 0, "Cache size cannot be less than or equal to 0."
+        if cache_expired_time < 0:
+            self._cache = LRUCache(maxsize=cache_size)
+        else:
+            self._cache = TTLCache(maxsize=cache_size, ttl=cache_expired_time)
         self._cache_lock = rwlock.RWLockFair()
 
         super().__init__(**kwargs)

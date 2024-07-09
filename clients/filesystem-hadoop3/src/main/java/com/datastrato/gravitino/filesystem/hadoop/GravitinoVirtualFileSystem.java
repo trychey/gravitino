@@ -99,8 +99,8 @@ public class GravitinoVirtualFileSystem extends FileSystem {
             GravitinoVirtualFileSystemConfiguration
                 .FS_GRAVITINO_FILESET_CACHE_EVICTION_MILLS_AFTER_ACCESS_DEFAULT);
     Preconditions.checkArgument(
-        evictionMillsAfterAccess > 0,
-        "'%s' should be greater than 0",
+        evictionMillsAfterAccess != 0,
+        "'%s' should not be 0",
         GravitinoVirtualFileSystemConfiguration
             .FS_GRAVITINO_FILESET_CACHE_EVICTION_MILLS_AFTER_ACCESS_KEY);
 
@@ -131,22 +131,38 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     // Since Caffeine does not ensure that removalListener will be involved after expiration
     // We use a scheduler with one thread to clean up expired clients.
     this.scheduler = new ScheduledThreadPoolExecutor(1, newDaemonThreadFactory());
-
-    this.filesetCache =
-        Caffeine.newBuilder()
-            .maximumSize(maxCapacity)
-            .expireAfterAccess(expireAfterAccess, TimeUnit.MILLISECONDS)
-            .scheduler(Scheduler.forScheduledExecutorService(scheduler))
-            .removalListener(
-                (key, value, cause) -> {
-                  try {
-                    Pair<Fileset, FileSystem> pair = (Pair<Fileset, FileSystem>) value;
-                    if (pair != null && pair.getRight() != null) pair.getRight().close();
-                  } catch (IOException e) {
-                    Logger.error("Cannot close the file system for fileset: {}", key, e);
-                  }
-                })
-            .build();
+    if (expireAfterAccess < 0) {
+      this.filesetCache =
+          Caffeine.newBuilder()
+              .maximumSize(maxCapacity)
+              .scheduler(Scheduler.forScheduledExecutorService(scheduler))
+              .removalListener(
+                  (key, value, cause) -> {
+                    try {
+                      Pair<Fileset, FileSystem> pair = (Pair<Fileset, FileSystem>) value;
+                      if (pair != null && pair.getRight() != null) pair.getRight().close();
+                    } catch (IOException e) {
+                      Logger.error("Cannot close the file system for fileset: {}", key, e);
+                    }
+                  })
+              .build();
+    } else {
+      this.filesetCache =
+          Caffeine.newBuilder()
+              .maximumSize(maxCapacity)
+              .expireAfterAccess(expireAfterAccess, TimeUnit.MILLISECONDS)
+              .scheduler(Scheduler.forScheduledExecutorService(scheduler))
+              .removalListener(
+                  (key, value, cause) -> {
+                    try {
+                      Pair<Fileset, FileSystem> pair = (Pair<Fileset, FileSystem>) value;
+                      if (pair != null && pair.getRight() != null) pair.getRight().close();
+                    } catch (IOException e) {
+                      Logger.error("Cannot close the file system for fileset: {}", key, e);
+                    }
+                  })
+              .build();
+    }
   }
 
   private ThreadFactory newDaemonThreadFactory() {
@@ -652,6 +668,13 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   public Token<?>[] addDelegationTokens(String renewer, Credentials credentials)
       throws IOException {
     return null;
+  }
+
+  @Override
+  public boolean truncate(Path f, long newLength) throws IOException {
+    FilesetContext context = getFilesetContext(f);
+    logOperations("truncate", context);
+    return context.getFileSystem().truncate(context.getActualPath(), newLength);
   }
 
   @Override
