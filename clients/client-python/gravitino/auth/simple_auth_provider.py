@@ -18,15 +18,20 @@ class SimpleAuthProvider(AuthDataProvider):
 
     _token: bytes
 
-    def __init__(self):
-        gravitino_user = os.environ.get("GRAVITINO_USER")
-        if gravitino_user is None or len(gravitino_user) == 0:
-            gravitino_user = os.environ.get("user.name")
+    def __init__(self, token: str = None):
+        if token is not None:
+            user_information = token
+        elif os.environ.get("GRAVITINO_TOKEN") is not None:
+            user_information = os.environ.get("GRAVITINO_TOKEN")
+        else:
+            gravitino_user = os.environ.get("GRAVITINO_USER")
+            if gravitino_user is None or len(gravitino_user) == 0:
+                gravitino_user = os.environ.get("user.name")
 
-        if gravitino_user is None or len(gravitino_user) == 0:
-            gravitino_user = "anonymous"
+            if gravitino_user is None or len(gravitino_user) == 0:
+                gravitino_user = "anonymous"
 
-        user_information = f"{gravitino_user}:dummy"
+            user_information = f"{gravitino_user}:dummy"
         self._token = (
             AuthConstants.AUTHORIZATION_BASIC_HEADER
             + base64.b64encode(user_information.encode("utf-8")).decode("utf-8")

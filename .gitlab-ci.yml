@@ -244,6 +244,17 @@ publish-filesystem-hadoop3-bundled:
   only:
     - /^prod-v.*/
 
+publish-python:
+  stage: online_deploy
+  script:
+    - export TWINE_USERNAME=${MAVEN_REPO_USER}
+      && export TWINE_PASSWORD=${MAVEN_REPO_PASS}
+      && ./gradlew clean :clients:client-python:deploy
+  when: manual
+  allow_failure: false
+  only:
+    - /^prod-v.*/
+
 # Build tjwq env docker image
 build-tjwq-docker:
   stage: online_deploy

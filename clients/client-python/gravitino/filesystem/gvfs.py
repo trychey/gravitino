@@ -3,6 +3,8 @@ Copyright 2024 Datastrato Pvt Ltd.
 This software is licensed under the Apache License version 2.
 """
 
+import os
+import subprocess
 from enum import Enum
 from pathlib import PurePosixPath
 from typing import Dict, Tuple
@@ -18,6 +20,7 @@ from pyarrow.fs import HadoopFileSystem
 from readerwriterlock import rwlock
 from gravitino.api.catalog import Catalog
 from gravitino.api.fileset import Fileset
+from gravitino.auth.simple_auth_provider import SimpleAuthProvider
 from gravitino.client.gravitino_client import GravitinoClient
 from gravitino.exceptions.gravitino_runtime_exception import GravitinoRuntimeException
 from gravitino.name_identifier import NameIdentifier
@@ -77,6 +80,7 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
     # Override the parent variable
     protocol = PROTOCOL_NAME
     _identifier_pattern = re.compile("^fileset/([^/]+)/([^/]+)/([^/]+)(?:/[^/]+)*/?$")
+    _hadoop_classpath = None
 
     def __init__(
         self,
@@ -86,9 +90,30 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
         cache_expired_time=-1,
         **kwargs,
     ):
-        self._metalake = metalake_name
+        if metalake_name is not None:
+            self._metalake = metalake_name
+        else:
+            metalake = os.environ.get("GRAVITINO_METALAKE")
+            if metalake is None:
+                raise GravitinoRuntimeException(
+                    "No metalake name is provided. Please set the environment variable "
+                    + "'GRAVITINO_METALAKE' or provide it as a parameter."
+                )
+            self._metalake = metalake
+        if server_uri is not None:
+            self._server_uri = server_uri
+        else:
+            server_uri = os.environ.get("GRAVITINO_SERVER")
+            if server_uri is None:
+                raise GravitinoRuntimeException(
+                    "No server URI is provided. Please set the environment variable "
+                    + "'GRAVITINO_SERVER' or provide it as a parameter."
+                )
+            self._server_uri = server_uri
         self._client = GravitinoClient(
-            uri=server_uri, metalake_name=metalake_name, check_version=False
+            uri=self._server_uri,
+            metalake_name=self._metalake,
+            auth_data_provider=SimpleAuthProvider(),
         )
         assert cache_expired_time != 0, "Cache expired time cannot be 0."
         assert cache_size > 0, "Cache size cannot be less than or equal to 0."
@@ -527,6 +552,8 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
             fileset: Fileset = self._load_fileset_from_server(identifier)
             storage_location = fileset.storage_location()
             if storage_location.startswith(f"{StorageType.HDFS.value}://"):
+                if self._hadoop_classpath is None:
+                    self._init_hadoop_classpath()
                 fs = ArrowFSWrapper(HadoopFileSystem.from_uri(storage_location))
                 storage_type = StorageType.HDFS
             elif storage_location.startswith(f"{StorageType.LOCAL.value}:/"):
@@ -672,6 +699,34 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
         raise GravitinoRuntimeException(
             f"Storage type:{storage_type} doesn't support now."
         )
+
+    def _init_hadoop_classpath(self):
+        hadoop_home = os.environ.get("HADOOP_HOME")
+        if hadoop_home is not None and len(hadoop_home) > 0:
+            hadoop_shell = f"{hadoop_home}/bin/hadoop"
+            if not os.path.exists(hadoop_shell):
+                raise GravitinoRuntimeException(
+                    f"Hadoop shell:{hadoop_shell} doesn't exist."
+                )
+            try:
+                result = subprocess.run(
+                    [hadoop_shell, "classpath", "--glob"],
+                    capture_output=True,
+                    text=True,
+                    # we set check=True to raise exception if the command failed.
+                    check=True,
+                )
+                classpath_str = str(result.stdout)
+                origin_classpath = os.environ.get("CLASSPATH")
+                if origin_classpath is None or len(origin_classpath) == 0:
+                    os.environ["CLASSPATH"] = classpath_str
+                else:
+                    os.environ["CLASSPATH"] = origin_classpath + ":" + classpath_str
+                self._hadoop_classpath = classpath_str
+            except subprocess.CalledProcessError as e:
+                raise GravitinoRuntimeException(
+                    f"Command failed with return code {e.returncode}, stdout:{e.stdout}, stderr:{e.stderr}"
+                ) from e
 
 
 fsspec.register_implementation(PROTOCOL_NAME, GravitinoVirtualFileSystem)

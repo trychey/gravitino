@@ -62,6 +62,7 @@ gravitino.auxService.iceberg-rest.httpPort = 9001
 gravitino.authorization.enable = true
 
 # Gravitino super users authenticated by Simple Authenticator. Will encrypted by KeyCenter.
-gravitino.authenticator.simple.superUsers=GFAqi2s/sqjIhIO2n/Vfw+ycFmrEmraVURDpCnukB1AtA1lbgai64iaDyZBgxC29OfBlDfHm2T4Lv3VHKe0pyUfOTkMauv2uove4TTxsqhFEqRgSiOLSBNfjT/uBXaA/BJgSgET/GBAWLIaV/zFCF5mMaaUQporzGBSxNWcbVEABNaLJJLLpk5CmivmSTgA=
+gravitino.authenticator.simple.superUsers=GHCAhDw43PN+4uSfGf3jm4Ya8kLiIBFzF5C7eXsumI5yz3Y38h7+lO4jyR4EfYGzCIoQpaslkQ1NAwXnBOCFMBipj7ss+t9qc0Xh8q7XjR5tYt85ydpeKlMitpTMgqjeZvkgtAXGX6Mje0UWq1nyTQY5GBKAtpLMrpNPbYZrQzH+0nLwOf8YEFTQG+os80+Jr5WFTlOXZFIYFNZo0MB/adOBij+TZad4K4Aqk71CAA==
+gravitino.authenticator.simple.readOnly.superUsers=GCBvOR1uPA4o+wRN1yBfvgpV8Es3x6jyoYy375wQg1KVlhgSHXNGezpFTxunaFpxXCtRVwD/GBDdcqF5mMRB7J2S7xvuw6AHGBRSW4XqiPZnWiFpLdOcz3xXPClBwAA=
 # Disable local environment for Simple Authenticator.
 gravitino.authenticator.simple.localEnv=false

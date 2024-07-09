@@ -247,9 +247,15 @@ tasks {
   // Deploy to https://pypi.org/project/gravitino/
   val deploy by registering(VenvTask::class) {
     dependsOn(distribution)
+    val twine_username = System.getenv("TWINE_USERNAME")
     val twine_password = System.getenv("TWINE_PASSWORD")
     venvExec = "twine"
-    args = listOf("upload", "dist/*", "-p${twine_password}")
+    args = listOf(
+            "upload",
+            "--repository-url https://pkgs.d.xiaomi.net/artifactory/api/pypi/pypi-snapshot-local",
+            "-u${twine_username}",
+            "-p${twine_password}",
+            "dist/*")
   }
 
   val clean by registering(Delete::class) {

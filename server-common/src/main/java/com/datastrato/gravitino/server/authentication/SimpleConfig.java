@@ -7,6 +7,7 @@ package com.datastrato.gravitino.server.authentication;
 import com.datastrato.gravitino.config.ConfigBuilder;
 import com.datastrato.gravitino.config.ConfigConstants;
 import com.datastrato.gravitino.config.ConfigEntry;
+import org.apache.commons.lang3.StringUtils;
 
 public interface SimpleConfig {
 
@@ -19,6 +20,16 @@ public interface SimpleConfig {
                   + "multiple audience need to be separated by commas.")
           .version(ConfigConstants.VERSION_0_5_0)
           .stringConf()
+          .createWithDefault("GravitinoServer");
+
+  ConfigEntry<String> READONLY_SUPER_USERS =
+      new ConfigBuilder(SIMPLE_CONFIG_PREFIX + "readOnly.superUsers")
+          .doc(
+              "The readonly super users when Gravitino uses Simple as the authenticator, "
+                  + "multiple audience need to be separated by commas.")
+          .version(ConfigConstants.VERSION_0_5_0)
+          .stringConf()
+          .checkValue(StringUtils::isNotBlank, ConfigConstants.NOT_BLANK_ERROR_MSG)
           .createWithDefault("GravitinoServer");
 
   ConfigEntry<Boolean> LOCAL_ENV =

@@ -4,19 +4,32 @@
  */
 package com.datastrato.gravitino.server.web;
 
+import com.datastrato.gravitino.GravitinoEnv;
 import com.datastrato.gravitino.UserPrincipal;
 import com.datastrato.gravitino.auth.AuthConstants;
+import com.datastrato.gravitino.cipher.CipherUtils;
 import com.datastrato.gravitino.dto.responses.ErrorResponse;
+import com.datastrato.gravitino.server.authentication.SimpleConfig;
 import com.datastrato.gravitino.utils.PrincipalUtils;
+import com.google.common.base.Splitter;
 import java.security.PrivilegedExceptionAction;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import org.apache.commons.lang3.StringUtils;
 
 public class Utils {
 
   private static final String REMOTE_USER = "gravitino";
+  private static final boolean LOCAL_ENV =
+      GravitinoEnv.getInstance().config().get(SimpleConfig.LOCAL_ENV);
+  private static final String ENCRYPTED_READ_ONLY_USERS =
+      GravitinoEnv.getInstance().config().get(SimpleConfig.READONLY_SUPER_USERS);
+  private static volatile List<String> READ_ONLY_USERS = null;
+  private static final Splitter SPLITTER = Splitter.on(",").omitEmptyStrings().trimResults();
 
   private Utils() {}
 
@@ -115,8 +128,34 @@ public class Utils {
     UserPrincipal principal =
         (UserPrincipal)
             httpRequest.getAttribute(AuthConstants.AUTHENTICATED_PRINCIPAL_ATTRIBUTE_NAME);
-    if (principal == null) {
-      principal = new UserPrincipal(AuthConstants.ANONYMOUS_USER);
+    if (LOCAL_ENV) {
+      if (principal == null) {
+        principal = new UserPrincipal(AuthConstants.ANONYMOUS_USER);
+      }
+    } else {
+      if (principal == null) {
+        return Response.status(Response.Status.UNAUTHORIZED).build();
+      }
+      if (StringUtils.isNotBlank(ENCRYPTED_READ_ONLY_USERS)) {
+        if (READ_ONLY_USERS == null) {
+          synchronized (Utils.class) {
+            if (READ_ONLY_USERS == null) {
+              // load read only users from config
+              String readOnlyUsers =
+                  CipherUtils.decryptStringWithoutCompress(ENCRYPTED_READ_ONLY_USERS);
+              READ_ONLY_USERS =
+                  SPLITTER.splitToStream(readOnlyUsers).distinct().collect(Collectors.toList());
+            }
+          }
+        }
+        // check read only users
+        if (READ_ONLY_USERS.contains(principal.getName())) {
+          // check whether it is `GET` request
+          if (!httpRequest.getMethod().equals("GET")) {
+            return Response.status(Response.Status.FORBIDDEN).build();
+          }
+        }
+      }
     }
     return PrincipalUtils.doAs(principal, action);
   }

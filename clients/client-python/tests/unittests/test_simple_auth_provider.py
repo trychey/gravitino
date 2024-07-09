@@ -36,3 +36,23 @@ class TestSimpleAuthProvider(unittest.TestCase):
             token[len(AuthConstants.AUTHORIZATION_BASIC_HEADER) :]
         ).decode("utf-8")
         self.assertEqual(f"{user}:dummy", token_string)
+
+        super_token = "test_auth3"
+        provider: AuthDataProvider = SimpleAuthProvider(super_token)
+        self.assertTrue(provider.has_token_data())
+        token = provider.get_token_data().decode("utf-8")
+        self.assertTrue(token.startswith(AuthConstants.AUTHORIZATION_BASIC_HEADER))
+        token_string = base64.b64decode(
+            token[len(AuthConstants.AUTHORIZATION_BASIC_HEADER) :]
+        ).decode("utf-8")
+        self.assertEqual(super_token, token_string)
+
+        os.environ["GRAVITINO_TOKEN"] = "test_auth4"
+        provider: AuthDataProvider = SimpleAuthProvider()
+        self.assertTrue(provider.has_token_data())
+        token = provider.get_token_data().decode("utf-8")
+        self.assertTrue(token.startswith(AuthConstants.AUTHORIZATION_BASIC_HEADER))
+        token_string = base64.b64decode(
+            token[len(AuthConstants.AUTHORIZATION_BASIC_HEADER) :]
+        ).decode("utf-8")
+        self.assertEqual("test_auth4", token_string)
