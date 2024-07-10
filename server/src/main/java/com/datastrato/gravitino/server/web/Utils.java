@@ -13,8 +13,8 @@ import com.datastrato.gravitino.server.authentication.SimpleConfig;
 import com.datastrato.gravitino.utils.PrincipalUtils;
 import com.google.common.base.Splitter;
 import java.security.PrivilegedExceptionAction;
-import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.core.MediaType;
@@ -28,7 +28,7 @@ public class Utils {
       GravitinoEnv.getInstance().config().get(SimpleConfig.LOCAL_ENV);
   private static final String ENCRYPTED_READ_ONLY_USERS =
       GravitinoEnv.getInstance().config().get(SimpleConfig.READONLY_SUPER_USERS);
-  private static volatile List<String> READ_ONLY_USERS = null;
+  private static volatile Set<String> READ_ONLY_USERS = null;
   private static final Splitter SPLITTER = Splitter.on(",").omitEmptyStrings().trimResults();
 
   private Utils() {}
@@ -143,8 +143,7 @@ public class Utils {
               // load read only users from config
               String readOnlyUsers =
                   CipherUtils.decryptStringWithoutCompress(ENCRYPTED_READ_ONLY_USERS);
-              READ_ONLY_USERS =
-                  SPLITTER.splitToStream(readOnlyUsers).distinct().collect(Collectors.toList());
+              READ_ONLY_USERS = SPLITTER.splitToStream(readOnlyUsers).collect(Collectors.toSet());
             }
           }
         }
