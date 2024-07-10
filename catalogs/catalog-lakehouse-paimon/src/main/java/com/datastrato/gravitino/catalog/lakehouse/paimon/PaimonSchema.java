@@ -6,8 +6,8 @@ package com.datastrato.gravitino.catalog.lakehouse.paimon;
 
 import static com.datastrato.gravitino.meta.AuditInfo.EMPTY;
 
-import com.datastrato.gravitino.Schema;
 import com.datastrato.gravitino.connector.BaseSchema;
+import com.datastrato.gravitino.rel.Schema;
 import java.util.Map;
 import java.util.Optional;
 import lombok.ToString;

@@ -27,16 +27,16 @@ dependencies {
   implementation(libs.commons.lang3)
   implementation(libs.caffeine)
   implementation(libs.guava)
-  implementation(libs.hadoop2.common) {
+  implementation(libs.hadoop3.common) {
     exclude("com.github.spotbugs")
     exclude("com.sun.jersey")
     exclude("javax.servlet")
   }
-  implementation(libs.hadoop2.hdfs) {
+  implementation(libs.hadoop3.hdfs) {
     exclude("com.sun.jersey")
     exclude("javax.servlet")
   }
-  implementation(libs.hadoop2.mapreduce.client.core) {
+  implementation(libs.hadoop3.mapreduce.client.core) {
     exclude("com.sun.jersey")
     exclude("javax.servlet")
   }
@@ -84,7 +84,23 @@ tasks {
   }
 
   val copyCatalogConfig by registering(Copy::class) {
-    from("src/main/resources")
+    val cluster = if (project.hasProperty("cluster")) {
+      project.property("cluster") as String
+    } else {
+      "template"
+    }
+
+    when (cluster) {
+      "staging" ->
+        from("src/main/resources/staging")
+      "tjwq" ->
+        from("src/main/resources/tjwq")
+      "zjy" ->
+        from("src/main/resources/zjy")
+      else ->
+        from("src/main/resources/template")
+    }
+
     into("$rootDir/distribution/package/catalogs/lakehouse-paimon/conf")
 
     include("lakehouse-paimon.conf")
@@ -124,8 +140,7 @@ tasks.test {
     dependsOn(tasks.jar)
 
     doFirst {
-      environment("GRAVITINO_CI_HIVE_DOCKER_IMAGE", "datastrato/gravitino-ci-hive:0.1.12")
-      environment("GRAVITINO_CI_KERBEROS_HIVE_DOCKER_IMAGE", "datastrato/gravitino-ci-kerberos-hive:0.1.3")
+      environment("GRAVITINO_CI_HIVE_DOCKER_IMAGE", "datastrato/gravitino-ci-hive:0.1.11")
     }
 
     val init = project.extra.get("initIntegrationTest") as (Test) -> Unit

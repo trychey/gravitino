@@ -21,9 +21,6 @@ package com.datastrato.gravitino.catalog.lakehouse.paimon.integration.test;
 import com.datastrato.gravitino.Catalog;
 import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.Namespace;
-import com.datastrato.gravitino.Schema;
-import com.datastrato.gravitino.SchemaChange;
-import com.datastrato.gravitino.SupportsSchemas;
 import com.datastrato.gravitino.catalog.lakehouse.paimon.PaimonCatalogPropertiesMetadata;
 import com.datastrato.gravitino.catalog.lakehouse.paimon.PaimonConfig;
 import com.datastrato.gravitino.catalog.lakehouse.paimon.ops.PaimonBackendCatalogWrapper;
@@ -37,12 +34,14 @@ import com.datastrato.gravitino.integration.test.container.ContainerSuite;
 import com.datastrato.gravitino.integration.test.util.AbstractIT;
 import com.datastrato.gravitino.integration.test.util.GravitinoITUtils;
 import com.datastrato.gravitino.rel.Column;
+import com.datastrato.gravitino.rel.Schema;
+import com.datastrato.gravitino.rel.SchemaChange;
+import com.datastrato.gravitino.rel.SupportsSchemas;
 import com.datastrato.gravitino.rel.Table;
 import com.datastrato.gravitino.rel.TableCatalog;
 import com.datastrato.gravitino.rel.expressions.distributions.Distribution;
 import com.datastrato.gravitino.rel.expressions.distributions.Distributions;
 import com.datastrato.gravitino.rel.expressions.sorts.SortOrder;
-import com.datastrato.gravitino.rel.expressions.sorts.SortOrders;
 import com.datastrato.gravitino.rel.expressions.transforms.Transform;
 import com.datastrato.gravitino.rel.expressions.transforms.Transforms;
 import com.datastrato.gravitino.rel.types.Types;
@@ -53,11 +52,11 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.paimon.catalog.Catalog.DatabaseNotExistException;
 import org.apache.paimon.catalog.Identifier;
 import org.apache.paimon.schema.TableSchema;
@@ -89,10 +88,22 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
   private static final String PAIMON_COL_NAME2 = "paimon_col_name2";
   private static final String PAIMON_COL_NAME3 = "paimon_col_name3";
   private static final String PAIMON_COL_NAME4 = "paimon_col_name4";
-  private String metalakeName = GravitinoITUtils.genRandomName("paimon_it_metalake");
-  private String catalogName = GravitinoITUtils.genRandomName("paimon_it_catalog");
-  private String schemaName = GravitinoITUtils.genRandomName("paimon_it_schema");
-  private String tableName = GravitinoITUtils.genRandomName("paimon_it_table");
+  private NameIdentifier metalakeName =
+      NameIdentifier.ofMetalake(GravitinoITUtils.genRandomName("paimon_it_metalake"));
+  private NameIdentifier catalogName =
+      NameIdentifier.ofCatalog(
+          metalakeName.name(), GravitinoITUtils.genRandomName("paimon_it_catalog"));
+  private NameIdentifier schemaName =
+      NameIdentifier.ofSchema(
+          metalakeName.name(),
+          catalogName.name(),
+          GravitinoITUtils.genRandomName("paimon_it_schema"));
+  private NameIdentifier tableName =
+      NameIdentifier.ofTable(
+          metalakeName.name(),
+          catalogName.name(),
+          schemaName.name(),
+          GravitinoITUtils.genRandomName("paimon_it_table"));
   private static String INSERT_BATCH_WITHOUT_PARTITION_TEMPLATE = "INSERT INTO paimon.%s VALUES %s";
   private static final String SELECT_ALL_TEMPLATE = "SELECT * FROM paimon.%s";
   private GravitinoMetalake metalake;
@@ -135,19 +146,23 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
 
     // create schema check.
     String testSchemaName = GravitinoITUtils.genRandomName("test_schema_1");
-    NameIdentifier schemaIdent = NameIdentifier.of(metalakeName, catalogName, testSchemaName);
+    NameIdentifier schemaIdent =
+        NameIdentifier.of(metalakeName.name(), catalogName.name(), testSchemaName);
     Map<String, String> schemaProperties = Maps.newHashMap();
     schemaProperties.put("key1", "val1");
     schemaProperties.put("key2", "val2");
-    schemas.createSchema(schemaIdent.name(), schema_comment, schemaProperties);
+    schemas.createSchema(schemaIdent, schema_comment, schemaProperties);
 
-    Set<String> schemaNames = new HashSet<>(Arrays.asList(schemas.listSchemas()));
+    Set<String> schemaNames =
+        Arrays.stream(schemas.listSchemas(Namespace.of(metalakeName.name(), catalogName.name())))
+            .map(NameIdentifier::name)
+            .collect(Collectors.toSet());
     Assertions.assertTrue(schemaNames.contains(testSchemaName));
     List<String> paimonDatabaseNames = paimonCatalog.listDatabases();
     Assertions.assertTrue(paimonDatabaseNames.contains(testSchemaName));
 
     // load schema check.
-    Schema schema = schemas.loadSchema(schemaIdent.name());
+    Schema schema = schemas.loadSchema(schemaIdent);
     // database properties is empty for Paimon FilesystemCatalog.
     Assertions.assertTrue(schema.properties().isEmpty());
     Assertions.assertTrue(paimonCatalog.loadDatabaseProperties(schemaIdent.name()).isEmpty());
@@ -155,31 +170,38 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
     Map<String, String> emptyMap = Collections.emptyMap();
     Assertions.assertThrows(
         SchemaAlreadyExistsException.class,
-        () -> schemas.createSchema(schemaIdent.name(), schema_comment, emptyMap));
+        () -> schemas.createSchema(schemaIdent, schema_comment, emptyMap));
 
     // alter schema check.
     // alter schema operation is unsupported.
     Assertions.assertThrowsExactly(
         UnsupportedOperationException.class,
-        () -> schemas.alterSchema(schemaIdent.name(), SchemaChange.setProperty("k1", "v1")));
+        () -> schemas.alterSchema(schemaIdent, SchemaChange.setProperty("k1", "v1")));
 
     // drop schema check.
-    schemas.dropSchema(schemaIdent.name(), false);
-    Assertions.assertThrows(
-        NoSuchSchemaException.class, () -> schemas.loadSchema(schemaIdent.name()));
+    schemas.dropSchema(schemaIdent, false);
+    Assertions.assertThrows(NoSuchSchemaException.class, () -> schemas.loadSchema(schemaIdent));
     Assertions.assertThrows(
         DatabaseNotExistException.class,
         () -> {
           paimonCatalog.loadDatabaseProperties(schemaIdent.name());
         });
 
-    schemaNames = new HashSet<>(Arrays.asList(schemas.listSchemas()));
+    schemaNames =
+        Arrays.stream(schemas.listSchemas(Namespace.of(metalakeName.name(), catalogName.name())))
+            .map(NameIdentifier::name)
+            .collect(Collectors.toSet());
     Assertions.assertFalse(schemaNames.contains(testSchemaName));
-    Assertions.assertFalse(schemas.dropSchema(schemaIdent.name(), false));
-    Assertions.assertFalse(schemas.dropSchema("no-exits", false));
+    Assertions.assertFalse(schemas.dropSchema(schemaIdent, false));
+    Assertions.assertFalse(
+        schemas.dropSchema(
+            NameIdentifier.ofSchema(metalakeName.name(), catalogName.name(), "no-exits"), false));
 
     // list schema check.
-    schemaNames = new HashSet<>(Arrays.asList(schemas.listSchemas()));
+    schemaNames =
+        Arrays.stream(schemas.listSchemas(Namespace.of(metalakeName.name(), catalogName.name())))
+            .map(NameIdentifier::name)
+            .collect(Collectors.toSet());
     Assertions.assertFalse(schemaNames.contains(testSchemaName));
     paimonDatabaseNames = paimonCatalog.listDatabases();
     Assertions.assertFalse(paimonDatabaseNames.contains(testSchemaName));
@@ -188,7 +210,7 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
   @Test
   void testCreateTableWithNullComment() {
     Column[] columns = createColumns();
-    NameIdentifier tableIdentifier = NameIdentifier.of(schemaName, tableName);
+    NameIdentifier tableIdentifier = tableName;
 
     TableCatalog tableCatalog = catalog.asTableCatalog();
     Table createdTable =
@@ -205,11 +227,11 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
     // Create table from Gravitino API
     Column[] columns = createColumns();
 
-    NameIdentifier tableIdentifier = NameIdentifier.of(schemaName, tableName);
+    NameIdentifier tableIdentifier = tableName;
     Distribution distribution = Distributions.NONE;
 
     Transform[] partitioning = Transforms.EMPTY_TRANSFORM;
-    SortOrder[] sortOrders = SortOrders.NONE;
+    SortOrder[] sortOrders = new SortOrder[0];
     Map<String, String> properties = createProperties();
     TableCatalog tableCatalog = catalog.asTableCatalog();
     Table createdTable =
@@ -221,7 +243,7 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
             partitioning,
             distribution,
             sortOrders);
-    Assertions.assertEquals(createdTable.name(), tableName);
+    Assertions.assertEquals(createdTable.name(), tableName.name());
     Map<String, String> resultProp = createdTable.properties();
     for (Map.Entry<String, String> entry : properties.entrySet()) {
       Assertions.assertTrue(resultProp.containsKey(entry.getKey()));
@@ -234,7 +256,7 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
     }
 
     Table loadTable = tableCatalog.loadTable(tableIdentifier);
-    Assertions.assertEquals(tableName, loadTable.name());
+    Assertions.assertEquals(tableName.name(), loadTable.name());
     Assertions.assertEquals(table_comment, loadTable.comment());
     resultProp = loadTable.properties();
     for (Map.Entry<String, String> entry : properties.entrySet()) {
@@ -248,8 +270,8 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
 
     // catalog load check
     org.apache.paimon.table.Table table =
-        paimonCatalog.getTable(Identifier.create(schemaName, tableName));
-    Assertions.assertEquals(tableName, table.name());
+        paimonCatalog.getTable(Identifier.create(schemaName.name(), tableName.name()));
+    Assertions.assertEquals(tableName.name(), table.name());
     Assertions.assertTrue(table.comment().isPresent());
     Assertions.assertEquals(table_comment, table.comment().get());
     resultProp = table.options();
@@ -294,7 +316,9 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
 
     String timestampTableName = "timestamp_table";
 
-    NameIdentifier tableIdentifier = NameIdentifier.of(schemaName, timestampTableName);
+    NameIdentifier tableIdentifier =
+        NameIdentifier.of(
+            metalakeName.name(), catalogName.name(), schemaName.name(), timestampTableName);
 
     Map<String, String> properties = createProperties();
     TableCatalog tableCatalog = catalog.asTableCatalog();
@@ -325,7 +349,7 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
     Assertions.assertTrue(loadTable.columns()[1].nullable());
 
     org.apache.paimon.table.Table table =
-        paimonCatalog.getTable(Identifier.create(schemaName, timestampTableName));
+        paimonCatalog.getTable(Identifier.create(schemaName.name(), timestampTableName));
     Assertions.assertInstanceOf(FileStoreTable.class, table);
     FileStoreTable fileStoreTable = (FileStoreTable) table;
     TableSchema tableSchema = fileStoreTable.schema();
@@ -345,7 +369,8 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
 
     String tableName1 = "table_1";
 
-    NameIdentifier table1 = NameIdentifier.of(schemaName, tableName1);
+    NameIdentifier table1 =
+        NameIdentifier.of(metalakeName.name(), catalogName.name(), schemaName.name(), tableName1);
 
     Map<String, String> properties = createProperties();
     TableCatalog tableCatalog = catalog.asTableCatalog();
@@ -357,17 +382,20 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
         Transforms.EMPTY_TRANSFORM,
         Distributions.NONE,
         new SortOrder[0]);
-    NameIdentifier[] nameIdentifiers = tableCatalog.listTables(Namespace.of(schemaName));
+    NameIdentifier[] nameIdentifiers =
+        tableCatalog.listTables(
+            Namespace.of(metalakeName.name(), catalogName.name(), schemaName.name()));
     Assertions.assertEquals(1, nameIdentifiers.length);
     Assertions.assertEquals("table_1", nameIdentifiers[0].name());
 
-    List<String> tableIdentifiers = paimonCatalog.listTables(schemaName);
+    List<String> tableIdentifiers = paimonCatalog.listTables(schemaName.name());
     Assertions.assertEquals(1, tableIdentifiers.size());
     Assertions.assertEquals("table_1", tableIdentifiers.get(0));
 
     String tableName2 = "table_2";
 
-    NameIdentifier table2 = NameIdentifier.of(schemaName, tableName2);
+    NameIdentifier table2 =
+        NameIdentifier.of(metalakeName.name(), catalogName.name(), schemaName.name(), tableName2);
     tableCatalog.createTable(
         table2,
         columns,
@@ -376,40 +404,46 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
         Transforms.EMPTY_TRANSFORM,
         Distributions.NONE,
         new SortOrder[0]);
-    nameIdentifiers = tableCatalog.listTables(Namespace.of(schemaName));
+    nameIdentifiers =
+        tableCatalog.listTables(
+            Namespace.of(metalakeName.name(), catalogName.name(), schemaName.name()));
     Assertions.assertEquals(2, nameIdentifiers.length);
     Assertions.assertEquals("table_1", nameIdentifiers[0].name());
     Assertions.assertEquals("table_2", nameIdentifiers[1].name());
 
-    tableIdentifiers = paimonCatalog.listTables(schemaName);
+    tableIdentifiers = paimonCatalog.listTables(schemaName.name());
     Assertions.assertEquals(2, tableIdentifiers.size());
     Assertions.assertEquals("table_1", tableIdentifiers.get(0));
     Assertions.assertEquals("table_2", tableIdentifiers.get(1));
 
     Assertions.assertDoesNotThrow(() -> tableCatalog.dropTable(table1));
 
-    nameIdentifiers = tableCatalog.listTables(Namespace.of(schemaName));
+    nameIdentifiers =
+        tableCatalog.listTables(
+            Namespace.of(metalakeName.name(), catalogName.name(), schemaName.name()));
     Assertions.assertEquals(1, nameIdentifiers.length);
     Assertions.assertEquals("table_2", nameIdentifiers[0].name());
 
     Assertions.assertDoesNotThrow(() -> tableCatalog.dropTable(table2));
-    Namespace schemaNamespace = Namespace.of(schemaName);
+    Namespace schemaNamespace =
+        Namespace.of(metalakeName.name(), catalogName.name(), schemaName.name());
     nameIdentifiers = tableCatalog.listTables(schemaNamespace);
     Assertions.assertEquals(0, nameIdentifiers.length);
 
-    Assertions.assertEquals(0, paimonCatalog.listTables(schemaName).size());
+    Assertions.assertEquals(0, paimonCatalog.listTables(schemaName.name()).size());
   }
 
   @Test
   void testOperationDataOfPaimonTable() {
     Column[] columns = createColumns();
     String testTableName = GravitinoITUtils.genRandomName("test_table");
-    SortOrder[] sortOrders = SortOrders.NONE;
+    SortOrder[] sortOrders = new SortOrder[0];
     Transform[] transforms = Transforms.EMPTY_TRANSFORM;
     catalog
         .asTableCatalog()
         .createTable(
-            NameIdentifier.of(schemaName, testTableName),
+            NameIdentifier.of(
+                metalakeName.name(), catalogName.name(), schemaName.name(), testTableName),
             columns,
             table_comment,
             createProperties(),
@@ -417,7 +451,7 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
             Distributions.NONE,
             sortOrders);
     List<String> values = getValues();
-    String dbTable = String.join(".", schemaName, testTableName);
+    String dbTable = String.join(".", schemaName.name(), testTableName);
     // insert data
     String insertSQL =
         String.format(INSERT_BATCH_WITHOUT_PARTITION_TEMPLATE, dbTable, String.join(", ", values));
@@ -532,14 +566,14 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
   }
 
   private void createSchema() {
-    NameIdentifier ident = NameIdentifier.of(metalakeName, catalogName, schemaName);
+    NameIdentifier ident = schemaName;
     Map<String, String> prop = Maps.newHashMap();
     prop.put("key1", "val1");
     prop.put("key2", "val2");
 
-    Schema createdSchema = catalog.asSchemas().createSchema(ident.name(), schema_comment, prop);
+    Schema createdSchema = catalog.asSchemas().createSchema(ident, schema_comment, prop);
     // database properties is empty for Paimon FilesystemCatalog.
-    Schema loadSchema = catalog.asSchemas().loadSchema(ident.name());
+    Schema loadSchema = catalog.asSchemas().loadSchema(ident);
     Assertions.assertEquals(createdSchema.name(), loadSchema.name());
     Assertions.assertTrue(loadSchema.properties().isEmpty());
   }

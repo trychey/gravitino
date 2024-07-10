@@ -5,7 +5,6 @@
 package com.datastrato.gravitino.catalog.lakehouse.paimon;
 
 import static com.datastrato.gravitino.catalog.lakehouse.paimon.GravitinoPaimonColumn.fromPaimonColumn;
-import static com.datastrato.gravitino.catalog.lakehouse.paimon.TestPaimonCatalog.PAIMON_PROPERTIES_METADATA;
 import static com.datastrato.gravitino.catalog.lakehouse.paimon.utils.TableOpsUtils.checkColumnCapability;
 
 import com.datastrato.gravitino.NameIdentifier;
@@ -221,8 +220,7 @@ public class TestGravitinoPaimonTable {
   void testTableProperty() {
     CatalogEntity entity = createDefaultCatalogEntity();
     try (PaimonCatalogOperations ops = new PaimonCatalogOperations()) {
-      ops.initialize(
-          initBackendCatalogProperties(), entity.toCatalogInfo(), PAIMON_PROPERTIES_METADATA);
+      ops.initialize(initBackendCatalogProperties(), entity.toCatalogInfo());
       Map<String, String> map = Maps.newHashMap();
       map.put(PaimonTablePropertiesMetadata.COMMENT, "test");
       map.put(PaimonTablePropertiesMetadata.CREATOR, "test");

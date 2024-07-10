@@ -6,12 +6,12 @@ package com.datastrato.gravitino.catalog.lakehouse.paimon;
 
 import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.Namespace;
-import com.datastrato.gravitino.Schema;
-import com.datastrato.gravitino.SchemaChange;
 import com.datastrato.gravitino.exceptions.NoSuchSchemaException;
 import com.datastrato.gravitino.exceptions.SchemaAlreadyExistsException;
 import com.datastrato.gravitino.meta.AuditInfo;
 import com.datastrato.gravitino.meta.CatalogEntity;
+import com.datastrato.gravitino.rel.Schema;
+import com.datastrato.gravitino.rel.SchemaChange;
 import com.google.common.collect.Maps;
 import java.io.File;
 import java.time.Instant;

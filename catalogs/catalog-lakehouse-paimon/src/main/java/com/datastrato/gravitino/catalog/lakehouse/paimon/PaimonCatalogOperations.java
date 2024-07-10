@@ -11,12 +11,10 @@ import static com.datastrato.gravitino.connector.BaseCatalog.CATALOG_BYPASS_PREF
 
 import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.Namespace;
-import com.datastrato.gravitino.SchemaChange;
 import com.datastrato.gravitino.catalog.lakehouse.paimon.ops.PaimonCatalogOps;
 import com.datastrato.gravitino.connector.CatalogInfo;
 import com.datastrato.gravitino.connector.CatalogOperations;
-import com.datastrato.gravitino.connector.HasPropertyMetadata;
-import com.datastrato.gravitino.connector.SupportsSchemas;
+import com.datastrato.gravitino.connector.PropertiesMetadata;
 import com.datastrato.gravitino.exceptions.NoSuchCatalogException;
 import com.datastrato.gravitino.exceptions.NoSuchSchemaException;
 import com.datastrato.gravitino.exceptions.NoSuchTableException;
@@ -25,6 +23,8 @@ import com.datastrato.gravitino.exceptions.SchemaAlreadyExistsException;
 import com.datastrato.gravitino.exceptions.TableAlreadyExistsException;
 import com.datastrato.gravitino.meta.AuditInfo;
 import com.datastrato.gravitino.rel.Column;
+import com.datastrato.gravitino.rel.SchemaChange;
+import com.datastrato.gravitino.rel.SupportsSchemas;
 import com.datastrato.gravitino.rel.TableCatalog;
 import com.datastrato.gravitino.rel.TableChange;
 import com.datastrato.gravitino.rel.expressions.distributions.Distribution;
@@ -57,6 +57,9 @@ public class PaimonCatalogOperations implements CatalogOperations, SupportsSchem
   public static final Logger LOG = LoggerFactory.getLogger(PaimonCatalogOperations.class);
 
   @VisibleForTesting public PaimonCatalogOps paimonCatalogOps;
+  private PaimonCatalogPropertiesMetadata paimonCatalogPropertiesMetadata;
+  private PaimonTablePropertiesMetadata paimonTablePropertiesMetadata;
+  private PaimonSchemaPropertiesMetadata paimonSchemaPropertiesMetadata;
 
   private static final String NO_SUCH_SCHEMA_EXCEPTION =
       "Paimon schema (database) %s does not exist.";
@@ -75,16 +78,17 @@ public class PaimonCatalogOperations implements CatalogOperations, SupportsSchem
    * @throws RuntimeException if initialization fails.
    */
   @Override
-  public void initialize(
-      Map<String, String> conf, CatalogInfo info, HasPropertyMetadata propertiesMetadata)
-      throws RuntimeException {
+  public void initialize(Map<String, String> conf, CatalogInfo info) throws RuntimeException {
     // Key format like gravitino.bypass.a.b
     Map<String, String> prefixMap = MapUtils.getPrefixMap(conf, CATALOG_BYPASS_PREFIX);
 
+    this.paimonCatalogPropertiesMetadata = new PaimonCatalogPropertiesMetadata();
+    this.paimonTablePropertiesMetadata = new PaimonTablePropertiesMetadata();
+    this.paimonSchemaPropertiesMetadata = new PaimonSchemaPropertiesMetadata();
+
     // Hold keys that lie in GRAVITINO_CONFIG_TO_PAIMON
     Map<String, String> gravitinoConfig =
-        ((PaimonCatalogPropertiesMetadata) propertiesMetadata.catalogPropertiesMetadata())
-            .transformProperties(conf);
+        this.paimonCatalogPropertiesMetadata.transformProperties(conf);
 
     Map<String, String> resultConf = Maps.newHashMap(prefixMap);
     resultConf.putAll(gravitinoConfig);
@@ -391,6 +395,33 @@ public class PaimonCatalogOperations implements CatalogOperations, SupportsSchem
         throw new RuntimeException(e);
       }
     }
+  }
+
+  @Override
+  public PropertiesMetadata tablePropertiesMetadata() throws UnsupportedOperationException {
+    return paimonTablePropertiesMetadata;
+  }
+
+  @Override
+  public PropertiesMetadata catalogPropertiesMetadata() throws UnsupportedOperationException {
+    return paimonCatalogPropertiesMetadata;
+  }
+
+  @Override
+  public PropertiesMetadata schemaPropertiesMetadata() throws UnsupportedOperationException {
+    return paimonSchemaPropertiesMetadata;
+  }
+
+  @Override
+  public PropertiesMetadata filesetPropertiesMetadata() throws UnsupportedOperationException {
+    throw new UnsupportedOperationException(
+        "Paimon catalog doesn't support fileset related operations");
+  }
+
+  @Override
+  public PropertiesMetadata topicPropertiesMetadata() throws UnsupportedOperationException {
+    throw new UnsupportedOperationException(
+        "Paimon catalog doesn't support topic related operations");
   }
 
   private static String currentUser() {
