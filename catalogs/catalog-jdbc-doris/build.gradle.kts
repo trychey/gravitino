@@ -75,7 +75,8 @@ tasks.test {
   }
 
   val skipITs = project.hasProperty("skipITs")
-  if (skipITs) {
+  val skipDorisITs = project.hasProperty("skipDorisITs")
+  if (skipITs || skipDorisITs) {
     // Exclude integration tests
     exclude("**/integration/**")
   } else {

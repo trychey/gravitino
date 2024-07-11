@@ -91,6 +91,7 @@ backend-embedded-integration-test:
     - ./gradlew --stop
     - ./gradlew clean test --rerun-tasks -PskipTests -PtestMode=embedded -PjdkVersion=8
       -PskipWebITs -PjdbcBackend -x :clients:client-python:test
+      -PskipDorisITs
       "-Dorg.gradle.jvmargs=-Xmx32g -XX:MaxPermSize=4096m -XX:+HeapDumpOnOutOfMemoryError"
       --no-build-cache
   rules:
@@ -114,6 +115,34 @@ backend-deploy-integration-test:
       "-Dorg.gradle.jvmargs=-Xmx32g -XX:MaxPermSize=4096m -XX:+HeapDumpOnOutOfMemoryError"
     - ./gradlew test --rerun-tasks -PskipTests -PtestMode=deploy -PjdkVersion=8
       -PskipWebITs -PjdbcBackend -Pcluster=template -x :clients:client-python:test
+      -PskipDorisITs
+      "-Dorg.gradle.jvmargs=-Xmx32g -XX:MaxPermSize=4096m -XX:+HeapDumpOnOutOfMemoryError"
+      --no-build-cache
+  rules:
+    - !reference [ .integration_test_rules, rules ]
+  retry: 2
+  interruptible: true
+  tags:
+    - grav-it
+
+doris-integration-test:
+  stage: integration_test
+  variables:
+    GIT_STRATEGY: clone
+  <<: *clean_up_running_environment
+  script:
+    - echo "Running doris deploy integration tests"
+    - java -version
+    - mvn -v
+    - ./gradlew --stop
+    - ./gradlew compileDistribution -x test -PjdkVersion=8 --no-build-cache
+      "-Dorg.gradle.jvmargs=-Xmx32g -XX:MaxPermSize=4096m -XX:+HeapDumpOnOutOfMemoryError"
+    - ./gradlew -PskipTests -PtestMode=deploy -PjdkVersion=8 -PjdbcBackend
+      :catalogs:catalog-jdbc-doris:test --tests "com.datastrato.gravitino.catalog.doris.integration.test.*"
+      "-Dorg.gradle.jvmargs=-Xmx32g -XX:MaxPermSize=4096m -XX:+HeapDumpOnOutOfMemoryError"
+      --no-build-cache
+    - ./gradlew clean -PskipTests -PtestMode=embedded -PjdkVersion=8 -PjdbcBackend
+      :catalogs:catalog-jdbc-doris:test --tests "com.datastrato.gravitino.catalog.doris.integration.test.*"
       "-Dorg.gradle.jvmargs=-Xmx32g -XX:MaxPermSize=4096m -XX:+HeapDumpOnOutOfMemoryError"
       --no-build-cache
   rules:
