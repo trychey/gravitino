@@ -40,6 +40,7 @@ import java.util.regex.Pattern;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileChecksum;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.InvalidPathException;
@@ -675,6 +676,27 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     FilesetContext context = getFilesetContext(f);
     logOperations("truncate", context);
     return context.getFileSystem().truncate(context.getActualPath(), newLength);
+  }
+
+  @Override
+  public short getDefaultReplication(Path f) {
+    FilesetContext context = getFilesetContext(f);
+    logOperations("getDefaultReplication", context);
+    return context.getFileSystem().getDefaultReplication(context.getActualPath());
+  }
+
+  @Override
+  public long getDefaultBlockSize(Path f) {
+    FilesetContext context = getFilesetContext(f);
+    logOperations("getDefaultBlockSize", context);
+    return context.getFileSystem().getDefaultBlockSize(context.getActualPath());
+  }
+
+  @Override
+  public FileChecksum getFileChecksum(Path f) throws IOException {
+    FilesetContext context = getFilesetContext(f);
+    logOperations("getFileChecksum", context);
+    return context.getFileSystem().getFileChecksum(context.getActualPath());
   }
 
   @Override
