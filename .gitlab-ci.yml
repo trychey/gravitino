@@ -53,6 +53,9 @@ before_script:
 # Check style
 checkstyle:
   stage: spotless_check
+  variables:
+    GIT_STRATEGY: clone
+  <<: *clean_up_running_environment
   rules:
     - !reference [ .check_and_test_rules, rules ]
   script:
@@ -64,19 +67,31 @@ checkstyle:
       "-Dorg.gradle.jvmargs=-Xmx16g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
 
   allow_failure: false
+  retry: 1
   interruptible: true
+  tags:
+    - grav-it
 
 # Unit tests
 unit-test:
   stage: unit_test
+  cache:
+    paths:
+      - .gradle/python
+  variables:
+    GIT_STRATEGY: clone
+  <<: *clean_up_running_environment
   rules:
     - !reference [ .check_and_test_rules, rules ]
   script:
+    - ./gradlew --stop
     - ./gradlew clean test -PskipITs --no-build-cache
       "-Dorg.gradle.jvmargs=-Xmx16g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
   allow_failure: false
   retry: 1
   interruptible: true
+  tags:
+    - grav-it
 
 # Integration test
 backend-embedded-integration-test:
@@ -194,6 +209,8 @@ build-staging-docker:
   allow_failure: false
   only:
     - branch-0.5-mdh-staging
+  tags:
+    - special-shared
 
 # Publish artifactory
 publish-api:
@@ -298,6 +315,8 @@ build-tjwq-docker:
   allow_failure: false
   only:
     - /^prod-v.*/
+  tags:
+    - special-shared
 
 # Build zjy env docker image
 build-zjy-docker:
@@ -313,3 +332,5 @@ build-zjy-docker:
   allow_failure: false
   only:
     - /^prod-v.*/
+  tags:
+    - special-shared
