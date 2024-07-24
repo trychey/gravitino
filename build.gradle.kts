@@ -616,6 +616,7 @@ tasks {
           "staging" -> from(projectDir.dir("conf/staging")) { into("package/conf") }
           "tjwq" -> from(projectDir.dir("conf/tjwq")) { into("package/conf") }
           "zjy" -> from(projectDir.dir("conf/zjy")) { into("package/conf") }
+          "sgp" -> from(projectDir.dir("conf/sgp")) { into("package/conf") }
           else -> from(projectDir.dir("conf/template")) { into("package/conf") }
         }
         from(projectDir.dir("bin")) { into("package/bin") }

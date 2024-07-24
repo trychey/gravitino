@@ -1,0 +1,445 @@
+<!--
+  ~ Copyright 2024 Datastrato Pvt Ltd.
+  ~ This software is licensed under the Apache License version 2.
+  -->
+<configuration>
+  <property>
+    <name>configuration.service</name>
+    <value>org.apache.hadoop.fs.NameServiceConfigurationService</value>
+  </property>
+
+  <property>
+    <name>configuration.service.name.team.id</name>
+    <value>CL7202</value>
+  </property>
+  <property>
+    <name>dfs.client.failover.proxy.provider.alsgcloudsrv-galaxy-inner</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.alsgmiuisrv-mistats</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.alsgmiuisrv-push</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.alsgprc-hadoop</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ZkConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.alsgprc-xiaomi</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.alsgsrv-galaxy-data</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.alsgsrv-xiaomi</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.alsgsrv-xiaomi-ssd</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.azmbcommonprc-hadoop-0</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.azmbcommonprc-hadoop-1</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.azmbcommonprc-hadoop-2</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.azmbcommonprc-hadoop-3</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.azmbcommonprc-hadoop-4</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.azmbcommonprc-hadoop-5</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.azmbsrv-xiaomi</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.azsgprc-xiaomi</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.azsgsrv-xiaomi</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.azsgsrv-xiaomi-ssd</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.read.shortcircuit</name>
+    <value>true</value>
+  </property>
+
+  <property>
+    <name>dfs.client.read.shortcircuit.skip.auth</name>
+    <value>true</value>
+  </property>
+
+  <property>
+    <name>dfs.client.slow.log.threshold.ms</name>
+    <value>10000</value>
+  </property>
+
+  <property>
+    <name>dfs.datanode.kerberos.principal</name>
+    <value>hdfs_prc/hadoop@XIAOMI.HADOOP</value>
+  </property>
+
+  <property>
+    <name>dfs.datanode.keytab.file</name>
+    <value>/etc/hadoop/conf/hdfs_prc.keytab</value>
+  </property>
+
+  <property>
+    <name>dfs.domain.socket.path</name>
+    <value>/home/work/app/hdfs/alsgprc-hadoop/datanode/dn_socket</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.alsgcloudsrv-galaxy-inner</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.alsgmiuisrv-mistats</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.alsgmiuisrv-push</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.alsgprc-hadoop</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.alsgprc-xiaomi</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.alsgsrv-galaxy-data</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.alsgsrv-xiaomi</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.alsgsrv-xiaomi-ssd</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.azmbcommonprc-hadoop-0</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.azmbcommonprc-hadoop-1</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.azmbcommonprc-hadoop-2</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.azmbcommonprc-hadoop-3</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.azmbcommonprc-hadoop-4</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.azmbcommonprc-hadoop-5</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.azmbsrv-xiaomi</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.azsgprc-xiaomi</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.azsgsrv-xiaomi</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.azsgsrv-xiaomi-ssd</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.kerberos.internal.spnego.principal</name>
+    <value>HTTP/hadoop@XIAOMI.HADOOP</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.kerberos.principal</name>
+    <value>hdfs_prc/hadoop@XIAOMI.HADOOP</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.kerberos.principal.pattern</name>
+    <value>hdfs_{prc,srv}/hadoop@XIAOMI.HADOOP</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.keytab.file</name>
+    <value>/etc/hadoop/conf/hdfs_prc.keytab</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.alsgcloudsrv-galaxy-inner.host0</name>
+    <value>sgp2-hadoop-cloud-zk04.alisgp:35200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.alsgcloudsrv-galaxy-inner.host1</name>
+    <value>sgp1-hadoop-cloud-zk05.alisgp:35200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.alsgmiuisrv-mistats.host0</name>
+    <value>sgp2-hadoop-miui-zk01.alisgp:14200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.alsgmiuisrv-mistats.host1</name>
+    <value>sgp1-hadoop-miui-zk02.alisgp:14200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.alsgmiuisrv-push.host0</name>
+    <value>sgp1-hadoop-miui-zk02.alisgp:12200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.alsgmiuisrv-push.host1</name>
+    <value>sgp2-hadoop-miui-zk03.alisgp:12200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.alsgprc-hadoop.host0</name>
+    <value>sgp2-hadoop-prc-ct01.alisgp:12200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.alsgprc-hadoop.host1</name>
+    <value>sgp1-hadoop-prc-ct02.alisgp:12200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.alsgprc-xiaomi.host0</name>
+    <value>sgp1-hadoop-prc-ct02.alisgp:13200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.alsgprc-xiaomi.host1</name>
+    <value>sgp2-hadoop-prc-ct03.alisgp:13200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.alsgsrv-galaxy-data.host0</name>
+    <value>sgp1-hadoop-srv-zk02.alisgp:16200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.alsgsrv-galaxy-data.host1</name>
+    <value>sgp2-hadoop-srv-zk05.alisgp:16200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.alsgsrv-xiaomi-ssd.host0</name>
+    <value>sgp1-hadoop-srv-zk04.alisgp:13200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.alsgsrv-xiaomi-ssd.host1</name>
+    <value>sgp2-hadoop-srv-zk05.alisgp:13200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.alsgsrv-xiaomi.host0</name>
+    <value>sgp1-hadoop-srv-zk02.alisgp:12200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.alsgsrv-xiaomi.host1</name>
+    <value>sgp2-hadoop-srv-zk03.alisgp:12200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azmbcommonprc-hadoop-0.host0</name>
+    <value>mb1-hadoop-prc-ct01.awsind:11200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azmbcommonprc-hadoop-0.host1</name>
+    <value>mb2-hadoop-prc-ct03.awsind:11200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azmbcommonprc-hadoop-1.host0</name>
+    <value>mb1-hadoop-prc-ct02.awsind:11210</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azmbcommonprc-hadoop-1.host1</name>
+    <value>mb2-hadoop-prc-ct04.awsind:11210</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azmbcommonprc-hadoop-2.host0</name>
+    <value>mb2-hadoop-prc-ct05.awsind:11220</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azmbcommonprc-hadoop-2.host1</name>
+    <value>mb1-hadoop-prc-ct07.awsind:11220</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azmbcommonprc-hadoop-3.host0</name>
+    <value>mb2-hadoop-prc-ct06.awsind:11230</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azmbcommonprc-hadoop-3.host1</name>
+    <value>mb1-hadoop-prc-ct08.awsind:11230</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azmbcommonprc-hadoop-4.host0</name>
+    <value>mb1-hadoop-prc-ct09.awsind:11240</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azmbcommonprc-hadoop-4.host1</name>
+    <value>mb2-hadoop-prc-ct14.awsind:11240</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azmbcommonprc-hadoop-5.host0</name>
+    <value>mb1-hadoop-prc-ct10.awsind:11250</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azmbcommonprc-hadoop-5.host1</name>
+    <value>mb2-hadoop-prc-ct15.awsind:11250</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azmbsrv-xiaomi.host0</name>
+    <value>mb1-hadoop-srv-ct01.awsind:25200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azmbsrv-xiaomi.host1</name>
+    <value>mb2-hadoop-srv-ct04.awsind:25200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azsgprc-xiaomi.host0</name>
+    <value>10.68.1.23:11200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azsgprc-xiaomi.host1</name>
+    <value>10.68.11.213:11200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azsgsrv-xiaomi-ssd.host0</name>
+    <value>sgp1-hadoop-srv-ct05.awssgp:14200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azsgsrv-xiaomi-ssd.host1</name>
+    <value>sgp2-hadoop-srv-ct17.awssgp:14200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azsgsrv-xiaomi.host0</name>
+    <value>10.60.1.108:12200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.azsgsrv-xiaomi.host1</name>
+    <value>10.60.11.131:12200</value>
+  </property>
+
+  <property>
+    <name>dfs.nameservices</name>
+    <value>alsgprc-hadoop,azsgprc-xiaomi,azsgsrv-xiaomi,alsgmiuisrv-mistats,alsgmiuisrv-push,alsgprc-xiaomi,alsgsrv-xiaomi,azmbsrv-xiaomi,azmbcommonprc-hadoop-0,azmbcommonprc-hadoop-1,azmbcommonprc-hadoop-2,azmbcommonprc-hadoop-3,azmbcommonprc-hadoop-4,azmbcommonprc-hadoop-5,azsgsrv-xiaomi-ssd,alsgsrv-xiaomi-ssd,alsgsrv-galaxy-data,alsgcloudsrv-galaxy-inner</value>
+  </property>
+
+  <property>
+    <name>dfs.secondary.namenode.kerberos.internal.spnego.principal</name>
+    <value>HTTP/hadoop@XIAOMI.HADOOP</value>
+  </property>
+
+  <property>
+    <name>dfs.secondary.namenode.kerberos.principal</name>
+    <value>hdfs_prc/hadoop@XIAOMI.HADOOP</value>
+  </property>
+
+  <property>
+    <name>dfs.secondary.namenode.keytab.file</name>
+    <value>/etc/hadoop/conf/hdfs_prc.keytab</value>
+  </property>
+
+</configuration>

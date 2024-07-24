@@ -70,6 +70,8 @@ tasks {
         from("src/main/resources/tjwq")
       "zjy" ->
         from("src/main/resources/zjy")
+      "sgp" ->
+        from("src/main/resources/sgp")
       else ->
         from("src/main/resources/template")
     }
