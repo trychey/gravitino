@@ -2,7 +2,7 @@
 # Copyright 2024 Datastrato Pvt Ltd.
 # This software is licensed under the Apache License version 2.
 #
-FROM micr.cloud.mioffice.cn/devops-public/maven-mi-repo:3-jdk-8-slim as builder
+FROM micr.cloud.mioffice.cn/meta/gravitino-build:v2 as builder
 ARG BUILD_CLUSTER
 RUN echo "Build cluster is: $BUILD_CLUSTER"
 
@@ -10,10 +10,10 @@ WORKDIR /opt
 COPY . ./
 
 # copy jdk for building
-ADD https://cnbj1-fds.api.xiaomi.net/gravitino/amazon-corretto-17.0.10.8.1-linux-x64.tar.gz ./amazon-corretto-17.0.10.8.1-linux-x64.tar.gz
-ADD https://cnbj1-fds.api.xiaomi.net/gravitino/jdk-8u152-linux-x64.tar.gz ./jdk-8u152-linux-x64.tar.gz
-RUN tar -zxvf ./amazon-corretto-17.0.10.8.1-linux-x64.tar.gz
-RUN tar -zxvf ./jdk-8u152-linux-x64.tar.gz
+#ADD https://cnbj1-fds.api.xiaomi.net/gravitino/amazon-corretto-17.0.10.8.1-linux-x64.tar.gz ./amazon-corretto-17.0.10.8.1-linux-x64.tar.gz
+#ADD https://cnbj1-fds.api.xiaomi.net/gravitino/jdk-8u152-linux-x64.tar.gz ./jdk-8u152-linux-x64.tar.gz
+#RUN tar -zxvf ./amazon-corretto-17.0.10.8.1-linux-x64.tar.gz
+#RUN tar -zxvf ./jdk-8u152-linux-x64.tar.gz
 RUN ./gradlew clean compileDistribution --no-build-cache -Pcluster=$BUILD_CLUSTER -x test
 
 FROM micr.cloud.mioffice.cn/container/xiaomi_centos7:openjdk1.8

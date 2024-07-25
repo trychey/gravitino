@@ -1,0 +1,12 @@
+# Base image for gravitino server build
+# docker build -t micr.cloud.mioffice.cn/meta/gravitino-build:v2 -f Dockerfile-Build .
+FROM micr.cloud.mioffice.cn/devops-public/maven-mi-repo:3-jdk-8-slim
+
+ADD https://cnbj1-fds.api.xiaomi.net/gravitino/gradle-cache.tar.gz /root/
+ADD https://cnbj1-fds.api.xiaomi.net/gravitino/npm-cache.tar.gz /root/
+ADD https://cnbj1-fds.api.xiaomi.net/gravitino/pnpm-cache.tar.gz /root/.local/share/
+RUN tar -zxvf /root/gradle-cache.tar.gz -C /root/
+RUN tar -zxvf /root/npm-cache.tar.gz -C /root/
+RUN tar -zxf /root/.local/share/pnpm-cache.tar.gz -C /root/
+
+RUN rm /root/gradle-cache.tar.gz /root/npm-cache.tar.gz /root/.local/share/pnpm-cache.tar.gz
