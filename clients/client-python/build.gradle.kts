@@ -7,7 +7,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 plugins {
-  id("io.github.piyushroshan.python-gradle-miniforge-plugin") version "snapshot-2.0.0"
+  id("io.github.piyushroshan.python-gradle-miniforge-plugin") version "1.0.0-SNAPSHOT"
 }
 
 pythonPlugin {
