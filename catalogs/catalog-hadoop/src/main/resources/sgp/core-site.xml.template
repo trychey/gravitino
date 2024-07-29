@@ -49,11 +49,6 @@
   </property>
 
   <property>
-    <name>hadoop.security.group.mapping</name>
-    <value>org.apache.hadoop.yarn.server.resourcemanager.scheduler.fair.DummyGroupsMapping</value>
-  </property>
-
-  <property>
     <name>hadoop.security.use-weak-http-crypto</name>
     <value>false</value>
   </property>
@@ -97,6 +92,7 @@
     <name>fs.lavafs.impl</name>
     <value>com.xiaomi.lavafs.LavaHadoopFileSystem</value>
   </property>
+
   <property>
     <name>fs.AbstractFileSystem.lavafs.impl</name>
     <value>com.xiaomi.lavafs.LavaFs</value>
@@ -106,6 +102,7 @@
     <name>lavafs.client.metaserver.list.provider.class</name>
     <value>com.xiaomi.lavafs.client.metaserver.ClusterInfoMetaServerListProvider</value>
   </property>
+
   <property>
     <name>lavafs.client.dataserver.list.provider.class</name>
     <value>com.xiaomi.lavafs.client.dataserver.provider.HeartbeatDataServerListProvider</value>
