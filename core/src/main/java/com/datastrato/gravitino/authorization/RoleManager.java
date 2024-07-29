@@ -55,11 +55,9 @@ class RoleManager {
     // can improve the performance significantly.
     this.cache =
         Caffeine.newBuilder()
+            .maximumSize(0)
             .expireAfterAccess(cacheEvictionIntervalInMs, TimeUnit.MILLISECONDS)
-            .removalListener(
-                (k, v, c) -> {
-                  LOG.info("Remove role {} from the cache.", k);
-                })
+            .removalListener((k, v, c) -> {})
             .scheduler(
                 Scheduler.forScheduledExecutorService(
                     new ScheduledThreadPoolExecutor(
