@@ -31,6 +31,7 @@ PROTOCOL_NAME = "gvfs"
 class StorageType(Enum):
     HDFS = "hdfs"
     LOCAL = "file"
+    LAVAFS = "lavafs"
 
 
 class FilesetContext:
@@ -256,7 +257,10 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
                 f"Cannot cp file of the fileset: {src_identifier} which only mounts to a single file."
             )
         dst_context: FilesetContext = self._get_fileset_context(dst_path)
-        if src_context.get_storage_type() == StorageType.HDFS:
+        if (
+            src_context.get_storage_type() == StorageType.HDFS
+            or src_context.get_storage_type() == StorageType.LAVAFS
+        ):
             src_context.get_fs().mv(
                 self._strip_storage_protocol(
                     src_context.get_storage_type(), src_context.get_actual_path()
@@ -463,7 +467,10 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
         :param context: Fileset context
         :return A virtual path
         """
-        if context.get_storage_type() == StorageType.HDFS:
+        if (
+            context.get_storage_type() == StorageType.HDFS
+            or context.get_storage_type() == StorageType.LAVAFS
+        ):
             actual_prefix = infer_storage_options(
                 context.get_fileset().storage_location()
             )["path"]
@@ -556,6 +563,11 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
                     self._init_hadoop_classpath()
                 fs = ArrowFSWrapper(HadoopFileSystem.from_uri(storage_location))
                 storage_type = StorageType.HDFS
+            elif storage_location.startswith(f"{StorageType.LAVAFS.value}://"):
+                if self._hadoop_classpath is None:
+                    self._init_hadoop_classpath()
+                fs = ArrowFSWrapper(HadoopFileSystem.from_uri(storage_location))
+                storage_type = StorageType.LAVAFS
             elif storage_location.startswith(f"{StorageType.LOCAL.value}:/"):
                 fs = LocalFileSystem()
                 storage_type = StorageType.LOCAL
@@ -686,13 +698,15 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
           Before passing the path to the underlying file system for processing,
            pre-process the protocol information in the path.
           Some file systems require special processing.
-          For HDFS, we can pass the path like 'hdfs://{host}:{port}/xxx'.
+          For HDFS/LAVAFS, we can pass the path like 'hdfs://{host}:{port}/xxx', 'lavafs://{host}:{port}/xxx'.
           For Local, we can pass the path like '/tmp/xxx'.
         :param storage_type: The storage type
         :param path: The path
         :return: The stripped path
         """
         if storage_type == StorageType.HDFS:
+            return path
+        if storage_type == StorageType.LAVAFS:
             return path
         if storage_type == StorageType.LOCAL:
             return path[len(f"{StorageType.LOCAL.value}:") :]
@@ -702,7 +716,13 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
 
     def _init_hadoop_classpath(self):
         hadoop_home = os.environ.get("HADOOP_HOME")
-        if hadoop_home is not None and len(hadoop_home) > 0:
+        hadoop_conf_dir = os.environ.get("HADOOP_CONF_DIR")
+        if (
+            hadoop_home is not None
+            and len(hadoop_home) > 0
+            and hadoop_conf_dir is not None
+            and len(hadoop_conf_dir) > 0
+        ):
             hadoop_shell = f"{hadoop_home}/bin/hadoop"
             if not os.path.exists(hadoop_shell):
                 raise GravitinoRuntimeException(
@@ -718,15 +738,41 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
                 )
                 classpath_str = str(result.stdout)
                 origin_classpath = os.environ.get("CLASSPATH")
+                # compatible with lavafs in Notebook and PySpark in the cluster
+                spark_classpath = os.environ.get("SPARK_DIST_CLASSPATH")
+                potential_lavafs_jar_files = []
+                current_dir = os.getcwd()
+                if spark_classpath is not None:
+                    file_list = os.listdir(current_dir)
+                    pattern = re.compile(r"^lavafs.*\.jar$")
+                    potential_lavafs_jar_files = [
+                        file
+                        for file in file_list
+                        if pattern.match(file)
+                        and os.path.isfile(os.path.join(current_dir, file))
+                    ]
+                new_classpath = hadoop_conf_dir + ":" + classpath_str
+                if (
+                    potential_lavafs_jar_files is not None
+                    and len(potential_lavafs_jar_files) > 0
+                ):
+                    for lava_jar in potential_lavafs_jar_files:
+                        new_classpath = (
+                            new_classpath + ":" + os.path.join(current_dir, lava_jar)
+                        )
                 if origin_classpath is None or len(origin_classpath) == 0:
-                    os.environ["CLASSPATH"] = classpath_str
+                    os.environ["CLASSPATH"] = new_classpath
                 else:
-                    os.environ["CLASSPATH"] = origin_classpath + ":" + classpath_str
+                    os.environ["CLASSPATH"] = origin_classpath + ":" + new_classpath
                 self._hadoop_classpath = classpath_str
             except subprocess.CalledProcessError as e:
                 raise GravitinoRuntimeException(
                     f"Command failed with return code {e.returncode}, stdout:{e.stdout}, stderr:{e.stderr}"
                 ) from e
+        else:
+            raise GravitinoRuntimeException(
+                "Failed to get hadoop classpath, please check if hadoop env is configured correctly."
+            )
 
 
 fsspec.register_implementation(PROTOCOL_NAME, GravitinoVirtualFileSystem)
