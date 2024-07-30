@@ -13,25 +13,34 @@ import com.datastrato.gravitino.Catalog;
 import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.dto.AuditDTO;
 import com.datastrato.gravitino.dto.CatalogDTO;
+import com.datastrato.gravitino.dto.file.FilesetContextDTO;
 import com.datastrato.gravitino.dto.file.FilesetDTO;
 import com.datastrato.gravitino.dto.requests.CatalogCreateRequest;
 import com.datastrato.gravitino.dto.requests.FilesetCreateRequest;
 import com.datastrato.gravitino.dto.requests.FilesetUpdateRequest;
 import com.datastrato.gravitino.dto.requests.FilesetUpdatesRequest;
+import com.datastrato.gravitino.dto.requests.GetFilesetContextRequest;
 import com.datastrato.gravitino.dto.responses.CatalogResponse;
 import com.datastrato.gravitino.dto.responses.DropResponse;
 import com.datastrato.gravitino.dto.responses.EntityListResponse;
 import com.datastrato.gravitino.dto.responses.ErrorResponse;
+import com.datastrato.gravitino.dto.responses.FilesetContextResponse;
 import com.datastrato.gravitino.dto.responses.FilesetResponse;
 import com.datastrato.gravitino.exceptions.AlreadyExistsException;
 import com.datastrato.gravitino.exceptions.FilesetAlreadyExistsException;
 import com.datastrato.gravitino.exceptions.NoSuchFilesetException;
 import com.datastrato.gravitino.exceptions.NoSuchSchemaException;
 import com.datastrato.gravitino.exceptions.NotFoundException;
+import com.datastrato.gravitino.file.BaseFilesetDataOperationCtx;
+import com.datastrato.gravitino.file.ClientType;
 import com.datastrato.gravitino.file.Fileset;
+import com.datastrato.gravitino.file.FilesetContext;
+import com.datastrato.gravitino.file.FilesetDataOperation;
+import com.datastrato.gravitino.file.SourceEngineType;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import java.nio.file.NoSuchFileException;
 import java.time.Instant;
 import java.util.Map;
@@ -368,6 +377,53 @@ public class TestFilesetCatalog extends TestBase {
         "internal error");
   }
 
+  @Test
+  public void testGetFilesetContext() throws JsonProcessingException {
+    NameIdentifier fileset = NameIdentifier.of(metalakeName, catalogName, "schema1", "fileset1");
+    String filesetPath =
+        withSlash(
+            FilesetCatalog.formatFilesetRequestPath(fileset.namespace()) + "/fileset1/context");
+
+    FilesetDTO mockFileset =
+        mockFilesetDTO(
+            fileset.name(),
+            Fileset.Type.MANAGED,
+            "mock comment",
+            "mock location",
+            ImmutableMap.of("k1", "v1"));
+    String[] mockActualPaths = new String[] {"mock location/test"};
+    FilesetContextDTO mockContext = mockFilesetContextDTO(mockFileset, mockActualPaths);
+    FilesetContextResponse resp = new FilesetContextResponse(mockContext);
+    Map<String, String> extraInfo = Maps.newHashMap();
+    extraInfo.put("mock key", "mock value");
+    GetFilesetContextRequest req =
+        GetFilesetContextRequest.builder()
+            .subPath("/test")
+            .operation(FilesetDataOperation.CREATE)
+            .clientType(ClientType.HADOOP_GVFS)
+            .ip("127.0.0.1")
+            .sourceEngineType(SourceEngineType.SPARK)
+            .appId("application_1_1")
+            .extraInfo(extraInfo)
+            .build();
+    buildMockResource(Method.POST, filesetPath, req, resp, SC_OK);
+    BaseFilesetDataOperationCtx ctx =
+        BaseFilesetDataOperationCtx.builder()
+            .withSubPath("/test")
+            .withOperation(FilesetDataOperation.CREATE)
+            .withClientType(ClientType.HADOOP_GVFS)
+            .withIp("127.0.0.1")
+            .withSourceEngineType(SourceEngineType.SPARK)
+            .withAppId("application_1_1")
+            .withExtraInfo(extraInfo)
+            .build();
+    FilesetContext filesetContext = catalog.asFilesetCatalog().getFilesetContext(fileset, ctx);
+    Assertions.assertNotNull(filesetContext);
+    assertFileset(mockFileset, filesetContext.fileset());
+
+    Assertions.assertEquals(mockActualPaths[0], filesetContext.actualPaths()[0]);
+  }
+
   private FilesetDTO mockFilesetDTO(
       String name,
       Fileset.Type type,
@@ -382,6 +438,10 @@ public class TestFilesetCatalog extends TestBase {
         .properties(properties)
         .audit(AuditDTO.builder().withCreator("creator").withCreateTime(Instant.now()).build())
         .build();
+  }
+
+  private FilesetContextDTO mockFilesetContextDTO(FilesetDTO fileset, String[] actualPaths) {
+    return FilesetContextDTO.builder().fileset(fileset).actualPaths(actualPaths).build();
   }
 
   private void assertFileset(FilesetDTO expected, Fileset actual) {

@@ -13,12 +13,16 @@ import com.datastrato.gravitino.exceptions.NoSuchFilesetException;
 import com.datastrato.gravitino.exceptions.NoSuchSchemaException;
 import com.datastrato.gravitino.file.Fileset;
 import com.datastrato.gravitino.file.FilesetChange;
+import com.datastrato.gravitino.file.FilesetContext;
+import com.datastrato.gravitino.file.FilesetDataOperationCtx;
 import com.datastrato.gravitino.listener.api.event.AlterFilesetEvent;
 import com.datastrato.gravitino.listener.api.event.AlterFilesetFailureEvent;
 import com.datastrato.gravitino.listener.api.event.CreateFilesetEvent;
 import com.datastrato.gravitino.listener.api.event.CreateFilesetFailureEvent;
 import com.datastrato.gravitino.listener.api.event.DropFilesetEvent;
 import com.datastrato.gravitino.listener.api.event.DropFilesetFailureEvent;
+import com.datastrato.gravitino.listener.api.event.GetFilesetContextEvent;
+import com.datastrato.gravitino.listener.api.event.GetFilesetContextFailureEvent;
 import com.datastrato.gravitino.listener.api.event.ListFilesetEvent;
 import com.datastrato.gravitino.listener.api.event.ListFilesetFailureEvent;
 import com.datastrato.gravitino.listener.api.event.LoadFilesetEvent;
@@ -122,6 +126,21 @@ public class FilesetEventDispatcher implements FilesetDispatcher {
     } catch (Exception e) {
       eventBus.dispatchEvent(
           new DropFilesetFailureEvent(PrincipalUtils.getCurrentUserName(), ident, e));
+      throw e;
+    }
+  }
+
+  @Override
+  public FilesetContext getFilesetContext(NameIdentifier ident, FilesetDataOperationCtx ctx)
+      throws NoSuchFilesetException {
+    try {
+      FilesetContext context = dispatcher.getFilesetContext(ident, ctx);
+      eventBus.dispatchEvent(
+          new GetFilesetContextEvent(PrincipalUtils.getCurrentUserName(), ident, ctx));
+      return context;
+    } catch (Exception e) {
+      eventBus.dispatchEvent(
+          new GetFilesetContextFailureEvent(PrincipalUtils.getCurrentUserName(), ident, ctx, e));
       throw e;
     }
   }

@@ -11,14 +11,18 @@ import com.datastrato.gravitino.dto.CatalogDTO;
 import com.datastrato.gravitino.dto.requests.FilesetCreateRequest;
 import com.datastrato.gravitino.dto.requests.FilesetUpdateRequest;
 import com.datastrato.gravitino.dto.requests.FilesetUpdatesRequest;
+import com.datastrato.gravitino.dto.requests.GetFilesetContextRequest;
 import com.datastrato.gravitino.dto.responses.DropResponse;
 import com.datastrato.gravitino.dto.responses.EntityListResponse;
+import com.datastrato.gravitino.dto.responses.FilesetContextResponse;
 import com.datastrato.gravitino.dto.responses.FilesetResponse;
 import com.datastrato.gravitino.exceptions.FilesetAlreadyExistsException;
 import com.datastrato.gravitino.exceptions.NoSuchFilesetException;
 import com.datastrato.gravitino.exceptions.NoSuchSchemaException;
 import com.datastrato.gravitino.file.Fileset;
 import com.datastrato.gravitino.file.FilesetChange;
+import com.datastrato.gravitino.file.FilesetContext;
+import com.datastrato.gravitino.file.FilesetDataOperationCtx;
 import com.datastrato.gravitino.rest.RESTUtils;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -203,6 +207,41 @@ public class FilesetCatalog extends BaseSchemaCatalog
     resp.validate();
 
     return resp.dropped();
+  }
+
+  /**
+   * Get a fileset context from the catalog.
+   *
+   * @param ident A fileset identifier.
+   * @param ctx The data operation context.
+   * @return The fileset context.
+   */
+  @Override
+  public FilesetContext getFilesetContext(NameIdentifier ident, FilesetDataOperationCtx ctx)
+      throws NoSuchFilesetException {
+    NameIdentifier.checkFileset(ident);
+
+    GetFilesetContextRequest req =
+        GetFilesetContextRequest.builder()
+            .subPath(ctx.subPath())
+            .operation(ctx.operation())
+            .clientType(ctx.clientType())
+            .ip(ctx.ip())
+            .sourceEngineType(ctx.sourceEngineType())
+            .appId(ctx.appId())
+            .extraInfo(ctx.extraInfo())
+            .build();
+
+    FilesetContextResponse resp =
+        restClient.post(
+            formatFilesetRequestPath(ident.namespace()) + "/" + ident.name() + "/" + "context",
+            req,
+            FilesetContextResponse.class,
+            Collections.emptyMap(),
+            ErrorHandlers.filesetErrorHandler());
+    resp.validate();
+
+    return resp.getContext();
   }
 
   @VisibleForTesting

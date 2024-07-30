@@ -12,12 +12,16 @@ import com.datastrato.gravitino.catalog.FilesetDispatcher;
 import com.datastrato.gravitino.dto.requests.FilesetCreateRequest;
 import com.datastrato.gravitino.dto.requests.FilesetUpdateRequest;
 import com.datastrato.gravitino.dto.requests.FilesetUpdatesRequest;
+import com.datastrato.gravitino.dto.requests.GetFilesetContextRequest;
 import com.datastrato.gravitino.dto.responses.DropResponse;
 import com.datastrato.gravitino.dto.responses.EntityListResponse;
+import com.datastrato.gravitino.dto.responses.FilesetContextResponse;
 import com.datastrato.gravitino.dto.responses.FilesetResponse;
 import com.datastrato.gravitino.dto.util.DTOConverters;
+import com.datastrato.gravitino.file.BaseFilesetDataOperationCtx;
 import com.datastrato.gravitino.file.Fileset;
 import com.datastrato.gravitino.file.FilesetChange;
+import com.datastrato.gravitino.file.FilesetContext;
 import com.datastrato.gravitino.lock.LockType;
 import com.datastrato.gravitino.lock.TreeLockUtils;
 import com.datastrato.gravitino.metrics.MetricNames;
@@ -202,6 +206,42 @@ public class FilesetOperations {
 
     } catch (Exception e) {
       return ExceptionHandlers.handleFilesetException(OperationType.DROP, fileset, schema, e);
+    }
+  }
+
+  // we use POST type here, because we need to use request body to pass some parameters
+  @POST
+  @Path("{fileset}/context")
+  @Produces("application/vnd.gravitino.v1+json")
+  @Timed(name = "get-fileset-context." + MetricNames.HTTP_PROCESS_DURATION, absolute = true)
+  @ResponseMetered(name = "get-fileset-context", absolute = true)
+  public Response getFilesetContext(
+      @PathParam("metalake") String metalake,
+      @PathParam("catalog") String catalog,
+      @PathParam("schema") String schema,
+      @PathParam("fileset") String fileset,
+      GetFilesetContextRequest request) {
+    try {
+      return Utils.doAs(
+          httpRequest,
+          () -> {
+            NameIdentifier ident = NameIdentifier.ofFileset(metalake, catalog, schema, fileset);
+            BaseFilesetDataOperationCtx ctx =
+                BaseFilesetDataOperationCtx.builder()
+                    .withSubPath(request.getSubPath())
+                    .withOperation(request.getOperation())
+                    .withClientType(request.getClientType())
+                    .withIp(request.getIp())
+                    .withSourceEngineType(request.getSourceEngineType())
+                    .withAppId(request.getAppId())
+                    .build();
+            FilesetContext context =
+                TreeLockUtils.doWithTreeLock(
+                    ident, LockType.READ, () -> dispatcher.getFilesetContext(ident, ctx));
+            return Utils.ok(new FilesetContextResponse(DTOConverters.toDTO(context)));
+          });
+    } catch (Exception e) {
+      return ExceptionHandlers.handleFilesetException(OperationType.GET, fileset, schema, e);
     }
   }
 }

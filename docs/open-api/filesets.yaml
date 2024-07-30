@@ -145,6 +145,47 @@ paths:
         "5xx":
           $ref: "./openapi.yaml#/components/responses/ServerErrorResponse"
 
+  /metalakes/{metalake}/catalogs/{catalog}/schemas/{schema}/filesets/{fileset}/context:
+    parameters:
+      - $ref: "./openapi.yaml#/components/parameters/metalake"
+      - $ref: "./openapi.yaml#/components/parameters/catalog"
+      - $ref: "./openapi.yaml#/components/parameters/schema"
+      - $ref: "./openapi.yaml#/components/parameters/fileset"
+
+    post:
+      tags:
+        - filesetContext
+      summary: Get fileset context
+      operationId: getFilesetContext
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetFilesetContextRequest"
+            examples:
+              GetFilesetContextRequest:
+                $ref: "#/components/examples/GetFilesetContextRequest"
+      description: Returns the specified fileset context object
+      responses:
+        "200":
+          $ref: "#/components/responses/FilesetContextResponse"
+        "404":
+          description: Not Found - The target fileset context does not exist
+          content:
+            application/vnd.gravitino.v1+json:
+              schema:
+                $ref: "./openapi.yaml#/components/schemas/ErrorModel"
+              examples:
+                NoSuchMetalakeException:
+                  $ref: "./metalakes.yaml#/components/examples/NoSuchMetalakeException"
+                NoSuchCatalogException:
+                  $ref: "./catalogs.yaml#/components/examples/NoSuchCatalogException"
+                NoSuchSchemaException:
+                  $ref: "./schemas.yaml#/components/examples/NoSuchSchemaException"
+                NoSuchFilesetException:
+                  $ref: "#/components/examples/NoSuchFilesetException"
+        "5xx":
+          $ref: "./openapi.yaml#/components/responses/ServerErrorResponse"
 
 components:
 
@@ -176,6 +217,22 @@ components:
           default: {}
           additionalProperties:
               type: string
+
+    FilesetContext:
+      type: object
+      required:
+        - fileset
+        - actualPaths
+      properties:
+        fileset:
+          $ref: "#/components/schemas/Fileset"
+        actualPaths:
+          type: array
+          items:
+            type: string
+          description: The actual paths which data operation accessed
+          default: [ ]
+
     FilesetCreateRequest:
       type: object
       required:
@@ -324,6 +381,35 @@ components:
         "@type": "removeComment"
       }
 
+    GetFilesetContextRequest:
+      type: object
+      required:
+        - subPath
+        - operation
+        - clientType
+      properties:
+        subPath:
+          type: string
+          description: The sub path that the data operation to access. Can not be null.
+        operation:
+          type: string
+          description: The data operation to get the fileset context. Can not be null.
+        clientType:
+          type: string
+          description: The client type to get the fileset context. Can not be null.
+        ip:
+          type: string
+          description: The IP of the machine that initiated the data operation. Can be empty.
+          nullable: true
+        sourceType:
+          type: string
+          description: The source type that initiated the data operation. Can be empty.
+          nullable: true
+        appId:
+          type: string
+          description: The application id that initiated the data operation. Can be empty.
+          nullable: true
+
   responses:
     FilesetResponse:
       description: The response of fileset object
@@ -343,6 +429,25 @@ components:
           examples:
             FilesetResponse:
               $ref: "#/components/examples/FilesetResponse"
+
+    FilesetContextResponse:
+      description: The response of fileset context object
+      content:
+        application/vnd.gravitino.v1+json:
+          schema:
+            type: object
+            properties:
+              code:
+                type: integer
+                format: int32
+                description: Status code of the response
+                enum:
+                  - 0
+              context:
+                $ref: "#/components/schemas/FilesetContext"
+          examples:
+            FilesetContextResponse:
+              $ref: "#/components/examples/FilesetContextResponse"
 
 
   examples:
@@ -370,6 +475,26 @@ components:
             "key1": "value1",
             "key2": "value2"
           }
+        }
+      }
+
+    FilesetContextResponse:
+      value: {
+        "code": 0,
+        "context": {
+          "fileset": {
+            "name": "fileset1",
+            "type": "managed",
+            "comment": "This is a comment",
+            "storageLocation": "hdfs://host/user/s_fileset/schema/fileset1",
+            "properties": {
+              "key1": "value1",
+              "key2": "value2"
+            }
+          },
+          "actualPaths": [
+            "hdfs://host/user/fileset/schema/fileset1/test.parquet"
+          ]
         }
       }
 

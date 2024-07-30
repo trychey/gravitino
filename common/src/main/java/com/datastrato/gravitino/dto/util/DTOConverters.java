@@ -20,6 +20,7 @@ import com.datastrato.gravitino.dto.authorization.GroupDTO;
 import com.datastrato.gravitino.dto.authorization.RoleDTO;
 import com.datastrato.gravitino.dto.authorization.SecurableObjectDTO;
 import com.datastrato.gravitino.dto.authorization.UserDTO;
+import com.datastrato.gravitino.dto.file.FilesetContextDTO;
 import com.datastrato.gravitino.dto.file.FilesetDTO;
 import com.datastrato.gravitino.dto.messaging.TopicDTO;
 import com.datastrato.gravitino.dto.rel.ColumnDTO;
@@ -49,6 +50,7 @@ import com.datastrato.gravitino.dto.rel.partitions.ListPartitionDTO;
 import com.datastrato.gravitino.dto.rel.partitions.PartitionDTO;
 import com.datastrato.gravitino.dto.rel.partitions.RangePartitionDTO;
 import com.datastrato.gravitino.file.Fileset;
+import com.datastrato.gravitino.file.FilesetContext;
 import com.datastrato.gravitino.messaging.Topic;
 import com.datastrato.gravitino.rel.Column;
 import com.datastrato.gravitino.rel.Schema;
@@ -477,6 +479,19 @@ public class DTOConverters {
         .storageLocation(fileset.storageLocation())
         .properties(fileset.properties())
         .audit(toDTO(fileset.auditInfo()))
+        .build();
+  }
+
+  /**
+   * Converts to a FilesetContextDTO.
+   *
+   * @param context The fileset context to be converted.
+   * @return The fileset context DTO.
+   */
+  public static FilesetContextDTO toDTO(FilesetContext context) {
+    return FilesetContextDTO.builder()
+        .fileset(toDTO(context.fileset()))
+        .actualPaths(context.actualPaths())
         .build();
   }
 

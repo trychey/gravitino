@@ -29,6 +29,8 @@ import com.datastrato.gravitino.exceptions.SchemaAlreadyExistsException;
 import com.datastrato.gravitino.file.Fileset;
 import com.datastrato.gravitino.file.FilesetCatalog;
 import com.datastrato.gravitino.file.FilesetChange;
+import com.datastrato.gravitino.file.FilesetContext;
+import com.datastrato.gravitino.file.FilesetDataOperationCtx;
 import com.datastrato.gravitino.meta.AuditInfo;
 import com.datastrato.gravitino.meta.FilesetEntity;
 import com.datastrato.gravitino.meta.SchemaEntity;
@@ -358,6 +360,31 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
     } catch (IOException ioe) {
       throw new RuntimeException("Failed to delete fileset " + ident, ioe);
     }
+  }
+
+  @Override
+  public FilesetContext getFilesetContext(NameIdentifier ident, FilesetDataOperationCtx ctx)
+      throws NoSuchFilesetException {
+    String subPath = ctx.subPath();
+    Preconditions.checkArgument(StringUtils.isNotBlank(subPath), "subPath must not be blank");
+
+    Fileset fileset = loadFileset(ident);
+
+    String storageLocation = fileset.storageLocation();
+    String actualPath;
+    // subPath cannot be null, so we only need check if it is blank
+    if (StringUtils.isBlank(subPath)) {
+      actualPath = storageLocation;
+    } else {
+      actualPath =
+          subPath.startsWith("/")
+              ? String.format("%s%s", storageLocation, subPath)
+              : String.format("%s/%s", storageLocation, subPath);
+    }
+    return HadoopFilesetContext.builder()
+        .withFileset(fileset)
+        .withActualPaths(new String[] {actualPath})
+        .build();
   }
 
   @Override

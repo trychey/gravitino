@@ -25,9 +25,13 @@ public class Utils {
 
   private static final String REMOTE_USER = "gravitino";
   private static final boolean LOCAL_ENV =
-      GravitinoEnv.getInstance().config().get(SimpleConfig.LOCAL_ENV);
+      GravitinoEnv.getInstance().config() != null
+          ? GravitinoEnv.getInstance().config().get(SimpleConfig.LOCAL_ENV)
+          : true;
   private static final String ENCRYPTED_READ_ONLY_USERS =
-      GravitinoEnv.getInstance().config().get(SimpleConfig.READONLY_SUPER_USERS);
+      GravitinoEnv.getInstance().config() != null
+          ? GravitinoEnv.getInstance().config().get(SimpleConfig.READONLY_SUPER_USERS)
+          : null;
   private static volatile Set<String> READ_ONLY_USERS = null;
   private static final Splitter SPLITTER = Splitter.on(",").omitEmptyStrings().trimResults();
 

@@ -15,6 +15,8 @@ import com.datastrato.gravitino.exceptions.NoSuchFilesetException;
 import com.datastrato.gravitino.exceptions.NoSuchSchemaException;
 import com.datastrato.gravitino.file.Fileset;
 import com.datastrato.gravitino.file.FilesetChange;
+import com.datastrato.gravitino.file.FilesetContext;
+import com.datastrato.gravitino.file.FilesetDataOperationCtx;
 import java.util.Map;
 
 public class FilesetNormalizeDispatcher implements FilesetDispatcher {
@@ -77,6 +79,13 @@ public class FilesetNormalizeDispatcher implements FilesetDispatcher {
     // The constraints of the name spec may be more strict than underlying catalog,
     // and for compatibility reasons, we only apply case-sensitive capabilities here.
     return dispatcher.dropFileset(applyCaseSensitive(ident, Capability.Scope.FILESET, dispatcher));
+  }
+
+  @Override
+  public FilesetContext getFilesetContext(NameIdentifier ident, FilesetDataOperationCtx ctx)
+      throws NoSuchFilesetException {
+    return dispatcher.getFilesetContext(
+        applyCaseSensitive(ident, Capability.Scope.FILESET, dispatcher), ctx);
   }
 
   private NameIdentifier normalizeNameIdentifier(NameIdentifier ident) {

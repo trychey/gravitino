@@ -19,11 +19,14 @@ import com.datastrato.gravitino.dto.MetalakeDTO;
 import com.datastrato.gravitino.dto.authorization.GroupDTO;
 import com.datastrato.gravitino.dto.authorization.RoleDTO;
 import com.datastrato.gravitino.dto.authorization.UserDTO;
+import com.datastrato.gravitino.dto.file.FilesetContextDTO;
+import com.datastrato.gravitino.dto.file.FilesetDTO;
 import com.datastrato.gravitino.dto.rel.ColumnDTO;
 import com.datastrato.gravitino.dto.rel.SchemaDTO;
 import com.datastrato.gravitino.dto.rel.TableDTO;
 import com.datastrato.gravitino.dto.rel.partitioning.Partitioning;
 import com.datastrato.gravitino.dto.util.DTOConverters;
+import com.datastrato.gravitino.file.Fileset;
 import com.datastrato.gravitino.rel.types.Types;
 import com.google.common.collect.Lists;
 import java.time.Instant;
@@ -280,5 +283,31 @@ public class TestResponses {
   void testRoleResponseException() throws IllegalArgumentException {
     RoleResponse role = new RoleResponse();
     assertThrows(IllegalArgumentException.class, () -> role.validate());
+  }
+
+  @Test
+  void testFilesetContextResponse() {
+    AuditDTO audit =
+        AuditDTO.builder().withCreator("creator").withCreateTime(Instant.now()).build();
+    FilesetDTO filesetDTO =
+        FilesetDTO.builder()
+            .name("test")
+            .type(Fileset.Type.MANAGED)
+            .audit(audit)
+            .storageLocation("hdfs://host/test")
+            .build();
+    FilesetContextDTO dto =
+        FilesetContextDTO.builder()
+            .fileset(filesetDTO)
+            .actualPaths(new String[] {"hdfs://host/test/zz.parquet"})
+            .build();
+    FilesetContextResponse response = new FilesetContextResponse(dto);
+    response.validate(); // No exception thrown
+  }
+
+  @Test
+  void testFilesetContextResponseException() {
+    FilesetContextResponse response = new FilesetContextResponse();
+    assertThrows(IllegalArgumentException.class, () -> response.validate());
   }
 }

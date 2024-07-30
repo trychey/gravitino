@@ -5,11 +5,15 @@
 
 package com.datastrato.gravitino.dto.util;
 
+import com.datastrato.gravitino.Audit;
+import com.datastrato.gravitino.dto.file.FilesetContextDTO;
 import com.datastrato.gravitino.dto.rel.expressions.LiteralDTO;
 import com.datastrato.gravitino.dto.rel.partitions.IdentityPartitionDTO;
 import com.datastrato.gravitino.dto.rel.partitions.ListPartitionDTO;
 import com.datastrato.gravitino.dto.rel.partitions.PartitionDTO;
 import com.datastrato.gravitino.dto.rel.partitions.RangePartitionDTO;
+import com.datastrato.gravitino.file.Fileset;
+import com.datastrato.gravitino.file.FilesetContext;
 import com.datastrato.gravitino.rel.expressions.literals.Literal;
 import com.datastrato.gravitino.rel.expressions.literals.Literals;
 import com.datastrato.gravitino.rel.partitions.ListPartition;
@@ -17,6 +21,7 @@ import com.datastrato.gravitino.rel.partitions.Partition;
 import com.datastrato.gravitino.rel.partitions.Partitions;
 import com.datastrato.gravitino.rel.partitions.RangePartition;
 import com.datastrato.gravitino.rel.types.Types;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -180,5 +185,73 @@ public class TestDTOConverters {
     Assertions.assertEquals(PartitionDTO.Type.LIST, listPartitionDTO.type());
     Assertions.assertEquals(values.length, listPartitionDTO.lists().length);
     Assertions.assertEquals(properties, listPartitionDTO.properties());
+  }
+
+  @Test
+  void testFilesetContextConvert() {
+    FilesetContext filesetContext =
+        new FilesetContext() {
+          @Override
+          public Fileset fileset() {
+            Fileset mockFileset =
+                new Fileset() {
+                  @Override
+                  public String name() {
+                    return "test";
+                  }
+
+                  @Override
+                  public Type type() {
+                    return Type.MANAGED;
+                  }
+
+                  @Override
+                  public String storageLocation() {
+                    return "hdfs://host/test";
+                  }
+
+                  @Override
+                  public Audit auditInfo() {
+                    Audit mockAudit =
+                        new Audit() {
+                          @Override
+                          public String creator() {
+                            return null;
+                          }
+
+                          @Override
+                          public Instant createTime() {
+                            return null;
+                          }
+
+                          @Override
+                          public String lastModifier() {
+                            return null;
+                          }
+
+                          @Override
+                          public Instant lastModifiedTime() {
+                            return null;
+                          }
+                        };
+                    return mockAudit;
+                  }
+                };
+            return mockFileset;
+          }
+
+          @Override
+          public String[] actualPaths() {
+            return new String[] {"hdfs://host/test/1.txt"};
+          }
+        };
+
+    FilesetContextDTO filesetContextDTO = DTOConverters.toDTO(filesetContext);
+
+    // then
+    Assertions.assertEquals("test", filesetContextDTO.fileset().name());
+    Assertions.assertEquals(Fileset.Type.MANAGED, filesetContextDTO.fileset().type());
+    Assertions.assertEquals("hdfs://host/test", filesetContextDTO.fileset().storageLocation());
+    Assertions.assertEquals("hdfs://host/test/1.txt", filesetContextDTO.actualPaths()[0]);
   }
 }

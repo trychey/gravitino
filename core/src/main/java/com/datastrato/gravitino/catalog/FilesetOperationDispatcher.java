@@ -17,6 +17,8 @@ import com.datastrato.gravitino.exceptions.NoSuchSchemaException;
 import com.datastrato.gravitino.exceptions.NonEmptyEntityException;
 import com.datastrato.gravitino.file.Fileset;
 import com.datastrato.gravitino.file.FilesetChange;
+import com.datastrato.gravitino.file.FilesetContext;
+import com.datastrato.gravitino.file.FilesetDataOperationCtx;
 import com.datastrato.gravitino.storage.IdGenerator;
 import java.util.Map;
 
@@ -178,6 +180,15 @@ public class FilesetOperationDispatcher extends OperationDispatcher implements F
     return doWithCatalog(
         getCatalogIdentifier(ident),
         c -> c.doWithFilesetOps(f -> f.dropFileset(ident)),
+        NonEmptyEntityException.class);
+  }
+
+  @Override
+  public FilesetContext getFilesetContext(NameIdentifier ident, FilesetDataOperationCtx ctx)
+      throws NoSuchFilesetException {
+    return doWithCatalog(
+        getCatalogIdentifier(ident),
+        c -> c.doWithFilesetOps(f -> f.getFilesetContext(ident, ctx)),
         NonEmptyEntityException.class);
   }
 }

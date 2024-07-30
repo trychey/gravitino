@@ -24,6 +24,8 @@ import com.datastrato.gravitino.exceptions.TopicAlreadyExistsException;
 import com.datastrato.gravitino.file.Fileset;
 import com.datastrato.gravitino.file.FilesetCatalog;
 import com.datastrato.gravitino.file.FilesetChange;
+import com.datastrato.gravitino.file.FilesetContext;
+import com.datastrato.gravitino.file.FilesetDataOperationCtx;
 import com.datastrato.gravitino.messaging.DataLayout;
 import com.datastrato.gravitino.messaging.Topic;
 import com.datastrato.gravitino.messaging.TopicCatalog;
@@ -48,6 +50,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
 
 public class TestCatalogOperations
     implements CatalogOperations, TableCatalog, FilesetCatalog, TopicCatalog, SupportsSchemas {
@@ -529,6 +532,29 @@ public class TestCatalogOperations
       return true;
     } else {
       return false;
+    }
+  }
+
+  @Override
+  public FilesetContext getFilesetContext(NameIdentifier ident, FilesetDataOperationCtx ctx)
+      throws NoSuchFilesetException {
+    if (filesets.containsKey(ident)) {
+      String subPath = ctx.subPath();
+      Preconditions.checkArgument(StringUtils.isNotBlank(subPath), "subPath must not be blank");
+
+      Fileset fileset = loadFileset(ident);
+
+      String storageLocation = fileset.storageLocation();
+      String actualPath =
+          subPath.startsWith("/")
+              ? String.format("%s%s", storageLocation, subPath)
+              : String.format("%s/%s", storageLocation, subPath);
+      return TestFilesetContext.builder()
+          .withFileset(fileset)
+          .withActualPaths(new String[] {actualPath})
+          .build();
+    } else {
+      throw new NoSuchFilesetException("Fileset %s does not exist", ident);
     }
   }
 
