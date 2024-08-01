@@ -3,6 +3,7 @@
  * This software is licensed under the Apache License version 2.
  */
 
+import com.github.gradle.node.npm.task.NpmTask
 import com.github.gradle.node.pnpm.task.PnpmTask
 
 plugins {
@@ -14,8 +15,13 @@ tasks.withType(PnpmTask::class) {
 }
 
 tasks {
+  val changeRepository by registering(NpmTask::class) {
+    args.set(listOf("config", "set", "registry", "https://pkgs.d.xiaomi.net/artifactory/api/npm/mi-npm/"))
+  }
+
   // Install dependencies
   val installDeps by registering(PnpmTask::class) {
+    dependsOn(changeRepository)
     args = listOf("install")
   }
 

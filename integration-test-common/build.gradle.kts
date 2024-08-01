@@ -9,9 +9,22 @@ plugins {
 
 repositories {
   maven {
+    name = "publicVirtual"
+    url = uri("https://pkgs.d.xiaomi.net/artifactory/maven-public-virtual/")
+  }
+  maven {
+    name = "releaseVirtual"
+    url = uri("https://pkgs.d.xiaomi.net:443/artifactory/maven-release-virtual/")
+  }
+  maven {
+    name = "snapshotVirtual"
+    url = uri("https://pkgs.d.xiaomi.net:443/artifactory/maven-snapshot-virtual/")
+  }
+  maven {
     name = "aliyunMavenCentral"
     url = uri("https://pkgs.d.xiaomi.net:443/artifactory/aliyun-maven-central/")
   }
+  mavenLocal()
 }
 
 dependencies {
