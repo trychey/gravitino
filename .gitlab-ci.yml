@@ -165,30 +165,30 @@ doris-integration-test:
   tags:
     - grav-it
 
-#python-integration-test:
-#  stage: integration_test
-#  variables:
-#    GIT_STRATEGY: clone
-#  <<: *clean_up_running_environment
-#  script:
-#    - echo "Running python client integration tests"
-#    - java -version
-#    - mvn -v
-#    - ./gradlew --stop
-#    - ./gradlew compileDistribution -x test -PjdkVersion=8 --no-build-cache
-#      "-Dorg.gradle.jvmargs=-Xmx16g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
-#    - for pythonVersion in "3.8" "3.9" "3.10" "3.11"; do
-#      echo "Use Python version ${pythonVersion} to test the Python client.";
-#      ./gradlew -PjdkVersion=8 -PskipTests -PpythonVersion=${pythonVersion} :client:client-python:test
-#      "-Dorg.gradle.jvmargs=-Xmx16g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
-#      --no-build-cache;
-#      rm -rf ./distribution/package/data; done
-#  rules:
-#    - !reference [ .integration_test_rules, rules ]
-#  retry: 2
-#  interruptible: true
-#  tags:
-#    - grav-it
+python-integration-test:
+  stage: integration_test
+  variables:
+    GIT_STRATEGY: clone
+  <<: *clean_up_running_environment
+  script:
+    - echo "Running python client integration tests"
+    - java -version
+    - mvn -v
+    - ./gradlew --stop
+    - ./gradlew compileDistribution -x test -PjdkVersion=8 --no-build-cache
+      "-Dorg.gradle.jvmargs=-Xmx16g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
+    - for pythonVersion in "3.8" "3.9" "3.10" "3.11"; do
+      echo "Use Python version ${pythonVersion} to test the Python client.";
+      ./gradlew -PjdkVersion=8 -PskipTests -PpythonVersion=${pythonVersion} :client:client-python:test
+      "-Dorg.gradle.jvmargs=-Xmx16g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
+      --no-build-cache;
+      rm -rf ./distribution/package/data; done
+  rules:
+    - !reference [ .integration_test_rules, rules ]
+  retry: 2
+  interruptible: true
+  tags:
+    - grav-it
 
 # Build staging env docker image
 build-staging-docker:

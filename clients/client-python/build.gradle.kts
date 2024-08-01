@@ -177,7 +177,10 @@ tasks {
     environment = mapOf(
       "PROJECT_VERSION" to project.version,
       "GRAVITINO_HOME" to project.rootDir.path + "/distribution/package",
-      "START_EXTERNAL_GRAVITINO" to "true"
+      "START_EXTERNAL_GRAVITINO" to "true",
+      // Set the PYTHONPATH to the client-python directory, make sure the tests can import the
+      // modules from the client-python directory.
+      "PYTHONPATH" to "${project.rootDir.path}/clients/client-python"
     )
 
     doLast {
@@ -197,6 +200,12 @@ tasks {
     venvExec = "coverage"
     args = listOf("run", "--branch", "-m", "unittest")
     workingDir = projectDir.resolve("./tests/unittests")
+
+    environment = mapOf(
+      // Set the PYTHONPATH to the client-python directory, make sure the tests can import the
+      // modules from the client-python directory.
+      "PYTHONPATH" to "${project.rootDir.path}/clients/client-python"
+    )
 
     finalizedBy(unitCoverageReport)
   }
