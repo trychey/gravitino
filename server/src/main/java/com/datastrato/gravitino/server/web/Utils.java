@@ -15,6 +15,8 @@ import com.google.common.base.Splitter;
 import java.security.PrivilegedExceptionAction;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.core.MediaType;
@@ -34,6 +36,8 @@ public class Utils {
           : null;
   private static volatile Set<String> READ_ONLY_USERS = null;
   private static final Splitter SPLITTER = Splitter.on(",").omitEmptyStrings().trimResults();
+  private static final Pattern GET_FILESET_CONTEXT_API_PATTERN =
+      Pattern.compile(".*metalakes/.+/catalogs/.+/schemas/.+/filesets/.+/context");
 
   private Utils() {}
 
@@ -153,8 +157,9 @@ public class Utils {
         }
         // check read only users
         if (READ_ONLY_USERS.contains(principal.getName())) {
-          // check whether it is `GET` request
-          if (!httpRequest.getMethod().equals("GET")) {
+          // check whether it is `GET` request, except for getFilesetContext
+          Matcher matcher = GET_FILESET_CONTEXT_API_PATTERN.matcher(httpRequest.getRequestURI());
+          if (!httpRequest.getMethod().equals("GET") && !matcher.matches()) {
             return Response.status(Response.Status.FORBIDDEN).build();
           }
         }

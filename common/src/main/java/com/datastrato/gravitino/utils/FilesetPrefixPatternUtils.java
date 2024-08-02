@@ -23,40 +23,8 @@ public class FilesetPrefixPatternUtils {
   }
 
   public static boolean checkPrefixValid(String subDir, FilesetPrefixPattern prefixPattern) {
-    Pattern pattern;
-    Matcher matcher;
-    switch (prefixPattern) {
-      case ANY:
-        pattern = Pattern.compile(FilesetPrefixPattern.ANY.getPrefixRegex());
-        matcher = pattern.matcher(subDir);
-        return matcher.matches();
-      case DATE:
-        pattern = Pattern.compile(FilesetPrefixPattern.DATE.getPrefixRegex());
-        matcher = pattern.matcher(subDir);
-        return matcher.matches();
-      case DATE_HOUR:
-        pattern = Pattern.compile(FilesetPrefixPattern.DATE_HOUR.getPrefixRegex());
-        matcher = pattern.matcher(subDir);
-        return matcher.matches();
-      case DATE_WITH_STRING:
-        pattern = Pattern.compile(FilesetPrefixPattern.DATE_WITH_STRING.getPrefixRegex());
-        matcher = pattern.matcher(subDir);
-        return matcher.matches();
-      case DATE_US_HOUR:
-        pattern = Pattern.compile(FilesetPrefixPattern.DATE_US_HOUR.getPrefixRegex());
-        matcher = pattern.matcher(subDir);
-        return matcher.matches();
-      case DATE_US_HOUR_US_MINUTE:
-        pattern = Pattern.compile(FilesetPrefixPattern.DATE_US_HOUR_US_MINUTE.getPrefixRegex());
-        matcher = pattern.matcher(subDir);
-        return matcher.matches();
-      case YEAR_MONTH_DAY:
-        pattern = Pattern.compile(FilesetPrefixPattern.YEAR_MONTH_DAY.getPrefixRegex());
-        matcher = pattern.matcher(subDir);
-        return matcher.matches();
-      default:
-        throw new UnsupportedOperationException(
-            "Unsupported prefix pattern type: " + prefixPattern);
-    }
+    Pattern pattern = Pattern.compile(prefixPattern.getPrefixRegex());
+    Matcher matcher = pattern.matcher(subDir);
+    return matcher.matches();
   }
 }

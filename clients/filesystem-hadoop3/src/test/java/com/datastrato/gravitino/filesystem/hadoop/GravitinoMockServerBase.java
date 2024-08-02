@@ -12,17 +12,24 @@ import com.datastrato.gravitino.dto.AuditDTO;
 import com.datastrato.gravitino.dto.CatalogDTO;
 import com.datastrato.gravitino.dto.MetalakeDTO;
 import com.datastrato.gravitino.dto.file.FilesetDTO;
+import com.datastrato.gravitino.dto.requests.GetFilesetContextRequest;
 import com.datastrato.gravitino.dto.responses.CatalogResponse;
-import com.datastrato.gravitino.dto.responses.FilesetResponse;
 import com.datastrato.gravitino.dto.responses.MetalakeResponse;
 import com.datastrato.gravitino.dto.responses.VersionResponse;
+import com.datastrato.gravitino.file.ClientType;
 import com.datastrato.gravitino.file.Fileset;
+import com.datastrato.gravitino.file.FilesetDataOperation;
+import com.datastrato.gravitino.file.SourceEngineType;
 import com.datastrato.gravitino.json.JsonUtils;
 import com.datastrato.gravitino.shaded.com.fasterxml.jackson.core.JsonProcessingException;
 import com.datastrato.gravitino.shaded.com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -45,8 +52,6 @@ public abstract class GravitinoMockServerBase {
   protected static final String metalakeName = "metalake_1";
   protected static final String catalogName = "fileset_catalog_1";
   protected static final String schemaName = "schema_1";
-  protected static final String managedFilesetName = "managed_fileset";
-  protected static final String externalFilesetName = "external_fileset";
   protected static final String provider = "test";
 
   @BeforeAll
@@ -160,7 +165,7 @@ public abstract class GravitinoMockServerBase {
     }
   }
 
-  protected static void mockFilesetDTO(
+  protected static FilesetDTO mockFilesetDTO(
       String metalakeName,
       String catalogName,
       String schemaName,
@@ -169,25 +174,48 @@ public abstract class GravitinoMockServerBase {
       String location,
       Map<String, String> properties) {
     NameIdentifier fileset = NameIdentifier.of(metalakeName, catalogName, schemaName, filesetName);
-    String filesetPath =
-        String.format(
-            "/api/metalakes/%s/catalogs/%s/schemas/%s/filesets/%s",
-            metalakeName, catalogName, schemaName, filesetName);
-    FilesetDTO mockFileset =
-        FilesetDTO.builder()
-            .name(fileset.name())
-            .type(type)
-            .storageLocation(location)
-            .comment("comment")
-            .properties(properties)
-            .audit(AuditDTO.builder().withCreator("creator").withCreateTime(Instant.now()).build())
-            .build();
-    FilesetResponse filesetResponse = new FilesetResponse(mockFileset);
+    return FilesetDTO.builder()
+        .name(fileset.name())
+        .type(type)
+        .storageLocation(location)
+        .comment("comment")
+        .properties(properties)
+        .audit(AuditDTO.builder().withCreator("creator").withCreateTime(Instant.now()).build())
+        .build();
+  }
+
+  protected static GetFilesetContextRequest mockGetContextRequest(
+      FilesetDataOperation operation, String subPath) {
+    return GetFilesetContextRequest.builder()
+        .operation(operation)
+        .subPath(subPath)
+        .clientType(ClientType.HADOOP_GVFS)
+        .ip(getClientIp())
+        .sourceEngineType(SourceEngineType.UNKNOWN)
+        .appId("unknown")
+        .build();
+  }
+
+  private static String getClientIp() {
     try {
-      buildMockResource(Method.GET, filesetPath, null, filesetResponse, SC_OK);
-    } catch (JsonProcessingException e) {
+      Enumeration<NetworkInterface> allNetInterfaces = NetworkInterface.getNetworkInterfaces();
+      InetAddress ip;
+      while (allNetInterfaces.hasMoreElements()) {
+        NetworkInterface netInterface = allNetInterfaces.nextElement();
+        if (!netInterface.isLoopback() && !netInterface.isVirtual() && netInterface.isUp()) {
+          Enumeration<InetAddress> addresses = netInterface.getInetAddresses();
+          while (addresses.hasMoreElements()) {
+            ip = addresses.nextElement();
+            if (ip instanceof Inet4Address) {
+              return ip.getHostAddress();
+            }
+          }
+        }
+      }
+    } catch (Exception e) {
       throw new RuntimeException(e);
     }
+    return "127.0.0.1";
   }
 
   public static ClientAndServer mockServer() {

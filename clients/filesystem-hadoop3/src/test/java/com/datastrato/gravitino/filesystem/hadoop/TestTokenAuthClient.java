@@ -70,7 +70,8 @@ public class TestTokenAuthClient extends TestGvfsBase {
               mockResponse = mockResponse.withBody(respJson);
               return mockResponse;
             });
-
+    Path managedFilesetPath =
+        FileSystemTestUtils.createFilesetPath(catalogName, schemaName, "testAuth", true);
     Path newPath = new Path(managedFilesetPath.toString().replace(metalakeName, METALAKE));
 
     Configuration config = new Configuration(conf);

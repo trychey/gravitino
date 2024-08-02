@@ -8,6 +8,7 @@ package com.datastrato.gravitino.filesystem.hadoop;
 class GravitinoVirtualFileSystemConfiguration {
   public static final String GVFS_FILESET_PREFIX = "gvfs://fileset";
   public static final String GVFS_SCHEME = "gvfs";
+  public static final String LOCAL_SCHEME_WITH_SLASH = "file:/";
 
   /** The configuration key for the Gravitino server URI. */
   public static final String FS_GRAVITINO_SERVER_URI_KEY = "fs.gravitino.server.uri";
@@ -68,12 +69,6 @@ class GravitinoVirtualFileSystemConfiguration {
   public static final String FS_GRAVITINO_TESTING = "fs.gravitino.testing";
 
   public static final String FS_GRAVITINO_TESTING_DEFAULT = "false";
-
-  public static final String SLASH = "/";
-
-  public static final String UNDER_SCORE = "_";
-
-  public static final String DOT = ".";
 
   private GravitinoVirtualFileSystemConfiguration() {}
 }

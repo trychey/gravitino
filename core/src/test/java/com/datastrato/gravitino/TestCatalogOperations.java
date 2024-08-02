@@ -4,6 +4,7 @@
  */
 package com.datastrato.gravitino;
 
+import com.datastrato.gravitino.catalog.EntityCombinedFileset;
 import com.datastrato.gravitino.connector.BasePropertiesMetadata;
 import com.datastrato.gravitino.connector.CatalogInfo;
 import com.datastrato.gravitino.connector.CatalogOperations;
@@ -43,13 +44,17 @@ import com.datastrato.gravitino.rel.expressions.distributions.Distribution;
 import com.datastrato.gravitino.rel.expressions.sorts.SortOrder;
 import com.datastrato.gravitino.rel.expressions.transforms.Transform;
 import com.datastrato.gravitino.rel.indexes.Index;
+import com.datastrato.gravitino.utils.FilesetPrefixPatternUtils;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import java.io.File;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
 public class TestCatalogOperations
@@ -74,6 +79,12 @@ public class TestCatalogOperations
   private Map<String, String> config;
 
   public static final String FAIL_CREATE = "fail-create";
+
+  private static final String SLASH = "/";
+
+  private static final String UNDER_SCORE = "_";
+
+  private static final String DOT = ".";
 
   public TestCatalogOperations(Map<String, String> config) {
     tables = Maps.newHashMap();
@@ -539,18 +550,76 @@ public class TestCatalogOperations
   public FilesetContext getFilesetContext(NameIdentifier ident, FilesetDataOperationCtx ctx)
       throws NoSuchFilesetException {
     if (filesets.containsKey(ident)) {
-      String subPath = ctx.subPath();
-      Preconditions.checkArgument(StringUtils.isNotBlank(subPath), "subPath must not be blank");
+      String subPath;
+      if (!ctx.subPath().trim().startsWith(SLASH)) {
+        subPath = SLASH + ctx.subPath().trim();
+      } else {
+        subPath = ctx.subPath().trim();
+      }
 
       Fileset fileset = loadFileset(ident);
+      Preconditions.checkArgument(
+          fileset.properties().containsKey(FilesetProperties.PREFIX_PATTERN_KEY),
+          "Fileset: `%s` does not contain the property: `%s`, please set this property."
+              + " Following options are supported: `%s`.",
+          ident,
+          FilesetProperties.PREFIX_PATTERN_KEY,
+          Arrays.asList(FilesetPrefixPattern.values()));
+      FilesetPrefixPattern prefixPattern =
+          FilesetPrefixPattern.valueOf(
+              fileset.properties().get(FilesetProperties.PREFIX_PATTERN_KEY));
 
-      String storageLocation = fileset.storageLocation();
-      String actualPath =
-          subPath.startsWith("/")
-              ? String.format("%s%s", storageLocation, subPath)
-              : String.format("%s/%s", storageLocation, subPath);
+      Preconditions.checkArgument(
+          fileset.properties().containsKey(FilesetProperties.DIR_MAX_LEVEL_KEY),
+          "Fileset: `%s` does not contain the property: `%s`, please set this property.",
+          ident,
+          FilesetProperties.DIR_MAX_LEVEL_KEY);
+      int maxLevel =
+          Integer.parseInt(fileset.properties().get(FilesetProperties.DIR_MAX_LEVEL_KEY));
+      Preconditions.checkArgument(
+          maxLevel > 0, "Fileset: `%s`'s max level should be greater than 0.", ident);
+
+      boolean isMountFile = checkMountsSingleFile(fileset);
+      Preconditions.checkArgument(ctx.operation() != null, "operation must not be null.");
+      switch (ctx.operation()) {
+        case CREATE:
+        case APPEND:
+        case MKDIRS:
+          Preconditions.checkArgument(
+              checkSubDirValid(subPath, prefixPattern, maxLevel, isMountFile),
+              prefixErrorMessage(subPath, prefixPattern, maxLevel));
+          break;
+        case RENAME:
+          Preconditions.checkArgument(
+              subPath.startsWith(SLASH) && subPath.length() > 1,
+              "subPath cannot be blank when need to rename a file or a directory.");
+          Preconditions.checkArgument(
+              !isMountFile,
+              String.format(
+                  "Cannot rename the fileset: %s which only mounts to a single file.", ident));
+          Preconditions.checkArgument(
+              checkSubDirValid(subPath, prefixPattern, maxLevel, false),
+              prefixErrorMessage(subPath, prefixPattern, maxLevel));
+          break;
+        default:
+          break;
+      }
+
+      String actualPath;
+      // subPath cannot be null, so we only need check if it is blank
+      if (subPath.startsWith(SLASH) && subPath.length() == 1) {
+        actualPath = fileset.storageLocation();
+      } else {
+        actualPath = fileset.storageLocation() + subPath;
+      }
+
       return TestFilesetContext.builder()
-          .withFileset(fileset)
+          .withFileset(
+              EntityCombinedFileset.of(fileset)
+                  .withHiddenPropertiesSet(
+                      fileset.properties().keySet().stream()
+                          .filter(filesetPropertiesMetadata::isHiddenProperty)
+                          .collect(Collectors.toSet())))
           .withActualPaths(new String[] {actualPath})
           .build();
     } else {
@@ -729,5 +798,48 @@ public class TestCatalogOperations
         throw new IllegalArgumentException(
             String.format("Unsupported fileset directory prefix pattern: `%s`.", pattern.name()));
     }
+  }
+
+  private static boolean checkSubDirValid(
+      String subPath, FilesetPrefixPattern prefixPattern, int maxLevel, boolean isFile) {
+    // match sub dir like `/xxx/yyy`
+    if (StringUtils.isNotBlank(subPath)) {
+      // If the prefix is not match, return false immediately
+      if (!FilesetPrefixPatternUtils.checkPrefixValid(subPath, prefixPattern)) {
+        return false;
+      }
+      // If the max level is not match, try to check if there is a temporary directory
+      if (!FilesetPrefixPatternUtils.checkLevelValid(subPath, maxLevel, isFile)) {
+        // In this case, the sub dir level is greater than the dir max level
+        String[] dirNames =
+            subPath.startsWith(SLASH) ? subPath.substring(1).split(SLASH) : subPath.split(SLASH);
+        // Try to check subdirectories before max level + 1 having temporary directory,
+        // if so, we pass the check
+        for (int index = 0; index < maxLevel + 1 && index < dirNames.length; index++) {
+          if (dirNames[index].startsWith(UNDER_SCORE) || dirNames[index].startsWith(DOT)) {
+            return true;
+          }
+        }
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private boolean checkMountsSingleFile(Fileset fileset) {
+    try {
+      File locationPath = new File(fileset.storageLocation());
+      return locationPath.isFile();
+    } catch (Exception e) {
+      return false;
+    }
+  }
+
+  private static String prefixErrorMessage(
+      String subPath, FilesetPrefixPattern pattern, Integer maxLevel) {
+    return String.format(
+        "The sub Path: %s is not valid, the whole path should like `%s`,"
+            + " and max sub directory level after fileset identifier should be less than %d.",
+        subPath, pattern.getExample(), maxLevel);
   }
 }

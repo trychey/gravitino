@@ -20,6 +20,7 @@ import com.datastrato.gravitino.EntityStoreFactory;
 import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.Namespace;
 import com.datastrato.gravitino.StringIdentifier;
+import com.datastrato.gravitino.enums.FilesetPrefixPattern;
 import com.datastrato.gravitino.exceptions.NoSuchFilesetException;
 import com.datastrato.gravitino.exceptions.NoSuchSchemaException;
 import com.datastrato.gravitino.exceptions.NonEmptySchemaException;
@@ -754,57 +755,404 @@ public class TestHadoopCatalogOperations {
     }
   }
 
-  @Test
-  public void testGetFilesetContext() throws IOException {
-    String schemaName = "schema1024";
+  static Object[][] validFilesetContextEnvProvider() {
+    return new Object[][] {
+      {
+        FilesetPrefixPattern.ANY,
+        FilesetDataOperation.OPEN,
+        "/test/t.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.ANY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "3")
+      },
+      {
+        FilesetPrefixPattern.ANY,
+        FilesetDataOperation.CREATE,
+        "test/t.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.ANY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "3")
+      },
+      {
+        FilesetPrefixPattern.ANY,
+        FilesetDataOperation.RENAME,
+        "/test/t.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.ANY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "3")
+      },
+      {
+        FilesetPrefixPattern.ANY,
+        FilesetDataOperation.CREATE,
+        "/test/.temp/qqq/zzz/t.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.ANY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "3")
+      },
+      {
+        FilesetPrefixPattern.DATE_WITH_STRING,
+        FilesetDataOperation.OPEN,
+        "/date=20240501/test/t.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.DATE_WITH_STRING.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "3")
+      },
+      {
+        FilesetPrefixPattern.DATE_WITH_STRING,
+        FilesetDataOperation.CREATE,
+        "date=20240501/test/t.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.DATE_WITH_STRING.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "3")
+      },
+      {
+        FilesetPrefixPattern.DATE_WITH_STRING,
+        FilesetDataOperation.RENAME,
+        "/date=20240501/test/t.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.DATE_WITH_STRING.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "3")
+      },
+      {
+        FilesetPrefixPattern.DATE_WITH_STRING,
+        FilesetDataOperation.RENAME,
+        "/date=20240501/.temp/zzz/qqq/ddd/t.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.DATE_WITH_STRING.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "3")
+      },
+      {
+        FilesetPrefixPattern.YEAR_MONTH_DAY,
+        FilesetDataOperation.OPEN,
+        "year=2024/month=06/day=01/test/t.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.YEAR_MONTH_DAY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "5")
+      },
+      {
+        FilesetPrefixPattern.YEAR_MONTH_DAY,
+        FilesetDataOperation.CREATE,
+        "/year=2024/month=06/day=01/test/t.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.YEAR_MONTH_DAY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "5")
+      },
+      {
+        FilesetPrefixPattern.YEAR_MONTH_DAY,
+        FilesetDataOperation.CREATE,
+        "/year=2024/month=06/day=01/.temp/xxx/qqq/test/t.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.YEAR_MONTH_DAY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "5")
+      },
+      {
+        FilesetPrefixPattern.YEAR_MONTH_DAY,
+        FilesetDataOperation.RENAME,
+        "/year=2024/month=06/day=01/test/t.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.YEAR_MONTH_DAY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "5")
+      }
+    };
+  }
+
+  static Object[][] invalidFilesetContextEnvProvider() {
+    return new Object[][] {
+      {
+        FilesetPrefixPattern.ANY,
+        FilesetDataOperation.CREATE,
+        // test over max dir level
+        "/test/t/zz/xx/q.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.ANY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "3"),
+        false
+      },
+      {
+        FilesetPrefixPattern.ANY,
+        FilesetDataOperation.RENAME,
+        // test sub path is `/`
+        "/",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.ANY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "3"),
+        false
+      },
+      {
+        FilesetPrefixPattern.ANY,
+        FilesetDataOperation.RENAME,
+        // test over max dir level
+        "test/t/zz/xx/q.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.ANY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "3"),
+        false
+      },
+      {
+        FilesetPrefixPattern.ANY,
+        FilesetDataOperation.RENAME,
+        // test empty sub path
+        "",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.ANY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "3"),
+        false
+      },
+      {
+        FilesetPrefixPattern.ANY,
+        FilesetDataOperation.RENAME,
+        "/q.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.ANY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "3"),
+        // test rename with mount a single file
+        true
+      },
+      {
+        FilesetPrefixPattern.DATE_WITH_STRING,
+        FilesetDataOperation.CREATE,
+        // test over max dir level
+        "/date=20240506/test/t/zz/xx/q.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.DATE_WITH_STRING.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "3"),
+        false
+      },
+      {
+        FilesetPrefixPattern.DATE_WITH_STRING,
+        FilesetDataOperation.RENAME,
+        // test sub path is `/`
+        "/",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.DATE_WITH_STRING.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "3"),
+        false
+      },
+      {
+        FilesetPrefixPattern.DATE_WITH_STRING,
+        FilesetDataOperation.RENAME,
+        // test over max dir level
+        "date=20240506/test/t/zz/xx/q.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.DATE_WITH_STRING.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "3"),
+        false
+      },
+      {
+        FilesetPrefixPattern.YEAR_MONTH_DAY,
+        FilesetDataOperation.CREATE,
+        // test over max dir level
+        "/year=2024/month=06/day=01/test/t/zz/xx/q.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.YEAR_MONTH_DAY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "5"),
+        false
+      },
+      {
+        FilesetPrefixPattern.YEAR_MONTH_DAY,
+        FilesetDataOperation.RENAME,
+        // test sub dir is `/`
+        "/",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.YEAR_MONTH_DAY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "5"),
+        false
+      },
+      {
+        FilesetPrefixPattern.YEAR_MONTH_DAY,
+        FilesetDataOperation.RENAME,
+        // test over max dir level
+        "year=2024/month=06/day=01/test/t/zz/xx/q.parquet",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.YEAR_MONTH_DAY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "5"),
+        false
+      }
+    };
+  }
+
+  @ParameterizedTest
+  @MethodSource("validFilesetContextEnvProvider")
+  public void testGetFilesetContext(
+      FilesetPrefixPattern pattern,
+      FilesetDataOperation operation,
+      String subPath,
+      Map<String, String> properties)
+      throws IOException {
+    String schemaName =
+        String.format(
+            "schema_get_ctx_%s_prefix_%s",
+            pattern.name(), UUID.randomUUID().toString().replace("-", ""));
     String comment = "comment1024";
     String schemaPath = TEST_ROOT_PATH + "/" + schemaName;
     createSchema(schemaName, comment, null, schemaPath);
-
     String catalogName = "c1";
-    String name = "fileset1024";
-    String storageLocation = TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + name;
+    String filesetName =
+        String.format(
+            "fileset_get_ctx_%s_prefix_%s",
+            pattern.name(), UUID.randomUUID().toString().replace("-", ""));
+    String filesetLocation =
+        TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + filesetName;
     Fileset fileset =
-        createFileset(name, schemaName, comment, Fileset.Type.MANAGED, null, storageLocation);
+        createFileset(
+            filesetName,
+            schemaName,
+            comment,
+            Fileset.Type.MANAGED,
+            null,
+            filesetLocation,
+            properties);
 
     try (HadoopCatalogOperations ops = new HadoopCatalogOperations(store)) {
       ops.initialize(Maps.newHashMap(), null);
-      NameIdentifier filesetIdent = NameIdentifier.of("m1", "c1", schemaName, name);
-      BaseFilesetDataOperationCtx dataOperationCtx1 =
+      NameIdentifier filesetIdent = NameIdentifier.of("m1", "c1", schemaName, filesetName);
+      // test create valid
+      BaseFilesetDataOperationCtx ctx =
           BaseFilesetDataOperationCtx.builder()
-              .withSubPath("/test/test.parquet")
-              .withOperation(FilesetDataOperation.CREATE)
+              .withSubPath(subPath)
+              .withOperation(operation)
               .withClientType(ClientType.HADOOP_GVFS)
               .withIp("127.0.0.1")
-              .withSourceEngineType(SourceEngineType.SPARK)
+              .withSourceEngineType(SourceEngineType.UNKNOWN)
               .withAppId("application_1_1")
               .build();
-      FilesetContext context1 = ops.getFilesetContext(filesetIdent, dataOperationCtx1);
-      Assertions.assertEquals(name, context1.fileset().name());
+      FilesetContext context1 = ops.getFilesetContext(filesetIdent, ctx);
+
+      Assertions.assertEquals(filesetName, context1.fileset().name());
       Assertions.assertEquals(Fileset.Type.MANAGED, context1.fileset().type());
       Assertions.assertEquals("comment1024", context1.fileset().comment());
       Assertions.assertEquals(fileset.storageLocation(), context1.fileset().storageLocation());
       Assertions.assertEquals(
-          String.format("%s%s", context1.fileset().storageLocation(), dataOperationCtx1.subPath()),
+          subPath.startsWith("/")
+              ? String.format("%s%s", context1.fileset().storageLocation(), subPath)
+              : String.format("%s/%s", context1.fileset().storageLocation(), subPath),
           context1.actualPaths()[0]);
+    }
+  }
 
-      BaseFilesetDataOperationCtx dataOperationCtx2 =
-          BaseFilesetDataOperationCtx.builder()
-              .withSubPath("test/test.parquet")
-              .withOperation(FilesetDataOperation.CREATE)
-              .withClientType(ClientType.HADOOP_GVFS)
-              .withIp("127.0.0.1")
-              .withSourceEngineType(SourceEngineType.SPARK)
-              .withAppId("application_1_1")
-              .build();
-      FilesetContext context2 = ops.getFilesetContext(filesetIdent, dataOperationCtx2);
-      Assertions.assertEquals(name, context2.fileset().name());
-      Assertions.assertEquals(Fileset.Type.MANAGED, context2.fileset().type());
-      Assertions.assertEquals("comment1024", context2.fileset().comment());
-      Assertions.assertEquals(fileset.storageLocation(), context2.fileset().storageLocation());
-      Assertions.assertEquals(
-          String.format("%s/%s", context2.fileset().storageLocation(), dataOperationCtx2.subPath()),
-          context2.actualPaths()[0]);
+  @ParameterizedTest
+  @MethodSource("invalidFilesetContextEnvProvider")
+  public void testGetFilesetContextInvalid(
+      FilesetPrefixPattern pattern,
+      FilesetDataOperation operation,
+      String subPath,
+      Map<String, String> properties,
+      boolean mountSingleFile)
+      throws IOException {
+    String schemaName =
+        String.format(
+            "schema_get_ctx_%s_prefix_%s",
+            pattern.name(), UUID.randomUUID().toString().replace("-", ""));
+    String comment = "comment1024";
+    String schemaPath = TEST_ROOT_PATH + "/" + schemaName;
+    createSchema(schemaName, comment, null, schemaPath);
+    String catalogName = "c1";
+    String filesetName =
+        String.format(
+            "fileset_get_ctx_%s_prefix_%s",
+            pattern.name(), UUID.randomUUID().toString().replace("-", ""));
+    String filesetLocation =
+        TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + filesetName;
+    createFileset(
+        filesetName, schemaName, comment, Fileset.Type.MANAGED, null, filesetLocation, properties);
+    try (HadoopCatalogOperations ops = new HadoopCatalogOperations(store)) {
+      ops.initialize(Maps.newHashMap(), null);
+      NameIdentifier filesetIdent = NameIdentifier.of("m1", "c1", schemaName, filesetName);
+      if (mountSingleFile) {
+        Path locationPath = new Path(filesetLocation);
+        try (FileSystem localFileSystem = locationPath.getFileSystem(new Configuration())) {
+          // replace fileset location to a single file
+          Assertions.assertTrue(localFileSystem.exists(locationPath));
+          Assertions.assertTrue(localFileSystem.getFileStatus(locationPath).isDirectory());
+          localFileSystem.delete(locationPath, true);
+          localFileSystem.create(locationPath);
+          Assertions.assertTrue(localFileSystem.exists(locationPath));
+          Assertions.assertTrue(localFileSystem.getFileStatus(locationPath).isFile());
+
+          BaseFilesetDataOperationCtx ctx1 =
+              BaseFilesetDataOperationCtx.builder()
+                  .withSubPath(subPath)
+                  .withOperation(operation)
+                  .withClientType(ClientType.HADOOP_GVFS)
+                  .withIp("127.0.0.1")
+                  .withSourceEngineType(SourceEngineType.UNKNOWN)
+                  .withAppId("application_1_1")
+                  .build();
+          Assertions.assertThrows(
+              IllegalArgumentException.class, () -> ops.getFilesetContext(filesetIdent, ctx1));
+        }
+      } else {
+        BaseFilesetDataOperationCtx ctx =
+            BaseFilesetDataOperationCtx.builder()
+                .withSubPath(subPath)
+                .withOperation(operation)
+                .withClientType(ClientType.HADOOP_GVFS)
+                .withIp("127.0.0.1")
+                .withSourceEngineType(SourceEngineType.UNKNOWN)
+                .withAppId("application_1_1")
+                .build();
+        Assertions.assertThrows(
+            IllegalArgumentException.class, () -> ops.getFilesetContext(filesetIdent, ctx));
+
+        // test sub path is null
+        Assertions.assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                BaseFilesetDataOperationCtx.builder()
+                    .withSubPath(null)
+                    .withOperation(operation)
+                    .withClientType(ClientType.HADOOP_GVFS)
+                    .withIp("127.0.0.1")
+                    .withSourceEngineType(SourceEngineType.UNKNOWN)
+                    .withAppId("application_1_1")
+                    .build());
+      }
     }
   }
 
@@ -1070,7 +1418,8 @@ public class TestHadoopCatalogOperations {
       String comment,
       Fileset.Type type,
       String catalogPath,
-      String storageLocation)
+      String storageLocation,
+      Map<String, String> filesetProperties)
       throws IOException {
     Map<String, String> props = Maps.newHashMap();
     if (catalogPath != null) {
@@ -1081,11 +1430,22 @@ public class TestHadoopCatalogOperations {
       ops.initialize(props, null);
 
       NameIdentifier filesetIdent = NameIdentifier.of("m1", "c1", schemaName, name);
-      Map<String, String> filesetProps = Maps.newHashMap();
       StringIdentifier stringId = StringIdentifier.fromId(idGenerator.nextId());
-      filesetProps = Maps.newHashMap(StringIdentifier.newPropertiesWithId(stringId, filesetProps));
-
+      Map<String, String> filesetProps =
+          Maps.newHashMap(StringIdentifier.newPropertiesWithId(stringId, filesetProperties));
       return ops.createFileset(filesetIdent, comment, type, storageLocation, filesetProps);
     }
+  }
+
+  private Fileset createFileset(
+      String name,
+      String schemaName,
+      String comment,
+      Fileset.Type type,
+      String catalogPath,
+      String storageLocation)
+      throws IOException {
+    return createFileset(
+        name, schemaName, comment, type, catalogPath, storageLocation, Maps.newHashMap());
   }
 }

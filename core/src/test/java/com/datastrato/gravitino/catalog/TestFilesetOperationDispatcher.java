@@ -11,12 +11,19 @@ import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.Namespace;
 import com.datastrato.gravitino.enums.FilesetLifecycleUnit;
 import com.datastrato.gravitino.enums.FilesetPrefixPattern;
+import com.datastrato.gravitino.file.BaseFilesetDataOperationCtx;
+import com.datastrato.gravitino.file.ClientType;
 import com.datastrato.gravitino.file.Fileset;
 import com.datastrato.gravitino.file.FilesetChange;
+import com.datastrato.gravitino.file.FilesetContext;
+import com.datastrato.gravitino.file.FilesetDataOperation;
+import com.datastrato.gravitino.file.SourceEngineType;
 import com.datastrato.gravitino.properties.FilesetProperties;
 import com.google.common.collect.ImmutableMap;
+import java.io.File;
 import java.io.IOException;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -400,5 +407,49 @@ public class TestFilesetOperationDispatcher extends TestOperationDispatcher {
         () ->
             filesetOperationDispatcher.createFileset(
                 filesetIdent3, "comment", Fileset.Type.MANAGED, "test", invalidLifeCycleProps));
+  }
+
+  @Test
+  public void testCreateFilesetAndGetContext() {
+    Namespace filesetNs = Namespace.of(metalake, catalog, "schema_test_get_context");
+    Map<String, String> schemaProps = ImmutableMap.of("k1", "v1", "k2", "v2");
+    schemaOperationDispatcher.createSchema(
+        NameIdentifier.of(filesetNs.levels()), "comment", schemaProps);
+
+    NameIdentifier filesetIdent1 = NameIdentifier.of(filesetNs, "fileset_test_get_context");
+    Map<String, String> filesetProps = ImmutableMap.of("k1", "v1", "k2", "v2");
+    Fileset fileset1 =
+        filesetOperationDispatcher.createFileset(
+            filesetIdent1,
+            "comment",
+            Fileset.Type.MANAGED,
+            "/tmp/test_" + UUID.randomUUID().toString().replace("-", ""),
+            filesetProps);
+    Assertions.assertEquals("fileset_test_get_context", fileset1.name());
+    Assertions.assertEquals("comment", fileset1.comment());
+    Assertions.assertEquals(Fileset.Type.MANAGED, fileset1.type());
+    Assertions.assertNotNull(fileset1.storageLocation());
+
+    BaseFilesetDataOperationCtx ctx =
+        BaseFilesetDataOperationCtx.builder()
+            .withOperation(FilesetDataOperation.OPEN)
+            .withSubPath("/test/123")
+            .withClientType(ClientType.HADOOP_GVFS)
+            .withIp("127.0.0.1")
+            .withSourceEngineType(SourceEngineType.SPARK)
+            .withAppId("application_1_1")
+            .build();
+    FilesetContext context = filesetOperationDispatcher.getFilesetContext(filesetIdent1, ctx);
+    Assertions.assertEquals(fileset1.name(), context.fileset().name());
+    Assertions.assertEquals(fileset1.comment(), context.fileset().comment());
+    Assertions.assertEquals(fileset1.type(), context.fileset().type());
+    Assertions.assertEquals(fileset1.storageLocation(), context.fileset().storageLocation());
+    Assertions.assertEquals(fileset1.storageLocation() + "/test/123", context.actualPaths()[0]);
+    File file = new File(fileset1.storageLocation());
+    try {
+      file.delete();
+    } catch (Exception e) {
+      // ignore
+    }
   }
 }

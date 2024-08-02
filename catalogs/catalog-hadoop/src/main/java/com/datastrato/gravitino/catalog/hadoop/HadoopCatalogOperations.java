@@ -13,6 +13,7 @@ import com.datastrato.gravitino.GravitinoEnv;
 import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.Namespace;
 import com.datastrato.gravitino.StringIdentifier;
+import com.datastrato.gravitino.catalog.EntityCombinedFileset;
 import com.datastrato.gravitino.connector.CatalogInfo;
 import com.datastrato.gravitino.connector.CatalogOperations;
 import com.datastrato.gravitino.connector.PropertiesMetadata;
@@ -20,6 +21,7 @@ import com.datastrato.gravitino.enums.FilesetLifecycleUnit;
 import com.datastrato.gravitino.enums.FilesetPrefixPattern;
 import com.datastrato.gravitino.exceptions.AlreadyExistsException;
 import com.datastrato.gravitino.exceptions.FilesetAlreadyExistsException;
+import com.datastrato.gravitino.exceptions.GravitinoRuntimeException;
 import com.datastrato.gravitino.exceptions.NoSuchCatalogException;
 import com.datastrato.gravitino.exceptions.NoSuchEntityException;
 import com.datastrato.gravitino.exceptions.NoSuchFilesetException;
@@ -39,14 +41,17 @@ import com.datastrato.gravitino.rel.Schema;
 import com.datastrato.gravitino.rel.SchemaChange;
 import com.datastrato.gravitino.rel.SupportsSchemas;
 import com.datastrato.gravitino.storage.relational.RelationalEntityStore;
+import com.datastrato.gravitino.utils.FilesetPrefixPatternUtils;
 import com.datastrato.gravitino.utils.PrincipalUtils;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -90,6 +95,12 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
 
   private List<String> validManagedPaths;
   private List<String> validExternalPaths;
+
+  private static final String SLASH = "/";
+
+  private static final String UNDER_SCORE = "_";
+
+  private static final String DOT = ".";
 
   // For testing only.
   HadoopCatalogOperations(EntityStore store) {
@@ -365,24 +376,77 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
   @Override
   public FilesetContext getFilesetContext(NameIdentifier ident, FilesetDataOperationCtx ctx)
       throws NoSuchFilesetException {
-    String subPath = ctx.subPath();
-    Preconditions.checkArgument(StringUtils.isNotBlank(subPath), "subPath must not be blank");
+    Preconditions.checkArgument(ctx.subPath() != null, "subPath must not be null");
+    // fill the sub path with a leading slash if it does not have one
+    String subPath;
+    if (!ctx.subPath().trim().startsWith(SLASH)) {
+      subPath = SLASH + ctx.subPath().trim();
+    } else {
+      subPath = ctx.subPath().trim();
+    }
 
     Fileset fileset = loadFileset(ident);
+    Preconditions.checkArgument(
+        fileset.properties().containsKey(FilesetProperties.PREFIX_PATTERN_KEY),
+        "Fileset: `%s` does not contain the property: `%s`, please set this property."
+            + " Following options are supported: `%s`.",
+        ident,
+        FilesetProperties.PREFIX_PATTERN_KEY,
+        Arrays.asList(FilesetPrefixPattern.values()));
+    FilesetPrefixPattern prefixPattern =
+        FilesetPrefixPattern.valueOf(
+            fileset.properties().get(FilesetProperties.PREFIX_PATTERN_KEY));
 
-    String storageLocation = fileset.storageLocation();
+    Preconditions.checkArgument(
+        fileset.properties().containsKey(FilesetProperties.DIR_MAX_LEVEL_KEY),
+        "Fileset: `%s` does not contain the property: `%s`, please set this property.",
+        ident,
+        FilesetProperties.DIR_MAX_LEVEL_KEY);
+    int maxLevel = Integer.parseInt(fileset.properties().get(FilesetProperties.DIR_MAX_LEVEL_KEY));
+    Preconditions.checkArgument(
+        maxLevel > 0, "Fileset: `%s`'s max level should be greater than 0.", ident);
+
+    boolean isMountFile = checkMountsSingleFile(fileset);
+    Preconditions.checkArgument(ctx.operation() != null, "operation must not be null.");
+    switch (ctx.operation()) {
+      case CREATE:
+      case APPEND:
+      case MKDIRS:
+        Preconditions.checkArgument(
+            checkSubDirValid(subPath, prefixPattern, maxLevel, isMountFile),
+            prefixErrorMessage(subPath, prefixPattern, maxLevel));
+        break;
+      case RENAME:
+        Preconditions.checkArgument(
+            subPath.startsWith(SLASH) && subPath.length() > 1,
+            "subPath cannot be blank when need to rename a file or a directory.");
+        Preconditions.checkArgument(
+            !isMountFile,
+            String.format(
+                "Cannot rename the fileset: %s which only mounts to a single file.", ident));
+        Preconditions.checkArgument(
+            checkSubDirValid(subPath, prefixPattern, maxLevel, false),
+            prefixErrorMessage(subPath, prefixPattern, maxLevel));
+        break;
+      default:
+        break;
+    }
+
     String actualPath;
     // subPath cannot be null, so we only need check if it is blank
-    if (StringUtils.isBlank(subPath)) {
-      actualPath = storageLocation;
+    if (subPath.startsWith(SLASH) && subPath.length() == 1) {
+      actualPath = fileset.storageLocation();
     } else {
-      actualPath =
-          subPath.startsWith("/")
-              ? String.format("%s%s", storageLocation, subPath)
-              : String.format("%s/%s", storageLocation, subPath);
+      actualPath = fileset.storageLocation() + subPath;
     }
+
     return HadoopFilesetContext.builder()
-        .withFileset(fileset)
+        .withFileset(
+            EntityCombinedFileset.of(fileset)
+                .withHiddenPropertiesSet(
+                    fileset.properties().keySet().stream()
+                        .filter(FILESET_PROPERTIES_METADATA::isHiddenProperty)
+                        .collect(Collectors.toSet())))
         .withActualPaths(new String[] {actualPath})
         .build();
   }
@@ -924,5 +988,53 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
       throw new RuntimeException(
           "Failed to create external fileset " + ident + " location " + filesetPath, ioe);
     }
+  }
+
+  private static boolean checkSubDirValid(
+      String subPath, FilesetPrefixPattern prefixPattern, int maxLevel, boolean isFile) {
+    // match sub dir like `/xxx/yyy`
+    if (StringUtils.isNotBlank(subPath)) {
+      // If the prefix is not match, return false immediately
+      if (!FilesetPrefixPatternUtils.checkPrefixValid(subPath, prefixPattern)) {
+        return false;
+      }
+      // If the max level is not match, try to check if there is a temporary directory
+      if (!FilesetPrefixPatternUtils.checkLevelValid(subPath, maxLevel, isFile)) {
+        // In this case, the sub dir level is greater than the dir max level
+        String[] dirNames =
+            subPath.startsWith(SLASH) ? subPath.substring(1).split(SLASH) : subPath.split(SLASH);
+        // Try to check subdirectories before max level + 1 having temporary directory,
+        // if so, we pass the check
+        for (int index = 0; index < maxLevel + 1 && index < dirNames.length; index++) {
+          if (dirNames[index].startsWith(UNDER_SCORE) || dirNames[index].startsWith(DOT)) {
+            return true;
+          }
+        }
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private boolean checkMountsSingleFile(Fileset fileset) {
+    try {
+      Path locationPath = new Path(fileset.storageLocation());
+      return locationPath.getFileSystem(hadoopConf).getFileStatus(locationPath).isFile();
+    } catch (FileNotFoundException e) {
+      // We should always return false here, same with the logic in `FileSystem.isFile(Path f)`.
+      return false;
+    } catch (IOException e) {
+      throw new GravitinoRuntimeException(
+          "Cannot check whether the fileset: %s mounts a single file, exception: %s",
+          fileset.name(), e);
+    }
+  }
+
+  private static String prefixErrorMessage(
+      String subPath, FilesetPrefixPattern pattern, Integer maxLevel) {
+    return String.format(
+        "The sub Path: %s is not valid, the whole path should like `%s`,"
+            + " and max sub directory level after fileset identifier should be less than %d.",
+        subPath, pattern.getExample(), maxLevel);
   }
 }
