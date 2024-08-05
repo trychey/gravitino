@@ -7,6 +7,7 @@ package com.datastrato.gravitino.file;
 /** An enum class containing fileset data operations source engine type that supported. */
 public enum SourceEngineType {
   SPARK,
+  PYSPARK,
   FLINK,
   CLOUDML,
   UNKNOWN;

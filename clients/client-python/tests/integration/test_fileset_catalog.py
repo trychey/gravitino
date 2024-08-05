@@ -15,6 +15,10 @@ from gravitino import (
     Fileset,
     FilesetChange,
 )
+from gravitino.api.base_fileset_data_operation_ctx import BaseFilesetDataOperationCtx
+from gravitino.api.client_type import ClientType
+from gravitino.api.fileset_data_operation import FilesetDataOperation
+from gravitino.api.source_engine_type import SourceEngineType
 from tests.integration.integration_test_env import IntegrationTestEnv
 
 logger = logging.getLogger(__name__)
@@ -134,6 +138,18 @@ class TestFilesetCatalog(IntegrationTestEnv):
             properties=self.fileset_properties,
         )
 
+    def create_custom_fileset(
+        self, ident: NameIdentifier, location: str, properties: Dict
+    ) -> Fileset:
+        catalog = self.gravitino_client.load_catalog(ident=self.catalog_ident)
+        return catalog.as_fileset_catalog().create_fileset(
+            ident=ident,
+            fileset_type=Fileset.Type.MANAGED,
+            comment=self.fileset_comment,
+            storage_location=location,
+            properties=properties,
+        )
+
     def test_create_fileset(self):
         fileset = self.create_fileset()
         self.assertIsNotNone(fileset)
@@ -197,3 +213,45 @@ class TestFilesetCatalog(IntegrationTestEnv):
         )
         self.assertEqual(fileset_comment_removed.name(), self.fileset_name)
         self.assertIsNone(fileset_comment_removed.comment())
+
+    def test_get_fileset_context(self):
+        fileset_name = "test_get_context"
+        f_ident = NameIdentifier.of_fileset(
+            self.metalake_name, self.catalog_name, self.schema_name, fileset_name
+        )
+        try:
+            f_location = "/tmp/test_get_fileset_context"
+            properties = {}
+            self.create_custom_fileset(f_ident, f_location, properties)
+            fileset = (
+                self.gravitino_client.load_catalog(ident=self.catalog_ident)
+                .as_fileset_catalog()
+                .load_fileset(ident=f_ident)
+            )
+            self.assertIsNotNone(fileset)
+            self.assertEqual(fileset.name(), fileset_name)
+            self.assertEqual(fileset.comment(), self.fileset_comment)
+            self.assertEqual(fileset.audit_info().creator(), "anonymous")
+
+            ctx = BaseFilesetDataOperationCtx(
+                sub_path="/test",
+                operation=FilesetDataOperation.MKDIRS,
+                client_type=ClientType.PYTHON_GVFS,
+                ip="127.0.0.1",
+                source_engine_type=SourceEngineType.PYSPARK,
+                app_id="application_1_1",
+            )
+            context = (
+                self.gravitino_client.load_catalog(ident=self.catalog_ident)
+                .as_fileset_catalog()
+                .get_fileset_context(ident=f_ident, ctx=ctx)
+            )
+            self.assertIsNotNone(context)
+            self.assertEqual(context.fileset().name(), fileset_name)
+            self.assertEqual(context.fileset().comment(), self.fileset_comment)
+            self.assertEqual(context.fileset().audit_info().creator(), "anonymous")
+            self.assertEqual(context.actual_paths()[0], f_location + "/test")
+        finally:
+            self.gravitino_client.load_catalog(
+                ident=self.catalog_ident
+            ).as_fileset_catalog().drop_fileset(ident=f_ident)
