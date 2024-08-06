@@ -70,6 +70,7 @@ public class EventListenerManager {
                       throw new IllegalStateException(
                           "Duplicate event listener name detected: " + existingValue);
                     }));
+    LOG.info("userEventListenerPlugins:{}", userEventListenerPlugins);
     this.eventListeners = assembleEventListeners(userEventListenerPlugins);
   }
 
@@ -83,6 +84,10 @@ public class EventListenerManager {
 
   public EventBus createEventBus() {
     return new EventBus(eventListeners);
+  }
+
+  public void addEventListener(String listenerName, EventListenerPlugin listener) {
+    eventListeners.add(new EventListenerPluginWrapper(listenerName, listener));
   }
 
   private List<EventListenerPlugin> assembleEventListeners(

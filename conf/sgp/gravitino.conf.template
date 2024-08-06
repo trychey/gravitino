@@ -67,3 +67,14 @@ gravitino.authenticator.simple.superUsers=GKABwQJu83IkVgXY8vm+RFbtjM8L+/Ay77z8GL
 gravitino.authenticator.simple.readOnly.superUsers=GGD1C85S15X3raaEE1WMCu2By2ypHU/8q+/p5pDWlQGwDMQtFg/f00CmCNXcwSxZV+B41LRkLHi/g84PKI17mIh51e6VHlzkgHihYwfdLZ4UatbFUaoNHIsVRTBsmnEeJt4YErKU2qk1rEKApEc1JOMuP3T1AxgQkVLtV+3RSzysHZxHmfZsnBgU5Ryf746owrkQH0DikM775Jrl3OwA
 # Disable local environment for Simple Authenticator.
 gravitino.authenticator.simple.localEnv=false
+
+#  gravitino audit config
+gravitino.audit.enable = true
+gravitino.audit.writer.class = com.datastrato.gravitino.audit.MqAuditLogWriter
+gravitino.audit.formatter.class = com.datastrato.gravitino.audit.AuditLogFormatter
+gravitino.audit.writer.rocketmq.producer.topic = gravitino_audit_log
+gravitino.audit.writer.rocketmq.producer.address = alsgp0-rocketmq.namesrv.api.xiaomi.net:9876
+gravitino.audit.writer.rocketmq.producer.access-key = GCCSf3t0epeJGEyP/MKIrvg6WBmogXWVSpLlcv7JC2qlPhgSkf3aTvihSWatVWX5lFo8WVMDGBDU15kujMhB8otY/pwPz3feGBT0r81DgM+erL6zOx+iqtkkFIKUgwA=
+gravitino.audit.writer.rocketmq.producer.secret-key = GDDuHz/NjCO23I4lXSz65qzfMn9JebTf9aEXX+Jb93Z0jgosfkmOFyPWjpvUEfl3AGMYEmFlzAmp0ETGvmQGBduxVRRcAxgQxsbLhUsNSp+LNcRExx70rhgUwMx4MnMX2DiU1YAp8qN5dY2Ls5wA
+gravitino.audit.writer.rocketmq.producer.group = gravitino_producer
+gravitino.audit.writer.rocketmq.producer.enable-msg-trace = true

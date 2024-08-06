@@ -50,10 +50,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.cfg.EnumFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.common.base.Preconditions;
@@ -267,6 +269,46 @@ public class JsonUtils {
    */
   public static ObjectMapper anyFieldMapper() {
     return AnyFieldMapperHolder.INSTANCE;
+  }
+
+  /**
+   * EventMapperHolder is a static inner class that holds the instance of ObjectMapper for event
+   * which used for Event JSON serialization/deserialization. This class utilizes the
+   * Initialization-on-demand holder idiom, which is a lazy-loaded singleton. This idiom takes
+   * advantage of the fact that inner classes are not loaded until they are referenced. It's a
+   * thread-safe and efficient way to implement a singleton as the instance is created when it's
+   * needed at the first time.
+   */
+  private static class eventMapperHolder {
+    private static final ObjectMapper INSTANCE =
+        JsonMapper.builder()
+            .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
+            .configure(EnumFeature.WRITE_ENUMS_TO_LOWERCASE, true)
+            .enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)
+            .build()
+            .setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY)
+            .setPropertyNamingStrategy(new PropertyNamingStrategies.SnakeCaseStrategy())
+            .registerModule(new JavaTimeModule())
+            .registerModule(getDtoModule());
+  }
+
+  /**
+   * Get the shared EventMapper instance for JSON serialization/deserialization.
+   *
+   * @return The ObjectMapper instance.
+   */
+  public static ObjectMapper eventFieldMapper() {
+    return eventMapperHolder.INSTANCE;
+  }
+
+  private static SimpleModule getDtoModule() {
+    SimpleModule module = new SimpleModule();
+    module.addSerializer(Type.class, new TypeSerializer());
+    module.addSerializer(NameIdentifier.class, new NameIdentifierSerializer());
+    module.addSerializer(TableChange.ColumnPosition.class, new ColumnPositionSerializer());
+    module.addSerializer(Partitioning.class, new PartitioningSerializer());
+    module.addSerializer(Index.class, new IndexSerializer());
+    return module;
   }
 
   /**

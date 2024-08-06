@@ -4,6 +4,8 @@
  */
 package com.datastrato.gravitino;
 
+import com.datastrato.gravitino.audit.AuditLogConfig;
+import com.datastrato.gravitino.audit.AuditLogManager;
 import com.datastrato.gravitino.authorization.AccessControlManager;
 import com.datastrato.gravitino.auxiliary.AuxiliaryServiceManager;
 import com.datastrato.gravitino.catalog.CatalogDispatcher;
@@ -148,6 +150,11 @@ public class GravitinoEnv {
     eventListenerManager.init(
         config.getConfigsWithPrefix(EventListenerManager.GRAVITINO_EVENT_LISTENER_PREFIX));
     EventBus eventBus = eventListenerManager.createEventBus();
+
+    // init audit log Manager
+    AuditLogManager auditLogManager = new AuditLogManager();
+    auditLogManager.init(
+        config.getConfigsWithPrefix(AuditLogConfig.AUDIT_LOG_PREFIX), eventListenerManager);
 
     // Create and initialize metalake related modules
     MetalakeManager metalakeManager = new MetalakeManager(entityStore, idGenerator);

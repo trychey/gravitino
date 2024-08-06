@@ -71,6 +71,8 @@ commons-cli = "1.2"
 sun-activation-version = "1.2.0"
 error-prone = "3.1.0"
 
+rocketmq = "1.0.9-RELEASE"
+
 [libraries]
 protobuf-java = { group = "com.google.protobuf", name = "protobuf-java", version.ref = "protoc" }
 protobuf-java-util = { group = "com.google.protobuf", name = "protobuf-java-util", version.ref = "protoc" }
@@ -177,6 +179,8 @@ awaitility = { group = "org.awaitility", name = "awaitility", version.ref = "awa
 servlet = { group = "javax.servlet", name = "javax.servlet-api", version.ref = "servlet" }
 keycenter = { group = "com.xiaomi", name = "keycenter-sdk", version.ref = "keycenter" }
 junit4 = { group = "junit", name = "junit", version.ref = "junit4" }
+
+rocketmq = { group = "com.xiaomi.infra", name = "rocketmq-client-java", version.ref = "rocketmq"}
 
 [bundles]
 log4j = ["slf4j-api", "log4j-slf4j2-impl", "log4j-api", "log4j-core", "log4j-12-api"]
