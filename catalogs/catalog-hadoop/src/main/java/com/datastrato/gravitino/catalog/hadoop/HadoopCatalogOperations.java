@@ -425,13 +425,17 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
             prefixErrorMessage(subPath, prefixPattern, maxLevel));
         break;
       case RENAME:
+      case COPY_FILE:
         Preconditions.checkArgument(
             subPath.startsWith(SLASH) && subPath.length() > 1,
-            "subPath cannot be blank when need to rename a file or a directory.");
+            String.format(
+                "subPath cannot be blank when need to operate a file or a directory with operation: %s.",
+                ctx.operation()));
         Preconditions.checkArgument(
             !isMountFile,
             String.format(
-                "Cannot rename the fileset: %s which only mounts to a single file.", ident));
+                "Cannot operate the fileset: %s with operation: %s which only mounts to a single file.",
+                ident, ctx.operation()));
         Preconditions.checkArgument(
             checkSubDirValid(subPath, prefixPattern, maxLevel, false),
             prefixErrorMessage(subPath, prefixPattern, maxLevel));

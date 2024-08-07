@@ -71,6 +71,12 @@ def mock_load_fileset(name: str, location: str):
     return fileset
 
 
+def mock_get_fileset_context(name: str, location: str, actual_paths: List[str]):
+    fileset = mock_load_fileset(name, location)
+    context = FilesetContextDTO(fileset, actual_paths)
+    return context
+
+
 def mock_get_fileset_context_response(
     name: str, location: str, actual_paths: List[str]
 ):
