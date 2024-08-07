@@ -10,6 +10,8 @@ import static com.datastrato.gravitino.Configs.ENTITY_STORE;
 import static com.datastrato.gravitino.Configs.ENTRY_KV_ROCKSDB_BACKEND_PATH;
 import static com.datastrato.gravitino.Configs.STORE_DELETE_AFTER_TIME;
 import static com.datastrato.gravitino.Configs.STORE_TRANSACTION_MAX_SKEW_TIME;
+import static com.datastrato.gravitino.StringIdentifier.ID_KEY;
+import static com.datastrato.gravitino.catalog.hadoop.HadoopCatalogPropertiesMetadata.CHECK_UNIQUE_STORAGE_LOCATION_SCHEME;
 import static com.datastrato.gravitino.connector.BaseCatalog.CATALOG_BYPASS_PREFIX;
 
 import com.datastrato.gravitino.Config;
@@ -42,6 +44,8 @@ import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -206,7 +210,7 @@ public class TestHadoopCatalogOperations {
       Assertions.assertEquals(comment, schema1.comment());
 
       Map<String, String> props = schema1.properties();
-      Assertions.assertTrue(props.containsKey(StringIdentifier.ID_KEY));
+      Assertions.assertTrue(props.containsKey(ID_KEY));
 
       Throwable exception =
           Assertions.assertThrows(NoSuchSchemaException.class, () -> ops.loadSchema(schema16));
@@ -248,7 +252,7 @@ public class TestHadoopCatalogOperations {
       Assertions.assertEquals(comment, schema1.comment());
 
       Map<String, String> props = schema1.properties();
-      Assertions.assertTrue(props.containsKey(StringIdentifier.ID_KEY));
+      Assertions.assertTrue(props.containsKey(ID_KEY));
 
       String newKey = "k1";
       String newValue = "v1";
@@ -294,7 +298,7 @@ public class TestHadoopCatalogOperations {
       Assertions.assertEquals(comment, schema1.comment());
 
       Map<String, String> props = schema1.properties();
-      Assertions.assertTrue(props.containsKey(StringIdentifier.ID_KEY));
+      Assertions.assertTrue(props.containsKey(ID_KEY));
 
       ops.dropSchema(id, false);
 
@@ -331,11 +335,22 @@ public class TestHadoopCatalogOperations {
       String catalogPath,
       String schemaPath,
       String storageLocation,
-      String expect)
+      String expectedPrimaryStorageLocation,
+      Map<String, String> filesetProps,
+      Map<String, String> expectedFilesetProps)
       throws IOException {
     String schemaName = "s1_" + name;
     String comment = "comment_s1";
+
+    List<String> backupStorageLocations =
+        filesetProps.entrySet().stream()
+            .filter(
+                entry -> entry.getKey().startsWith(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY))
+            .map(Map.Entry::getValue)
+            .collect(Collectors.toList());
+
     Map<String, String> catalogProps = Maps.newHashMap();
+    catalogProps.put(CATALOG_BYPASS_PREFIX + CHECK_UNIQUE_STORAGE_LOCATION_SCHEME, "false");
     if (catalogPath != null) {
       catalogProps.put(HadoopCatalogPropertiesMetadata.LOCATION, catalogPath);
     }
@@ -346,17 +361,36 @@ public class TestHadoopCatalogOperations {
       if (!ops.schemaExists(schemaIdent)) {
         createSchema(schemaName, comment, catalogPath, schemaPath);
       }
-      Path storePath = new Path(storageLocation);
-      try (FileSystem fs = storePath.getFileSystem(new Configuration())) {
-        fs.mkdirs(storePath);
+      if (type == Fileset.Type.EXTERNAL) {
+        // we can skip this step for backup storage locations since the catalog will create them
+        // automatically
+        Path storePath = new Path(storageLocation);
+        try (FileSystem fs = storePath.getFileSystem(new Configuration())) {
+          fs.mkdirs(storePath);
+        }
       }
       Fileset fileset =
-          createFileset(name, schemaName, "comment", type, catalogPath, storageLocation);
+          createFileset(
+              name, schemaName, "comment", type, catalogPath, storageLocation, filesetProps);
 
       Assertions.assertEquals(name, fileset.name());
       Assertions.assertEquals(type, fileset.type());
       Assertions.assertEquals("comment", fileset.comment());
-      Assertions.assertEquals(expect, fileset.storageLocation());
+      Assertions.assertEquals(expectedPrimaryStorageLocation, fileset.storageLocation());
+      Map<String, String> properties = fileset.properties();
+      expectedFilesetProps.forEach((k, v) -> Assertions.assertEquals(v, properties.get(k)));
+      Path primaryStorageLocationPath = new Path(fileset.storageLocation());
+      FileSystem fs = primaryStorageLocationPath.getFileSystem(new Configuration());
+      Assertions.assertTrue(fs.exists(primaryStorageLocationPath));
+      backupStorageLocations.forEach(
+          location -> {
+            Path expectedBackupStorageLocationPath = new Path(location);
+            try {
+              Assertions.assertTrue(fs.exists(expectedBackupStorageLocationPath));
+            } catch (IOException e) {
+              throw new RuntimeException(e);
+            }
+          });
 
       // Test load
       NameIdentifier filesetIdent = NameIdentifier.of("m1", "c1", schemaName, name);
@@ -364,16 +398,47 @@ public class TestHadoopCatalogOperations {
       Assertions.assertEquals(name, loadedFileset.name());
       Assertions.assertEquals(type, loadedFileset.type());
       Assertions.assertEquals("comment", loadedFileset.comment());
-      Assertions.assertEquals(expect, loadedFileset.storageLocation());
+      Assertions.assertEquals(expectedPrimaryStorageLocation, loadedFileset.storageLocation());
+      Map<String, String> loadedFilesetProperties = loadedFileset.properties();
+      expectedFilesetProps.forEach(
+          (k, v) -> Assertions.assertEquals(v, loadedFilesetProperties.get(k)));
+      primaryStorageLocationPath = new Path(loadedFileset.storageLocation());
+      Assertions.assertTrue(fs.exists(primaryStorageLocationPath));
+      backupStorageLocations.forEach(
+          location -> {
+            Path expectedBackupStorageLocationPath = new Path(location);
+            try {
+              Assertions.assertTrue(fs.exists(expectedBackupStorageLocationPath));
+            } catch (IOException e) {
+              throw new RuntimeException(e);
+            }
+          });
 
       // Test drop
       ops.dropFileset(filesetIdent);
-      Path expectedPath = new Path(expect);
-      FileSystem fs = expectedPath.getFileSystem(new Configuration());
+      Path expectedPath = new Path(expectedPrimaryStorageLocation);
       if (type == Fileset.Type.MANAGED) {
         Assertions.assertFalse(fs.exists(expectedPath));
+        backupStorageLocations.forEach(
+            location -> {
+              Path expectedBackupStorageLocationPath = new Path(location);
+              try {
+                Assertions.assertFalse(fs.exists(expectedBackupStorageLocationPath));
+              } catch (IOException e) {
+                throw new RuntimeException(e);
+              }
+            });
       } else {
         Assertions.assertTrue(fs.exists(expectedPath));
+        backupStorageLocations.forEach(
+            location -> {
+              Path expectedBackupStorageLocationPath = new Path(location);
+              try {
+                Assertions.assertTrue(fs.exists(expectedBackupStorageLocationPath));
+              } catch (IOException e) {
+                throw new RuntimeException(e);
+              }
+            });
       }
     }
   }
@@ -390,7 +455,15 @@ public class TestHadoopCatalogOperations {
     Throwable exception =
         Assertions.assertThrows(
             IllegalArgumentException.class,
-            () -> createFileset(name, schemaName, comment, Fileset.Type.MANAGED, null, null));
+            () ->
+                createFileset(
+                    name,
+                    schemaName,
+                    comment,
+                    Fileset.Type.MANAGED,
+                    null,
+                    null,
+                    ImmutableMap.of()));
     Assertions.assertEquals(
         "Storage location must be set for fileset: " + filesetIdent, exception.getMessage());
     try (HadoopCatalogOperations ops = new HadoopCatalogOperations(store)) {
@@ -405,7 +478,15 @@ public class TestHadoopCatalogOperations {
     Throwable exception1 =
         Assertions.assertThrows(
             IllegalArgumentException.class,
-            () -> createFileset(name, schemaName, comment, Fileset.Type.EXTERNAL, null, null));
+            () ->
+                createFileset(
+                    name,
+                    schemaName,
+                    comment,
+                    Fileset.Type.EXTERNAL,
+                    null,
+                    null,
+                    ImmutableMap.of()));
     Assertions.assertEquals(
         "Storage location must be set for external fileset " + filesetIdent,
         exception1.getMessage());
@@ -430,7 +511,14 @@ public class TestHadoopCatalogOperations {
     for (String fileset : filesets) {
       String storageLocation =
           TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + fileset;
-      createFileset(fileset, schemaName, comment, Fileset.Type.MANAGED, null, storageLocation);
+      createFileset(
+          fileset,
+          schemaName,
+          comment,
+          Fileset.Type.MANAGED,
+          null,
+          storageLocation,
+          ImmutableMap.of());
     }
 
     try (HadoopCatalogOperations ops = new HadoopCatalogOperations(store)) {
@@ -474,7 +562,8 @@ public class TestHadoopCatalogOperations {
         fs.mkdirs(storePath);
       }
       Fileset fileset =
-          createFileset(name, schemaName, "comment", type, catalogPath, storageLocation);
+          createFileset(
+              name, schemaName, "comment", type, catalogPath, storageLocation, ImmutableMap.of());
 
       Assertions.assertEquals(name, fileset.name());
       Assertions.assertEquals(type, fileset.type());
@@ -512,7 +601,14 @@ public class TestHadoopCatalogOperations {
     String name = "fileset25";
     String storageLocation = TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + name;
     Fileset fileset =
-        createFileset(name, schemaName, comment, Fileset.Type.MANAGED, null, storageLocation);
+        createFileset(
+            name,
+            schemaName,
+            comment,
+            Fileset.Type.MANAGED,
+            null,
+            storageLocation,
+            ImmutableMap.of());
 
     FilesetChange change1 = FilesetChange.setProperty("k1", "v1");
     FilesetChange change2 = FilesetChange.removeProperty("k1");
@@ -551,7 +647,14 @@ public class TestHadoopCatalogOperations {
     String name = "fileset_1";
     String storageLocation = TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + name;
     Fileset fileset =
-        createFileset(name, schemaName, comment, Fileset.Type.MANAGED, null, storageLocation);
+        createFileset(
+            name,
+            schemaName,
+            comment,
+            Fileset.Type.MANAGED,
+            null,
+            storageLocation,
+            ImmutableMap.of());
 
     // add owner
     FilesetChange change1 = FilesetChange.setProperty(FilesetProperties.OWNER_KEY, "test_owner");
@@ -642,7 +745,14 @@ public class TestHadoopCatalogOperations {
     String catalogName = "c1";
     String storageLocation = TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + name;
     Fileset fileset =
-        createFileset(name, schemaName, comment, Fileset.Type.MANAGED, null, storageLocation);
+        createFileset(
+            name,
+            schemaName,
+            comment,
+            Fileset.Type.MANAGED,
+            null,
+            storageLocation,
+            ImmutableMap.of());
 
     FilesetChange change1 = FilesetChange.updateComment("comment26_new");
     try (HadoopCatalogOperations ops = new HadoopCatalogOperations(store)) {
@@ -740,7 +850,14 @@ public class TestHadoopCatalogOperations {
     String catalogName = "c1";
     String storageLocation = TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + name;
     Fileset fileset =
-        createFileset(name, schemaName, comment, Fileset.Type.MANAGED, null, storageLocation);
+        createFileset(
+            name,
+            schemaName,
+            comment,
+            Fileset.Type.MANAGED,
+            null,
+            storageLocation,
+            ImmutableMap.of());
 
     FilesetChange change1 = FilesetChange.removeComment();
     try (HadoopCatalogOperations ops = new HadoopCatalogOperations(store)) {
@@ -753,6 +870,284 @@ public class TestHadoopCatalogOperations {
       Assertions.assertNull(fileset1.comment());
       Assertions.assertEquals(fileset.storageLocation(), fileset1.storageLocation());
     }
+  }
+
+  @Test
+  public void testAlterFilesetPropertiesWithException() throws IOException {
+    String schemaName = "test_schema";
+    String comment = "test_comment";
+    String schemaPath = TEST_ROOT_PATH + "/" + schemaName;
+    createSchema(schemaName, comment, null, schemaPath);
+
+    String catalogName = "c1";
+    String name = "test_fileset";
+    String storageLocation = TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + name;
+    Fileset fileset =
+        createFileset(
+            name,
+            schemaName,
+            comment,
+            Fileset.Type.MANAGED,
+            null,
+            storageLocation,
+            ImmutableMap.of());
+
+    FilesetChange change1 = FilesetChange.setProperty("k1", "v1");
+    FilesetChange change2 = FilesetChange.removeProperty("k1");
+    FilesetChange change3 =
+        FilesetChange.setProperty(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, storageLocation + "_bak_1");
+    FilesetChange change4 =
+        FilesetChange.removeProperty(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1);
+    FilesetChange change5 =
+        FilesetChange.addBackupStorageLocation(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + "aaaa", storageLocation + "_bak_aaaa");
+
+    try (HadoopCatalogOperations ops = new HadoopCatalogOperations(store)) {
+      ops.initialize(Maps.newHashMap(), null);
+      NameIdentifier filesetIdent = NameIdentifier.of("m1", "c1", schemaName, name);
+
+      Fileset fileset1 = ops.alterFileset(filesetIdent, change1);
+      Assertions.assertEquals(name, fileset1.name());
+      Assertions.assertEquals(Fileset.Type.MANAGED, fileset1.type());
+      Assertions.assertEquals("test_comment", fileset1.comment());
+      Assertions.assertEquals(fileset.storageLocation(), fileset1.storageLocation());
+      Map<String, String> props1 = fileset1.properties();
+      Assertions.assertTrue(props1.containsKey("k1"));
+      Assertions.assertEquals("v1", props1.get("k1"));
+
+      Fileset fileset2 = ops.alterFileset(filesetIdent, change2);
+      Assertions.assertEquals(name, fileset2.name());
+      Assertions.assertEquals(Fileset.Type.MANAGED, fileset2.type());
+      Assertions.assertEquals("test_comment", fileset2.comment());
+      Assertions.assertEquals(fileset.storageLocation(), fileset2.storageLocation());
+      Map<String, String> props2 = fileset2.properties();
+      Assertions.assertFalse(props2.containsKey("k1"));
+
+      Assertions.assertThrowsExactly(
+          UnsupportedOperationException.class, () -> ops.alterFileset(filesetIdent, change3));
+      Assertions.assertThrowsExactly(
+          UnsupportedOperationException.class, () -> ops.alterFileset(filesetIdent, change4));
+      Assertions.assertThrowsExactly(
+          IllegalArgumentException.class, () -> ops.alterFileset(filesetIdent, change5));
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("filesetTypes")
+  public void testStorageLocationFilesetChanges(Fileset.Type type) throws IOException {
+    String schemaName = "test_schema_" + type.name();
+    String comment = "test_comment";
+    String schemaPath = TEST_ROOT_PATH + "/" + schemaName;
+    createSchema(schemaName, comment, null, schemaPath);
+
+    String catalogName = "c1";
+    String name = "test_fileset_" + type.name();
+    String storageLocation = TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + name;
+    String backupLoc1 = storageLocation + "_bak_1";
+    String backupLoc2 = storageLocation + "_bak_2";
+    String backupLoc1_new = storageLocation + "_bak_1_new";
+    String backupLoc2_new = storageLocation + "_bak_2_new";
+    String newStorageLocation = storageLocation + "_new";
+
+    FilesetChange change1 =
+        FilesetChange.addBackupStorageLocation(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, backupLoc1);
+    FilesetChange change2 =
+        FilesetChange.addBackupStorageLocation(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2, backupLoc2);
+    FilesetChange change3 =
+        FilesetChange.updateBackupStorageLocation(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, backupLoc1_new);
+    FilesetChange change4 =
+        FilesetChange.updateBackupStorageLocation(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2, backupLoc2_new);
+    FilesetChange change5 =
+        FilesetChange.switchBackupStorageLocation(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1);
+    FilesetChange change6 =
+        FilesetChange.switchPrimaryAndBackupStorageLocation(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1);
+    FilesetChange change7 =
+        FilesetChange.removeBackupStorageLocation(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1);
+    FilesetChange change8 =
+        FilesetChange.removeBackupStorageLocation(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2);
+    FilesetChange change9 = FilesetChange.updatePrimaryStorageLocation(newStorageLocation);
+    FilesetChange change10 = FilesetChange.updatePrimaryStorageLocation(storageLocation);
+
+    if (type == Fileset.Type.EXTERNAL) {
+      Arrays.asList(
+              new Path(storageLocation),
+              new Path(backupLoc1),
+              new Path(backupLoc2),
+              new Path(backupLoc1_new),
+              new Path(backupLoc2_new),
+              new Path(newStorageLocation))
+          .forEach(this::createStorageLocation);
+    }
+
+    Fileset fileset =
+        createFileset(name, schemaName, comment, type, null, storageLocation, ImmutableMap.of());
+
+    try (HadoopCatalogOperations ops = new HadoopCatalogOperations(store)) {
+      HashMap<String, String> props = Maps.newHashMap();
+      props.put(CATALOG_BYPASS_PREFIX + CHECK_UNIQUE_STORAGE_LOCATION_SCHEME, "false");
+      ops.initialize(props, null);
+      NameIdentifier filesetIdent = NameIdentifier.of("m1", "c1", schemaName, name);
+
+      Fileset fileset1 = ops.alterFileset(filesetIdent, change1);
+      Assertions.assertEquals(name, fileset1.name());
+      Assertions.assertEquals(type, fileset1.type());
+      Assertions.assertEquals("test_comment", fileset1.comment());
+      Assertions.assertEquals(fileset.storageLocation(), fileset1.storageLocation());
+      Map<String, String> props1 = fileset1.properties();
+      Assertions.assertTrue(props1.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+      Assertions.assertEquals(
+          backupLoc1, props1.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+
+      Fileset fileset2 = ops.alterFileset(filesetIdent, change2);
+      Assertions.assertEquals(name, fileset2.name());
+      Assertions.assertEquals(type, fileset2.type());
+      Assertions.assertEquals("test_comment", fileset2.comment());
+      Assertions.assertEquals(fileset.storageLocation(), fileset2.storageLocation());
+      Map<String, String> props2 = fileset2.properties();
+      Assertions.assertTrue(props2.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+      Assertions.assertEquals(
+          backupLoc1, props2.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+      Assertions.assertTrue(props2.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+      Assertions.assertEquals(
+          backupLoc2, props2.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+
+      Fileset fileset3 = ops.alterFileset(filesetIdent, change3);
+      Assertions.assertEquals(name, fileset3.name());
+      Assertions.assertEquals(type, fileset3.type());
+      Assertions.assertEquals("test_comment", fileset3.comment());
+      Assertions.assertEquals(fileset.storageLocation(), fileset3.storageLocation());
+      Map<String, String> props3 = fileset3.properties();
+      Assertions.assertTrue(props3.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+      Assertions.assertEquals(
+          backupLoc1_new, props3.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+      Assertions.assertTrue(props3.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+      Assertions.assertEquals(
+          backupLoc2, props3.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+
+      Fileset fileset4 = ops.alterFileset(filesetIdent, change4);
+      Assertions.assertEquals(name, fileset4.name());
+      Assertions.assertEquals(type, fileset4.type());
+      Assertions.assertEquals("test_comment", fileset4.comment());
+      Assertions.assertEquals(fileset.storageLocation(), fileset4.storageLocation());
+      Map<String, String> props4 = fileset4.properties();
+      Assertions.assertTrue(props4.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+      Assertions.assertEquals(
+          backupLoc1_new, props4.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+      Assertions.assertTrue(props4.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+      Assertions.assertEquals(
+          backupLoc2_new, props4.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+      IllegalArgumentException exception =
+          Assertions.assertThrowsExactly(
+              IllegalArgumentException.class, () -> ops.alterFileset(filesetIdent, change4));
+      Assertions.assertTrue(
+          exception
+              .getMessage()
+              .contains("The new backup storage location should be different from the old one"));
+
+      Fileset fileset5 = ops.alterFileset(filesetIdent, change5);
+      Assertions.assertEquals(name, fileset5.name());
+      Assertions.assertEquals(type, fileset5.type());
+      Assertions.assertEquals("test_comment", fileset5.comment());
+      Assertions.assertEquals(fileset.storageLocation(), fileset5.storageLocation());
+      Map<String, String> props5 = fileset5.properties();
+      Assertions.assertTrue(props5.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+      Assertions.assertEquals(
+          backupLoc2_new, props5.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+      Assertions.assertTrue(props5.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+      Assertions.assertEquals(
+          backupLoc1_new, props5.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+
+      Fileset fileset6 = ops.alterFileset(filesetIdent, change6);
+      Assertions.assertEquals(name, fileset6.name());
+      Assertions.assertEquals(type, fileset6.type());
+      Assertions.assertEquals("test_comment", fileset6.comment());
+      Assertions.assertEquals(backupLoc2_new, fileset6.storageLocation());
+      Map<String, String> props6 = fileset6.properties();
+      Assertions.assertTrue(props6.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+      Assertions.assertEquals(
+          fileset.storageLocation(), props6.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+      Assertions.assertTrue(props6.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+      Assertions.assertEquals(
+          backupLoc1_new, props6.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+
+      Fileset fileset7 = ops.alterFileset(filesetIdent, change7);
+      Assertions.assertEquals(name, fileset7.name());
+      Assertions.assertEquals(type, fileset7.type());
+      Assertions.assertEquals("test_comment", fileset7.comment());
+      Assertions.assertEquals(backupLoc2_new, fileset7.storageLocation());
+      Map<String, String> props7 = fileset7.properties();
+      Assertions.assertFalse(props7.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+      Assertions.assertTrue(props7.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+      Assertions.assertEquals(
+          backupLoc1_new, props7.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+
+      Fileset fileset8 = ops.alterFileset(filesetIdent, change8);
+      Assertions.assertEquals(name, fileset8.name());
+      Assertions.assertEquals(type, fileset8.type());
+      Assertions.assertEquals("test_comment", fileset8.comment());
+      Assertions.assertEquals(backupLoc2_new, fileset8.storageLocation());
+      Map<String, String> props8 = fileset8.properties();
+      Assertions.assertFalse(props8.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+      Assertions.assertFalse(props8.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+
+      Fileset fileset9 = ops.alterFileset(filesetIdent, change9);
+      Assertions.assertEquals(name, fileset9.name());
+      Assertions.assertEquals(type, fileset9.type());
+      Assertions.assertEquals("test_comment", fileset9.comment());
+      Assertions.assertEquals(newStorageLocation, fileset9.storageLocation());
+      ops.alterFileset(filesetIdent, change10);
+      exception =
+          Assertions.assertThrowsExactly(
+              IllegalArgumentException.class, () -> ops.alterFileset(filesetIdent, change10));
+      Assertions.assertTrue(
+          exception
+              .getMessage()
+              .contains("The new primary storage location should be different from the old one"));
+
+      Fileset fileset10 = ops.alterFileset(filesetIdent, change1);
+      Assertions.assertEquals(name, fileset10.name());
+      Assertions.assertEquals(type, fileset10.type());
+      Assertions.assertEquals("test_comment", fileset10.comment());
+      Assertions.assertEquals(storageLocation, fileset10.storageLocation());
+      Map<String, String> props10 = fileset10.properties();
+      Assertions.assertTrue(props10.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+      Assertions.assertEquals(
+          backupLoc1, props10.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+
+      createStorageLocation(new Path(backupLoc1 + "/subDir"));
+      Assertions.assertThrowsExactly(
+          UnsupportedOperationException.class, () -> ops.alterFileset(filesetIdent, change3));
+      Assertions.assertThrowsExactly(
+          UnsupportedOperationException.class, () -> ops.alterFileset(filesetIdent, change7));
+
+      createStorageLocation(new Path(storageLocation + "/subDir"));
+      Assertions.assertThrowsExactly(
+          UnsupportedOperationException.class, () -> ops.alterFileset(filesetIdent, change9));
+    }
+  }
+
+  @Test
+  public void testCreateMultipleDirectories() throws IOException {
+    // test create a new directory when its parent dir does not exist.
+    String catalogLocation = TEST_ROOT_PATH + "/catalog1";
+    String filesetLocation = TEST_ROOT_PATH + "/catalog1/db1/fileset1";
+
+    Path catalogPath = new Path(catalogLocation);
+    Path filesetPath = new Path(filesetLocation);
+    FileSystem fs = catalogPath.getFileSystem(new Configuration());
+    Assertions.assertFalse(fs.exists(catalogPath));
+    Assertions.assertTrue(fs.mkdirs(filesetPath));
+    Assertions.assertTrue(fs.exists(filesetPath));
   }
 
   static Object[][] validFilesetContextEnvProvider() {
@@ -1165,7 +1560,17 @@ public class TestHadoopCatalogOperations {
             TEST_ROOT_PATH + "/catalog21",
             null,
             TEST_ROOT_PATH + "/c1/s1_fileset11/fileset11",
-            TEST_ROOT_PATH + "/c1/s1_fileset11/fileset11"),
+            TEST_ROOT_PATH + "/c1/s1_fileset11/fileset11",
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset11/fileset11_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset11/fileset11_bak_2"),
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset11/fileset11_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset11/fileset11_bak_2")),
         Arguments.of(
             // honor the schema location
             "fileset12",
@@ -1173,7 +1578,17 @@ public class TestHadoopCatalogOperations {
             null,
             TEST_ROOT_PATH + "/s1_fileset12",
             TEST_ROOT_PATH + "/c1/s1_fileset12/fileset12",
-            TEST_ROOT_PATH + "/c1/s1_fileset12/fileset12"),
+            TEST_ROOT_PATH + "/c1/s1_fileset12/fileset12",
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset12/fileset12_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset12/fileset12_bak_2"),
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset12/fileset12_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset12/fileset12_bak_2")),
         Arguments.of(
             // honor the schema location
             "fileset13",
@@ -1181,7 +1596,17 @@ public class TestHadoopCatalogOperations {
             TEST_ROOT_PATH + "/catalog22",
             TEST_ROOT_PATH + "/s1_fileset13",
             TEST_ROOT_PATH + "/c1/s1_fileset13/fileset13",
-            TEST_ROOT_PATH + "/c1/s1_fileset13/fileset13"),
+            TEST_ROOT_PATH + "/c1/s1_fileset13/fileset13",
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset13/fileset13_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset13/fileset13_bak_2"),
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset13/fileset13_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset13/fileset13_bak_2")),
         Arguments.of(
             // honor the storage location
             "fileset14",
@@ -1189,7 +1614,17 @@ public class TestHadoopCatalogOperations {
             TEST_ROOT_PATH + "/catalog23",
             TEST_ROOT_PATH + "/s1_fileset14",
             TEST_ROOT_PATH + "/c1/s1_fileset14/fileset14",
-            TEST_ROOT_PATH + "/c1/s1_fileset14/fileset14"),
+            TEST_ROOT_PATH + "/c1/s1_fileset14/fileset14",
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset14/fileset14_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset14/fileset14_bak_2"),
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset14/fileset14_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset14/fileset14_bak_2")),
         Arguments.of(
             // honor the storage location
             "fileset15",
@@ -1197,7 +1632,17 @@ public class TestHadoopCatalogOperations {
             null,
             null,
             TEST_ROOT_PATH + "/c1/s1_fileset15/fileset15",
-            TEST_ROOT_PATH + "/c1/s1_fileset15/fileset15"),
+            TEST_ROOT_PATH + "/c1/s1_fileset15/fileset15",
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset15/fileset15_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset15/fileset15_bak_2"),
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset15/fileset15_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset15/fileset15_bak_2")),
         Arguments.of(
             // honor the storage location
             "fileset16",
@@ -1205,7 +1650,17 @@ public class TestHadoopCatalogOperations {
             TEST_ROOT_PATH + "/catalog24",
             null,
             TEST_ROOT_PATH + "/c1/s1_fileset16/fileset16",
-            TEST_ROOT_PATH + "/c1/s1_fileset16/fileset16"),
+            TEST_ROOT_PATH + "/c1/s1_fileset16/fileset16",
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset16/fileset16_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset16/fileset16_bak_2"),
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset16/fileset16_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset16/fileset16_bak_2")),
         Arguments.of(
             // honor the storage location
             "fileset17",
@@ -1213,7 +1668,17 @@ public class TestHadoopCatalogOperations {
             TEST_ROOT_PATH + "/catalog25",
             TEST_ROOT_PATH + "/s1_fileset17",
             TEST_ROOT_PATH + "/fileset17",
-            TEST_ROOT_PATH + "/fileset17"),
+            TEST_ROOT_PATH + "/fileset17",
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/fileset17_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/fileset17_bak_2"),
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/fileset17_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/fileset17_bak_2")),
         Arguments.of(
             // honor the storage location
             "fileset18",
@@ -1221,7 +1686,17 @@ public class TestHadoopCatalogOperations {
             null,
             TEST_ROOT_PATH + "/s1_fileset18",
             TEST_ROOT_PATH + "/fileset18",
-            TEST_ROOT_PATH + "/fileset18"),
+            TEST_ROOT_PATH + "/fileset18",
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/fileset18_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/fileset18_bak_2"),
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/fileset18_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/fileset18_bak_2")),
         Arguments.of(
             // honor the storage location
             "fileset19",
@@ -1229,7 +1704,17 @@ public class TestHadoopCatalogOperations {
             null,
             null,
             TEST_ROOT_PATH + "/fileset19",
-            TEST_ROOT_PATH + "/fileset19"),
+            TEST_ROOT_PATH + "/fileset19",
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/fileset19_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/fileset19_bak_2"),
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/fileset19_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/fileset19_bak_2")),
         // Honor the catalog location
         Arguments.of(
             "fileset101",
@@ -1237,7 +1722,17 @@ public class TestHadoopCatalogOperations {
             UNFORMALIZED_TEST_ROOT_PATH + "/catalog201",
             null,
             TEST_ROOT_PATH + "/c1/s1_fileset101/fileset101",
-            TEST_ROOT_PATH + "/c1/s1_fileset101/fileset101"),
+            TEST_ROOT_PATH + "/c1/s1_fileset101/fileset101",
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset101/fileset101_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset101/fileset101_bak_2"),
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset101/fileset101_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset101/fileset101_bak_2")),
         Arguments.of(
             // honor the schema location
             "fileset102",
@@ -1245,7 +1740,17 @@ public class TestHadoopCatalogOperations {
             null,
             UNFORMALIZED_TEST_ROOT_PATH + "/s1_fileset102",
             TEST_ROOT_PATH + "/c1/s1_fileset102/fileset102",
-            TEST_ROOT_PATH + "/c1/s1_fileset102/fileset102"),
+            TEST_ROOT_PATH + "/c1/s1_fileset102/fileset102",
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset102/fileset102_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset102/fileset102_bak_2"),
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset102/fileset102_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset102/fileset102_bak_2")),
         Arguments.of(
             // honor the schema location
             "fileset103",
@@ -1253,7 +1758,17 @@ public class TestHadoopCatalogOperations {
             UNFORMALIZED_TEST_ROOT_PATH + "/catalog202",
             UNFORMALIZED_TEST_ROOT_PATH + "/s1_fileset103",
             TEST_ROOT_PATH + "/c1/s1_fileset103/fileset103",
-            TEST_ROOT_PATH + "/c1/s1_fileset103/fileset103"),
+            TEST_ROOT_PATH + "/c1/s1_fileset103/fileset103",
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset103/fileset103_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset103/fileset103_bak_2"),
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset103/fileset103_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset103/fileset103_bak_2")),
         Arguments.of(
             // honor the storage location
             "fileset104",
@@ -1261,7 +1776,17 @@ public class TestHadoopCatalogOperations {
             UNFORMALIZED_TEST_ROOT_PATH + "/catalog203",
             UNFORMALIZED_TEST_ROOT_PATH + "/s1_fileset104",
             TEST_ROOT_PATH + "/c1/s1_fileset104/fileset104",
-            TEST_ROOT_PATH + "/c1/s1_fileset104/fileset104"),
+            TEST_ROOT_PATH + "/c1/s1_fileset104/fileset104",
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset104/fileset104_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset104/fileset104_bak_2"),
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset104/fileset104_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset104/fileset104_bak_2")),
         Arguments.of(
             // honor the storage location
             "fileset105",
@@ -1269,7 +1794,17 @@ public class TestHadoopCatalogOperations {
             null,
             null,
             TEST_ROOT_PATH + "/c1/s1_fileset105/fileset105",
-            TEST_ROOT_PATH + "/c1/s1_fileset105/fileset105"),
+            TEST_ROOT_PATH + "/c1/s1_fileset105/fileset105",
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset105/fileset105_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset105/fileset105_bak_2"),
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset105/fileset105_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset105/fileset105_bak_2")),
         Arguments.of(
             // honor the storage location
             "fileset106",
@@ -1277,7 +1812,17 @@ public class TestHadoopCatalogOperations {
             UNFORMALIZED_TEST_ROOT_PATH + "/catalog204",
             null,
             TEST_ROOT_PATH + "/c1/s1_fileset106/fileset106",
-            TEST_ROOT_PATH + "/c1/s1_fileset106/fileset106"),
+            TEST_ROOT_PATH + "/c1/s1_fileset106/fileset106",
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset106/fileset106_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset106/fileset106_bak_2"),
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/c1/s1_fileset106/fileset106_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/c1/s1_fileset106/fileset106_bak_2")),
         Arguments.of(
             // honor the storage location
             "fileset107",
@@ -1285,7 +1830,17 @@ public class TestHadoopCatalogOperations {
             UNFORMALIZED_TEST_ROOT_PATH + "/catalog205",
             UNFORMALIZED_TEST_ROOT_PATH + "/s1_fileset107",
             TEST_ROOT_PATH + "/fileset107",
-            TEST_ROOT_PATH + "/fileset107"),
+            TEST_ROOT_PATH + "/fileset107",
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/fileset107_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/fileset107_bak_2"),
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/fileset107_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/fileset107_bak_2")),
         Arguments.of(
             // honor the storage location
             "fileset108",
@@ -1293,7 +1848,17 @@ public class TestHadoopCatalogOperations {
             null,
             UNFORMALIZED_TEST_ROOT_PATH + "/s1_fileset108",
             TEST_ROOT_PATH + "/fileset108",
-            TEST_ROOT_PATH + "/fileset108"),
+            TEST_ROOT_PATH + "/fileset108",
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/fileset108_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/fileset108_bak_2"),
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/fileset108_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/fileset108_bak_2")),
         Arguments.of(
             // honor the storage location
             "fileset109",
@@ -1301,7 +1866,17 @@ public class TestHadoopCatalogOperations {
             null,
             null,
             TEST_ROOT_PATH + "/fileset109",
-            TEST_ROOT_PATH + "/fileset109"));
+            TEST_ROOT_PATH + "/fileset109",
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/fileset109_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/fileset109_bak_2"),
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                TEST_ROOT_PATH + "/fileset109_bak_1",
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                TEST_ROOT_PATH + "/fileset109_bak_2")));
   }
 
   private static Stream<Arguments> testRenameArguments() {
@@ -1389,6 +1964,21 @@ public class TestHadoopCatalogOperations {
             TEST_ROOT_PATH + "/fileset39"));
   }
 
+  private static Stream<Arguments> filesetTypes() {
+    return Stream.of(Arguments.of(Fileset.Type.EXTERNAL), Arguments.of(Fileset.Type.MANAGED));
+  }
+
+  private void createStorageLocation(Path storageLocationPath) {
+    try {
+      FileSystem fs = storageLocationPath.getFileSystem(new Configuration());
+      fs.mkdirs(storageLocationPath);
+    } catch (IOException e) {
+      throw new RuntimeException(
+          String.format("Failed to create storage location: %s", storageLocationPath.toString()),
+          e);
+    }
+  }
+
   private Schema createSchema(String name, String comment, String catalogPath, String schemaPath)
       throws IOException {
     Map<String, String> props = Maps.newHashMap();
@@ -1422,6 +2012,7 @@ public class TestHadoopCatalogOperations {
       Map<String, String> filesetProperties)
       throws IOException {
     Map<String, String> props = Maps.newHashMap();
+    props.put(CATALOG_BYPASS_PREFIX + CHECK_UNIQUE_STORAGE_LOCATION_SCHEME, "false");
     if (catalogPath != null) {
       props.put(HadoopCatalogPropertiesMetadata.LOCATION, catalogPath);
     }
@@ -1430,9 +2021,11 @@ public class TestHadoopCatalogOperations {
       ops.initialize(props, null);
 
       NameIdentifier filesetIdent = NameIdentifier.of("m1", "c1", schemaName, name);
+      Map<String, String> filesetProps = Maps.newHashMap();
       StringIdentifier stringId = StringIdentifier.fromId(idGenerator.nextId());
-      Map<String, String> filesetProps =
-          Maps.newHashMap(StringIdentifier.newPropertiesWithId(stringId, filesetProperties));
+      filesetProps = Maps.newHashMap(StringIdentifier.newPropertiesWithId(stringId, filesetProps));
+      filesetProps.putAll(filesetProperties);
+
       return ops.createFileset(filesetIdent, comment, type, storageLocation, filesetProps);
     }
   }

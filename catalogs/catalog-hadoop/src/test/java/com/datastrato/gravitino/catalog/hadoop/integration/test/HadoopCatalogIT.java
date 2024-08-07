@@ -4,6 +4,9 @@
  */
 package com.datastrato.gravitino.catalog.hadoop.integration.test;
 
+import static com.datastrato.gravitino.catalog.hadoop.HadoopCatalogPropertiesMetadata.CHECK_UNIQUE_STORAGE_LOCATION_SCHEME;
+import static com.datastrato.gravitino.connector.BaseCatalog.CATALOG_BYPASS_PREFIX;
+
 import com.datastrato.gravitino.Catalog;
 import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.Namespace;
@@ -16,6 +19,7 @@ import com.datastrato.gravitino.integration.test.container.ContainerSuite;
 import com.datastrato.gravitino.integration.test.container.HiveContainer;
 import com.datastrato.gravitino.integration.test.util.AbstractIT;
 import com.datastrato.gravitino.integration.test.util.GravitinoITUtils;
+import com.datastrato.gravitino.properties.FilesetProperties;
 import com.datastrato.gravitino.rel.Schema;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -25,6 +29,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -37,6 +42,9 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -103,7 +111,7 @@ public class HadoopCatalogIT extends AbstractIT {
         Catalog.Type.FILESET,
         provider,
         "comment",
-        ImmutableMap.of());
+        ImmutableMap.of(CATALOG_BYPASS_PREFIX + CHECK_UNIQUE_STORAGE_LOCATION_SCHEME, "false"));
 
     catalog = metalake.loadCatalog(NameIdentifier.of(metalakeName, catalogName));
   }
@@ -279,6 +287,237 @@ public class HadoopCatalogIT extends AbstractIT {
             createFileset(
                 filesetName2, "comment", Fileset.Type.EXTERNAL, null, ImmutableMap.of("k1", "v1")),
         "Should throw IllegalArgumentException when storage location is null");
+  }
+
+  @ParameterizedTest
+  @MethodSource("filesetTypes")
+  void testCreateLoadAndDropFilesetWithMultipleLocs(Fileset.Type type) throws IOException {
+    // create fileset
+    String filesetName = "test_fileset_with_multi_locs_" + type.name();
+    String storageLocation = storageLocation(filesetName);
+    String backupStorageLocation = storageLocation(filesetName + "_bak");
+
+    if (type == Fileset.Type.EXTERNAL) {
+      // we can skip this step for backup storage locations since the catalog will create them
+      // automatically
+      Arrays.asList(storageLocation).forEach(location -> createStorageLocation(new Path(location)));
+    }
+
+    // create a Fileset with backup storage location.
+    Map<String, String> props =
+        ImmutableMap.of(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, backupStorageLocation);
+    Fileset createdFileset = createFileset(filesetName, "comment", type, storageLocation, props);
+    Assertions.assertEquals(storageLocation, createdFileset.storageLocation());
+    Assertions.assertEquals(
+        backupStorageLocation,
+        createdFileset.properties().get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+
+    // create external fileset with a backup storage location already mounted, and it will throw a
+    // RuntimeException.
+    if (type == Fileset.Type.EXTERNAL) {
+      String filesetName1 = "test_fileset_with_mounted_path_" + type.name();
+      String storageLocation1 = storageLocation(filesetName1);
+      Assertions.assertThrowsExactly(
+          RuntimeException.class,
+          () -> createFileset(filesetName1, "comment", type, storageLocation1, props));
+    }
+
+    // Load fileset with backup storage location properties
+    Fileset laodedFileset = loadFileset(filesetName);
+    Assertions.assertEquals(storageLocation, laodedFileset.storageLocation());
+    Assertions.assertEquals(
+        backupStorageLocation,
+        laodedFileset.properties().get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+
+    // Drop fileset
+    assertFilesetExists(filesetName);
+    Assertions.assertTrue(dropFileset(filesetName));
+    if (type == Fileset.Type.EXTERNAL) {
+      Arrays.asList(storageLocation, backupStorageLocation)
+          .forEach(
+              location -> Assertions.assertTrue(checkStorageLocationExists(new Path(location))));
+    } else {
+      Arrays.asList(storageLocation, backupStorageLocation)
+          .forEach(
+              location -> Assertions.assertFalse(checkStorageLocationExists(new Path(location))));
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("filesetTypes")
+  void testStorageLocationFilesetChanges(Fileset.Type type) {
+    String filesetName = "test_fileset_storage_loc_fileset_change_" + type.name();
+    String comment = "test_comment";
+    String storageLocation = storageLocation(filesetName);
+    String backupLoc1 = storageLocation(filesetName + "_bak_1");
+    String backupLoc2 = storageLocation(filesetName + "_bak_2");
+    String backupLoc1_new = storageLocation(filesetName + "_bak_1_new");
+    String backupLoc2_new = storageLocation(filesetName + "_bak_2_new");
+    String newStorageLocation = storageLocation(filesetName + "_new");
+
+    FilesetChange change1 =
+        FilesetChange.addBackupStorageLocation(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, backupLoc1);
+    FilesetChange change2 =
+        FilesetChange.addBackupStorageLocation(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2, backupLoc2);
+    FilesetChange change3 =
+        FilesetChange.updateBackupStorageLocation(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, backupLoc1_new);
+    FilesetChange change4 =
+        FilesetChange.updateBackupStorageLocation(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2, backupLoc2_new);
+    FilesetChange change5 =
+        FilesetChange.switchBackupStorageLocation(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1);
+    FilesetChange change6 =
+        FilesetChange.switchPrimaryAndBackupStorageLocation(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1);
+    FilesetChange change7 =
+        FilesetChange.removeBackupStorageLocation(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1);
+    FilesetChange change8 =
+        FilesetChange.removeBackupStorageLocation(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2);
+    FilesetChange change9 = FilesetChange.updatePrimaryStorageLocation(newStorageLocation);
+    FilesetChange change10 = FilesetChange.updatePrimaryStorageLocation(storageLocation);
+
+    if (type == Fileset.Type.EXTERNAL) {
+      Arrays.asList(new Path(storageLocation), new Path(newStorageLocation))
+          .forEach(this::createStorageLocation);
+    }
+
+    Fileset fileset = createFileset(filesetName, comment, type, storageLocation, ImmutableMap.of());
+
+    Fileset fileset1 = alterFileset(filesetName, change1);
+    Assertions.assertEquals(filesetName, fileset1.name());
+    Assertions.assertEquals(type, fileset1.type());
+    Assertions.assertEquals("test_comment", fileset1.comment());
+    Assertions.assertEquals(fileset.storageLocation(), fileset1.storageLocation());
+    Map<String, String> props1 = fileset1.properties();
+    Assertions.assertTrue(props1.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+    Assertions.assertEquals(
+        backupLoc1, props1.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+
+    Fileset fileset2 = alterFileset(filesetName, change2);
+    Assertions.assertEquals(filesetName, fileset2.name());
+    Assertions.assertEquals(type, fileset2.type());
+    Assertions.assertEquals("test_comment", fileset2.comment());
+    Assertions.assertEquals(fileset.storageLocation(), fileset2.storageLocation());
+    Map<String, String> props2 = fileset2.properties();
+    Assertions.assertTrue(props2.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+    Assertions.assertEquals(
+        backupLoc1, props2.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+    Assertions.assertTrue(props2.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+    Assertions.assertEquals(
+        backupLoc2, props2.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+
+    Fileset fileset3 = alterFileset(filesetName, change3);
+    Assertions.assertEquals(filesetName, fileset3.name());
+    Assertions.assertEquals(type, fileset3.type());
+    Assertions.assertEquals("test_comment", fileset3.comment());
+    Assertions.assertEquals(fileset.storageLocation(), fileset3.storageLocation());
+    Map<String, String> props3 = fileset3.properties();
+    Assertions.assertTrue(props3.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+    Assertions.assertEquals(
+        backupLoc1_new, props3.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+    Assertions.assertTrue(props3.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+    Assertions.assertEquals(
+        backupLoc2, props3.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+
+    Fileset fileset4 = alterFileset(filesetName, change4);
+    Assertions.assertEquals(filesetName, fileset4.name());
+    Assertions.assertEquals(type, fileset4.type());
+    Assertions.assertEquals("test_comment", fileset4.comment());
+    Assertions.assertEquals(fileset.storageLocation(), fileset4.storageLocation());
+    Map<String, String> props4 = fileset4.properties();
+    Assertions.assertTrue(props4.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+    Assertions.assertEquals(
+        backupLoc1_new, props4.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+    Assertions.assertTrue(props4.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+    Assertions.assertEquals(
+        backupLoc2_new, props4.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+
+    Fileset fileset5 = alterFileset(filesetName, change5);
+    Assertions.assertEquals(filesetName, fileset5.name());
+    Assertions.assertEquals(type, fileset5.type());
+    Assertions.assertEquals("test_comment", fileset5.comment());
+    Assertions.assertEquals(fileset.storageLocation(), fileset5.storageLocation());
+    Map<String, String> props5 = fileset5.properties();
+    Assertions.assertTrue(props5.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+    Assertions.assertEquals(
+        backupLoc2_new, props5.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+    Assertions.assertTrue(props5.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+    Assertions.assertEquals(
+        backupLoc1_new, props5.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+
+    Fileset fileset6 = alterFileset(filesetName, change6);
+    Assertions.assertEquals(filesetName, fileset6.name());
+    Assertions.assertEquals(type, fileset6.type());
+    Assertions.assertEquals("test_comment", fileset6.comment());
+    Assertions.assertEquals(backupLoc2_new, fileset6.storageLocation());
+    Map<String, String> props6 = fileset6.properties();
+    Assertions.assertTrue(props6.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+    Assertions.assertEquals(
+        fileset.storageLocation(), props6.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+    Assertions.assertTrue(props6.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+    Assertions.assertEquals(
+        backupLoc1_new, props6.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+
+    Fileset fileset7 = alterFileset(filesetName, change7);
+    Assertions.assertEquals(filesetName, fileset7.name());
+    Assertions.assertEquals(type, fileset7.type());
+    Assertions.assertEquals("test_comment", fileset7.comment());
+    Assertions.assertEquals(backupLoc2_new, fileset7.storageLocation());
+    Map<String, String> props7 = fileset7.properties();
+    Assertions.assertFalse(props7.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+    Assertions.assertTrue(props7.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+    Assertions.assertEquals(
+        backupLoc1_new, props7.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+
+    Fileset fileset8 = alterFileset(filesetName, change8);
+    Assertions.assertEquals(filesetName, fileset8.name());
+    Assertions.assertEquals(type, fileset8.type());
+    Assertions.assertEquals("test_comment", fileset8.comment());
+    Assertions.assertEquals(backupLoc2_new, fileset8.storageLocation());
+    Map<String, String> props8 = fileset8.properties();
+    Assertions.assertFalse(props8.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+    Assertions.assertFalse(props8.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2));
+
+    Fileset fileset9 = alterFileset(filesetName, change9);
+    Assertions.assertEquals(filesetName, fileset9.name());
+    Assertions.assertEquals(type, fileset9.type());
+    Assertions.assertEquals("test_comment", fileset9.comment());
+    Assertions.assertEquals(newStorageLocation, fileset9.storageLocation());
+    alterFileset(filesetName, change10);
+
+    Fileset fileset10 = alterFileset(filesetName, change1);
+    Assertions.assertEquals(filesetName, fileset10.name());
+    Assertions.assertEquals(type, fileset10.type());
+    Assertions.assertEquals("test_comment", fileset10.comment());
+    Assertions.assertEquals(storageLocation, fileset10.storageLocation());
+    Map<String, String> props10 = fileset10.properties();
+    Assertions.assertTrue(props10.containsKey(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+    Assertions.assertEquals(
+        backupLoc1, props10.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1));
+
+    createStorageLocation(new Path(backupLoc1 + "/subDir"));
+    RuntimeException runtimeException =
+        Assertions.assertThrowsExactly(
+            RuntimeException.class, () -> alterFileset(filesetName, change3));
+    Assertions.assertTrue(runtimeException.getMessage().contains("where data exists for Fileset"));
+
+    runtimeException =
+        Assertions.assertThrowsExactly(
+            RuntimeException.class, () -> alterFileset(filesetName, change7));
+    Assertions.assertTrue(runtimeException.getMessage().contains("where data exists for Fileset"));
+
+    createStorageLocation(new Path(storageLocation + "/subDir"));
+    runtimeException =
+        Assertions.assertThrowsExactly(
+            RuntimeException.class, () -> alterFileset(filesetName, change9));
+    Assertions.assertTrue(runtimeException.getMessage().contains("where data exists for Fileset"));
   }
 
   @Test
@@ -639,13 +878,27 @@ public class HadoopCatalogIT extends AbstractIT {
         "catalog should not be exists");
   }
 
+  @Test
+  public void testCreateMultipleDirectories() throws IOException {
+    // test create a new directory when its parent dir does not exist.
+    String catalogLocation = defaultBaseLocation + "/catalog1";
+    String filesetLocation = defaultBaseLocation + "/catalog1/db1/fileset1";
+
+    Path catalogPath = new Path(catalogLocation);
+    Path filesetPath = new Path(filesetLocation);
+    FileSystem fs = catalogPath.getFileSystem(new Configuration());
+    Assertions.assertFalse(fs.exists(catalogPath));
+    Assertions.assertTrue(fs.mkdirs(filesetPath));
+    Assertions.assertTrue(fs.exists(filesetPath));
+  }
+
   private Fileset createFileset(
       String filesetName,
       String comment,
       Fileset.Type type,
       String storageLocation,
       Map<String, String> properties) {
-    if (storageLocation != null) {
+    if (storageLocation != null && type == Fileset.Type.MANAGED) {
       Path location = new Path(storageLocation);
       try {
         hdfs.deleteOnExit(location);
@@ -662,6 +915,25 @@ public class HadoopCatalogIT extends AbstractIT {
             type,
             storageLocation,
             properties);
+  }
+
+  private Fileset loadFileset(String filesetName) {
+    return catalog
+        .asFilesetCatalog()
+        .loadFileset(NameIdentifier.of(metalakeName, catalogName, schemaName, filesetName));
+  }
+
+  private boolean dropFileset(String filesetName) {
+    return catalog
+        .asFilesetCatalog()
+        .dropFileset(NameIdentifier.of(metalakeName, catalogName, schemaName, filesetName));
+  }
+
+  private Fileset alterFileset(String filesetName, FilesetChange... changes) {
+    return catalog
+        .asFilesetCatalog()
+        .alterFileset(
+            NameIdentifier.of(metalakeName, catalogName, schemaName, filesetName), changes);
   }
 
   private void assertFilesetExists(String filesetName) throws IOException {
@@ -704,5 +976,31 @@ public class HadoopCatalogIT extends AbstractIT {
 
   private static String storageLocation(String filesetName) {
     return defaultBaseLocation() + "/" + filesetName;
+  }
+
+  private static Stream<Arguments> filesetTypes() {
+    return Stream.of(Arguments.of(Fileset.Type.EXTERNAL), Arguments.of(Fileset.Type.MANAGED));
+  }
+
+  private void createStorageLocation(Path storageLocationPath) {
+    try {
+      FileSystem fs = storageLocationPath.getFileSystem(new Configuration());
+      fs.mkdirs(storageLocationPath);
+    } catch (IOException e) {
+      throw new RuntimeException(
+          String.format("Failed to create storage location: %s", storageLocationPath.toString()),
+          e);
+    }
+  }
+
+  private boolean checkStorageLocationExists(Path storageLocationPath) {
+    try {
+      FileSystem fs = storageLocationPath.getFileSystem(new Configuration());
+      return fs.exists(storageLocationPath);
+    } catch (IOException e) {
+      throw new RuntimeException(
+          String.format("Failed to create storage location: %s", storageLocationPath.toString()),
+          e);
+    }
   }
 }

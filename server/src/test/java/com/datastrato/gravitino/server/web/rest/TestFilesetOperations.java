@@ -39,12 +39,14 @@ import com.datastrato.gravitino.file.FilesetContext;
 import com.datastrato.gravitino.file.FilesetDataOperation;
 import com.datastrato.gravitino.file.SourceEngineType;
 import com.datastrato.gravitino.lock.LockManager;
+import com.datastrato.gravitino.properties.FilesetProperties;
 import com.datastrato.gravitino.rest.RESTUtils;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
+import java.util.stream.Stream;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.Application;
@@ -57,6 +59,9 @@ import org.glassfish.jersey.test.TestProperties;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 
 public class TestFilesetOperations extends JerseyTest {
@@ -447,11 +452,205 @@ public class TestFilesetOperations extends JerseyTest {
     assertGetFilesetContext(req, context);
   }
 
+  @ParameterizedTest
+  @MethodSource("filesetTypes")
+  public void testCreateLoadAndDropFilesetWithMultipleLocs(Fileset.Type type) {
+    String filesetName = "fileset1_" + type.name();
+    String comment = "mock comment";
+    String storageLocation = "mock location";
+    String backupStorageLocation = "mock bak location";
+    Map<String, String> props =
+        ImmutableMap.of(
+            "k1", "v1", FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, backupStorageLocation);
+
+    // Test create fileset with multiple storage locations
+    Fileset fileset = mockFileset(filesetName, type, comment, storageLocation, props);
+    when(dispatcher.createFileset(any(), any(), any(), any(), any())).thenReturn(fileset);
+
+    FilesetCreateRequest req =
+        FilesetCreateRequest.builder()
+            .name(filesetName)
+            .comment(comment)
+            .storageLocation(storageLocation)
+            .properties(props)
+            .build();
+
+    Response resp =
+        target(filesetPath(metalake, catalog, schema))
+            .request(MediaType.APPLICATION_JSON_TYPE)
+            .accept("application/vnd.gravitino.v1+json")
+            .post(Entity.entity(req, MediaType.APPLICATION_JSON_TYPE));
+
+    Assertions.assertEquals(Response.Status.OK.getStatusCode(), resp.getStatus());
+
+    FilesetResponse filesetResp = resp.readEntity(FilesetResponse.class);
+    Assertions.assertEquals(0, filesetResp.getCode());
+
+    FilesetDTO filesetDTO = filesetResp.getFileset();
+    Assertions.assertEquals(filesetName, filesetDTO.name());
+    Assertions.assertEquals(comment, filesetDTO.comment());
+    Assertions.assertEquals(type, filesetDTO.type());
+    Assertions.assertEquals(storageLocation, filesetDTO.storageLocation());
+    Assertions.assertEquals(props, filesetDTO.properties());
+
+    // Test load fileset
+    when(dispatcher.loadFileset(any())).thenReturn(fileset);
+    resp =
+        target(filesetPath(metalake, catalog, schema) + filesetName)
+            .request(MediaType.APPLICATION_JSON_TYPE)
+            .accept("application/vnd.gravitino.v1+json")
+            .get();
+    Assertions.assertEquals(Response.Status.OK.getStatusCode(), resp.getStatus());
+
+    filesetResp = resp.readEntity(FilesetResponse.class);
+    Assertions.assertEquals(0, filesetResp.getCode());
+
+    filesetDTO = filesetResp.getFileset();
+    Assertions.assertEquals(fileset.name(), filesetDTO.name());
+    Assertions.assertEquals(fileset.type(), filesetDTO.type());
+    Assertions.assertEquals(fileset.comment(), filesetDTO.comment());
+    Assertions.assertEquals(fileset.storageLocation(), filesetDTO.storageLocation());
+    Assertions.assertEquals(fileset.properties(), filesetDTO.properties());
+
+    // Test drop fileset
+    when(dispatcher.dropFileset(any())).thenReturn(true);
+
+    resp =
+        target(filesetPath(metalake, catalog, schema) + filesetName)
+            .request(MediaType.APPLICATION_JSON_TYPE)
+            .accept("application/vnd.gravitino.v1+json")
+            .delete();
+
+    Assertions.assertEquals(Response.Status.OK.getStatusCode(), resp.getStatus());
+
+    DropResponse dropResponse = resp.readEntity(DropResponse.class);
+    Assertions.assertEquals(0, dropResponse.getCode());
+    Assertions.assertTrue(dropResponse.dropped());
+  }
+
+  @ParameterizedTest
+  @MethodSource("filesetTypes")
+  public void testStorageLocationFilesetChanges(Fileset.Type type) {
+    String filesetName = "fileset1_" + type.name();
+    String comment = "mock comment";
+    String location = "mock location";
+    String location_new = "mock location new";
+    String backupLocation1 = "mock backup location1";
+    String backupLocation1_new = "mock backup location1 new";
+    String backupLocation2 = "mock backup location2";
+
+    // Test add backup storage location
+    FilesetUpdateRequest req =
+        new FilesetUpdateRequest.AddFilesetBackupStorageLocationRequest(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, backupLocation1);
+    Fileset fileset =
+        mockFileset(
+            filesetName,
+            type,
+            comment,
+            location,
+            ImmutableMap.of(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, backupLocation1));
+    assertUpdateFileset(new FilesetUpdatesRequest(ImmutableList.of(req)), fileset);
+
+    // Test update backup storage location
+    req =
+        new FilesetUpdateRequest.UpdateFilesetBackupStorageLocationRequest(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, backupLocation1_new);
+    fileset =
+        mockFileset(
+            filesetName,
+            type,
+            comment,
+            location,
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, backupLocation1_new));
+    assertUpdateFileset(new FilesetUpdatesRequest(ImmutableList.of(req)), fileset);
+
+    // Test update primary storage location
+    req = new FilesetUpdateRequest.UpdateFilesetPrimaryStorageLocationRequest(location_new);
+    fileset = mockFileset(filesetName, type, comment, location_new, ImmutableMap.of());
+    assertUpdateFileset(new FilesetUpdatesRequest(ImmutableList.of(req)), fileset);
+
+    // Test remove backup storage location
+    req =
+        new FilesetUpdateRequest.RemoveFilesetBackupStorageLocationRequest(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1);
+    fileset = mockFileset(filesetName, type, comment, location, ImmutableMap.of());
+    assertUpdateFileset(new FilesetUpdatesRequest(ImmutableList.of(req)), fileset);
+
+    // Test switch backup storage locations
+    Fileset createdFileset =
+        mockFileset(
+            filesetName,
+            type,
+            comment,
+            location,
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                backupLocation1,
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                backupLocation2));
+    when(dispatcher.createFileset(any(), any(), any(), any(), any())).thenReturn(createdFileset);
+    FilesetCreateRequest createdReq =
+        FilesetCreateRequest.builder()
+            .name(filesetName)
+            .comment(comment)
+            .storageLocation(location)
+            .properties(
+                ImmutableMap.of(
+                    FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                    backupLocation1,
+                    FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                    backupLocation2))
+            .build();
+    Response resp =
+        target(filesetPath(metalake, catalog, schema))
+            .request(MediaType.APPLICATION_JSON_TYPE)
+            .accept("application/vnd.gravitino.v1+json")
+            .post(Entity.entity(createdReq, MediaType.APPLICATION_JSON_TYPE));
+    Assertions.assertEquals(Response.Status.OK.getStatusCode(), resp.getStatus());
+
+    req =
+        new FilesetUpdateRequest.SwitchFilesetBackupStorageLocationRequest(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2);
+    fileset =
+        mockFileset(
+            filesetName,
+            type,
+            comment,
+            location,
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                backupLocation2,
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                backupLocation1));
+    assertUpdateFileset(new FilesetUpdatesRequest(ImmutableList.of(req)), fileset);
+
+    // Test switch primary and backup storage location
+
+    req =
+        new FilesetUpdateRequest.SwitchFilesetPrimaryAndBackupStorageLocationRequest(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1);
+    fileset =
+        mockFileset(
+            filesetName,
+            type,
+            comment,
+            backupLocation2,
+            ImmutableMap.of(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1,
+                location,
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2,
+                backupLocation1));
+    assertUpdateFileset(new FilesetUpdatesRequest(ImmutableList.of(req)), fileset);
+  }
+
   private void assertUpdateFileset(FilesetUpdatesRequest req, Fileset updatedFileset) {
     when(dispatcher.alterFileset(any(), any(FilesetChange.class))).thenReturn(updatedFileset);
 
     Response resp1 =
-        target(filesetPath(metalake, catalog, schema) + "fileset1")
+        target(filesetPath(metalake, catalog, schema) + updatedFileset.name())
             .request(MediaType.APPLICATION_JSON_TYPE)
             .accept("application/vnd.gravitino.v1+json")
             .put(Entity.entity(req, MediaType.APPLICATION_JSON_TYPE));
@@ -464,6 +663,7 @@ public class TestFilesetOperations extends JerseyTest {
     Assertions.assertEquals(updatedFileset.name(), filesetDTO.name());
     Assertions.assertEquals(updatedFileset.comment(), filesetDTO.comment());
     Assertions.assertEquals(updatedFileset.type(), filesetDTO.type());
+    Assertions.assertEquals(updatedFileset.storageLocation(), filesetDTO.storageLocation());
     Assertions.assertEquals(updatedFileset.properties(), filesetDTO.properties());
   }
 
@@ -527,5 +727,9 @@ public class TestFilesetOperations extends JerseyTest {
     when(context.fileset()).thenReturn(fileset);
     when(context.actualPaths()).thenReturn(actualPaths);
     return context;
+  }
+
+  private static Stream<Arguments> filesetTypes() {
+    return Stream.of(Arguments.of(Fileset.Type.EXTERNAL), Arguments.of(Fileset.Type.MANAGED));
   }
 }

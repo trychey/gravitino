@@ -23,6 +23,10 @@ public class HadoopCatalogPropertiesMetadata extends BaseCatalogPropertiesMetada
   public static final String VALID_MANAGED_PATHS = "gvfs.valid.managed-paths";
   public static final String VALID_EXTERNAL_PATHS = "gvfs.valid.external-paths";
 
+  // its value is true by default to check if the storage location schema is unique or not.
+  public static final String CHECK_UNIQUE_STORAGE_LOCATION_SCHEME =
+      "check.unique.storage.location.scheme";
+
   private static final Map<String, PropertyEntry<?>> HADOOP_CATALOG_PROPERTY_ENTRIES =
       ImmutableMap.<String, PropertyEntry<?>>builder()
           .put(

@@ -196,6 +196,39 @@ class DTOConverters {
     } else if (change instanceof FilesetChange.RemoveProperty) {
       return new FilesetUpdateRequest.RemoveFilesetPropertiesRequest(
           ((FilesetChange.RemoveProperty) change).getProperty());
+    } else if (change instanceof FilesetChange.AddBackupStorageLocation) {
+      FilesetChange.AddBackupStorageLocation addBackupStorageLocation =
+          (FilesetChange.AddBackupStorageLocation) change;
+      return new FilesetUpdateRequest.AddFilesetBackupStorageLocationRequest(
+          addBackupStorageLocation.getBackupStorageLocationKey(),
+          addBackupStorageLocation.getBackupStorageLocationValue());
+    } else if (change instanceof FilesetChange.RemoveBackupStorageLocation) {
+      FilesetChange.RemoveBackupStorageLocation removeBackupStorageLocation =
+          (FilesetChange.RemoveBackupStorageLocation) change;
+      return new FilesetUpdateRequest.RemoveFilesetBackupStorageLocationRequest(
+          removeBackupStorageLocation.getBackupStorageLocationKey());
+    } else if (change instanceof FilesetChange.UpdateBackupStorageLocation) {
+      FilesetChange.UpdateBackupStorageLocation updateBackupStorageLocation =
+          (FilesetChange.UpdateBackupStorageLocation) change;
+      return new FilesetUpdateRequest.UpdateFilesetBackupStorageLocationRequest(
+          updateBackupStorageLocation.getBackupStorageLocationKey(),
+          updateBackupStorageLocation.getBackupStorageLocationNewValue());
+    } else if (change instanceof FilesetChange.UpdatePrimaryStorageLocation) {
+      FilesetChange.UpdatePrimaryStorageLocation updatePrimaryStorageLocation =
+          (FilesetChange.UpdatePrimaryStorageLocation) change;
+      return new FilesetUpdateRequest.UpdateFilesetPrimaryStorageLocationRequest(
+          updatePrimaryStorageLocation.getNewPrimaryStorageLocation());
+    } else if (change instanceof FilesetChange.SwitchBackupStorageLocation) {
+      FilesetChange.SwitchBackupStorageLocation switchBackupStorageLocation =
+          (FilesetChange.SwitchBackupStorageLocation) change;
+      return new FilesetUpdateRequest.SwitchFilesetBackupStorageLocationRequest(
+          switchBackupStorageLocation.getFirstBackupStorageLocationKey(),
+          switchBackupStorageLocation.getSecondBackupStorageLocationKey());
+    } else if (change instanceof FilesetChange.SwitchPrimaryAndBackupStorageLocation) {
+      FilesetChange.SwitchPrimaryAndBackupStorageLocation switchPrimaryAndBackupStorageLocation =
+          (FilesetChange.SwitchPrimaryAndBackupStorageLocation) change;
+      return new FilesetUpdateRequest.SwitchFilesetPrimaryAndBackupStorageLocationRequest(
+          switchPrimaryAndBackupStorageLocation.getBackupStorageLocationKey());
     } else {
       throw new IllegalArgumentException(
           "Unknown change type: " + change.getClass().getSimpleName());

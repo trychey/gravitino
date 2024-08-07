@@ -32,8 +32,10 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.function.Executable;
 
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class TestOperationDispatcher {
 
   protected static EntityStore entityStore;
@@ -49,7 +51,7 @@ public abstract class TestOperationDispatcher {
   private static Config config;
 
   @BeforeAll
-  public static void setUp() throws IOException {
+  public void setUp() throws IOException {
     config = new Config(false) {};
     config.set(Configs.CATALOG_LOAD_ISOLATED, false);
 
@@ -70,12 +72,12 @@ public abstract class TestOperationDispatcher {
     catalogManager = new CatalogManager(config, entityStore, idGenerator);
 
     NameIdentifier ident = NameIdentifier.of(metalake, catalog);
-    Map<String, String> props = ImmutableMap.of();
-    catalogManager.createCatalog(ident, Catalog.Type.RELATIONAL, "test", "comment", props);
+    catalogManager.createCatalog(
+        ident, Catalog.Type.RELATIONAL, "test", "comment", getCatalogProps());
   }
 
   @AfterAll
-  public static void tearDown() throws IOException {
+  public void tearDown() throws IOException {
     if (entityStore != null) {
       entityStore.close();
       entityStore = null;
@@ -126,5 +128,9 @@ public abstract class TestOperationDispatcher {
     for (String msg : errorMessage) {
       Assertions.assertTrue(exception.getMessage().contains(msg));
     }
+  }
+
+  Map<String, String> getCatalogProps() {
+    return ImmutableMap.of();
   }
 }

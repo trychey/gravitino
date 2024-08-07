@@ -10,6 +10,7 @@ import com.datastrato.gravitino.connector.CatalogInfo;
 import com.datastrato.gravitino.connector.CatalogOperations;
 import com.datastrato.gravitino.connector.PropertiesMetadata;
 import com.datastrato.gravitino.connector.PropertyEntry;
+import com.datastrato.gravitino.enums.FilesetBackupLocKeyPattern;
 import com.datastrato.gravitino.enums.FilesetLifecycleUnit;
 import com.datastrato.gravitino.enums.FilesetPrefixPattern;
 import com.datastrato.gravitino.exceptions.FilesetAlreadyExistsException;
@@ -53,7 +54,9 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
@@ -455,6 +458,8 @@ public class TestCatalogOperations
     Map<String, String> copyedProperties = Maps.newHashMap(properties);
     checkAndFillFilesetProperties(ident, copyedProperties);
 
+    checkStorageLocationPattern(ident, properties);
+
     TestFileset fileset =
         TestFileset.builder()
             .withName(ident.name())
@@ -497,14 +502,29 @@ public class TestCatalogOperations
         fileset.properties() != null ? Maps.newHashMap(fileset.properties()) : Maps.newHashMap();
     NameIdentifier newIdent = ident;
     String newComment = fileset.comment();
+    String newStorageLocation = fileset.storageLocation();
 
     for (FilesetChange change : changes) {
       if (change instanceof FilesetChange.SetProperty) {
-        newProps.put(
-            ((FilesetChange.SetProperty) change).getProperty(),
-            ((FilesetChange.SetProperty) change).getValue());
+        FilesetChange.SetProperty setProperty = (FilesetChange.SetProperty) change;
+        if (setProperty.getProperty().startsWith(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY)) {
+          throw new UnsupportedOperationException(
+              String.format(
+                  "Cannot add backup storage location property: `%s` for the fileset: `%s` through the SetProperty FilesetChange.",
+                  setProperty.getProperty(), ident));
+        }
+        newProps.put(setProperty.getProperty(), setProperty.getValue());
       } else if (change instanceof FilesetChange.RemoveProperty) {
-        newProps.remove(((FilesetChange.RemoveProperty) change).getProperty());
+        FilesetChange.RemoveProperty removeProperty = (FilesetChange.RemoveProperty) change;
+        if (removeProperty
+            .getProperty()
+            .startsWith(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY)) {
+          throw new UnsupportedOperationException(
+              String.format(
+                  "Cannot remove backup storage location property: `%s` for the fileset: `%s` through the RemoveProperty FilesetChange.",
+                  removeProperty.getProperty(), ident));
+        }
+        newProps.remove(removeProperty.getProperty());
       } else if (change instanceof FilesetChange.RenameFileset) {
         String newName = ((FilesetChange.RenameFileset) change).getNewName();
         newIdent = NameIdentifier.of(ident.namespace(), newName);
@@ -516,6 +536,69 @@ public class TestCatalogOperations
         newComment = ((FilesetChange.UpdateFilesetComment) change).getNewComment();
       } else if (change instanceof FilesetChange.RemoveComment) {
         newComment = null;
+      } else if (change instanceof FilesetChange.AddBackupStorageLocation) {
+        FilesetChange.AddBackupStorageLocation addBackupStorageLocation =
+            (FilesetChange.AddBackupStorageLocation) change;
+        checkStorageLocationPattern(
+            ident,
+            ImmutableMap.of(
+                addBackupStorageLocation.getBackupStorageLocationKey(),
+                addBackupStorageLocation.getBackupStorageLocationValue()));
+        Preconditions.checkArgument(
+            !newProps.containsKey(addBackupStorageLocation.getBackupStorageLocationKey()));
+        newProps.put(
+            addBackupStorageLocation.getBackupStorageLocationKey(),
+            addBackupStorageLocation.getBackupStorageLocationValue());
+      } else if (change instanceof FilesetChange.RemoveBackupStorageLocation) {
+        FilesetChange.RemoveBackupStorageLocation removeBackupStorageLocation =
+            (FilesetChange.RemoveBackupStorageLocation) change;
+        Preconditions.checkArgument(
+            newProps.containsKey(removeBackupStorageLocation.getBackupStorageLocationKey()));
+        newProps.remove(removeBackupStorageLocation.getBackupStorageLocationKey());
+      } else if (change instanceof FilesetChange.UpdateBackupStorageLocation) {
+        FilesetChange.UpdateBackupStorageLocation updateBackupStorageLocation =
+            (FilesetChange.UpdateBackupStorageLocation) change;
+        Preconditions.checkArgument(
+            newProps.containsKey(updateBackupStorageLocation.getBackupStorageLocationKey()));
+        checkStorageLocationPattern(
+            ident,
+            ImmutableMap.of(
+                updateBackupStorageLocation.getBackupStorageLocationKey(),
+                updateBackupStorageLocation.getBackupStorageLocationNewValue()));
+        newProps.put(
+            updateBackupStorageLocation.getBackupStorageLocationKey(),
+            updateBackupStorageLocation.getBackupStorageLocationNewValue());
+      } else if (change instanceof FilesetChange.UpdatePrimaryStorageLocation) {
+        FilesetChange.UpdatePrimaryStorageLocation updatePrimaryStorageLocation =
+            (FilesetChange.UpdatePrimaryStorageLocation) change;
+        newStorageLocation = updatePrimaryStorageLocation.getNewPrimaryStorageLocation();
+      } else if (change instanceof FilesetChange.SwitchBackupStorageLocation) {
+        FilesetChange.SwitchBackupStorageLocation switchBackupStorageLocation =
+            (FilesetChange.SwitchBackupStorageLocation) change;
+        Preconditions.checkArgument(
+            newProps.containsKey(switchBackupStorageLocation.getFirstBackupStorageLocationKey()));
+        Preconditions.checkArgument(
+            newProps.containsKey(switchBackupStorageLocation.getSecondBackupStorageLocationKey()));
+        String firstBackupStorageLocationValue =
+            newProps.get(switchBackupStorageLocation.getFirstBackupStorageLocationKey());
+        newProps.put(
+            switchBackupStorageLocation.getFirstBackupStorageLocationKey(),
+            newProps.get(switchBackupStorageLocation.getSecondBackupStorageLocationKey()));
+        newProps.put(
+            switchBackupStorageLocation.getSecondBackupStorageLocationKey(),
+            firstBackupStorageLocationValue);
+      } else if (change instanceof FilesetChange.SwitchPrimaryAndBackupStorageLocation) {
+        FilesetChange.SwitchPrimaryAndBackupStorageLocation switchPrimaryAndBackupStorageLocation =
+            (FilesetChange.SwitchPrimaryAndBackupStorageLocation) change;
+        Preconditions.checkArgument(
+            newProps.containsKey(
+                switchPrimaryAndBackupStorageLocation.getBackupStorageLocationKey()));
+        String oldBackupStorageLocation =
+            newProps.get(switchPrimaryAndBackupStorageLocation.getBackupStorageLocationKey());
+        newProps.put(
+            switchPrimaryAndBackupStorageLocation.getBackupStorageLocationKey(),
+            fileset.storageLocation());
+        newStorageLocation = oldBackupStorageLocation;
       } else {
         throw new IllegalArgumentException("Unsupported fileset change: " + change);
       }
@@ -530,7 +613,7 @@ public class TestCatalogOperations
             .withProperties(newProps)
             .withAuditInfo(updatedAuditInfo)
             .withType(fileset.type())
-            .withStorageLocation(fileset.storageLocation())
+            .withStorageLocation(newStorageLocation)
             .build();
     filesets.put(newIdent, updatedFileset);
     return updatedFileset;
@@ -841,5 +924,33 @@ public class TestCatalogOperations
         "The sub Path: %s is not valid, the whole path should like `%s`,"
             + " and max sub directory level after fileset identifier should be less than %d.",
         subPath, pattern.getExample(), maxLevel);
+  }
+
+  private List<String> checkStorageLocationPattern(
+      NameIdentifier identifier, Map<String, String> properties) {
+    String backupLocKeyRegex = FilesetBackupLocKeyPattern.NUMERIC_SUFFIX.getBackupLocKeyRegex();
+    Pattern backupLocKeyPattern = Pattern.compile(backupLocKeyRegex);
+    List<String> backupStorageLocations =
+        properties.entrySet().stream()
+            .filter(
+                entry -> entry.getKey().startsWith(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY))
+            .map(
+                entry -> {
+                  String backupStorageLocationKey = entry.getKey();
+                  String backupStorageLocation = entry.getValue();
+                  Preconditions.checkArgument(
+                      StringUtils.isNotBlank(backupStorageLocation),
+                      "The new added backup storage location can not be null or empty.");
+                  if (!backupLocKeyPattern.matcher(backupStorageLocationKey).matches()) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            "Invalid backup storage location key: %s for Fileset: %s, its pattern should be `%s`.",
+                            backupStorageLocationKey, identifier, backupLocKeyRegex));
+                  }
+                  return backupStorageLocation;
+                })
+            .collect(Collectors.toList());
+
+    return backupStorageLocations;
   }
 }

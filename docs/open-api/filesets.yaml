@@ -278,6 +278,12 @@ components:
         - $ref: "#/components/schemas/SetFilesetPropertyRequest"
         - $ref: "#/components/schemas/UpdateFilesetCommentRequest"
         - $ref: "#/components/schemas/RemoveFilesetPropertyRequest"
+        - $ref: "#/components/schemas/AddFilesetBackupStorageLocationRequest"
+        - $ref: "#/components/schemas/RemoveFilesetBackupStorageLocationRequest"
+        - $ref: "#/components/schemas/UpdateFilesetBackupStorageLocationRequest"
+        - $ref: "#/components/schemas/UpdateFilesetPrimaryStorageLocationRequest"
+        - $ref: "#/components/schemas/SwitchFilesetBackupStorageLocationRequest"
+        - $ref: "#/components/schemas/SwitchFilesetPrimaryAndBackupStorageLocationRequest"
       discriminator:
         propertyName: "@type"
         mapping:
@@ -285,6 +291,12 @@ components:
           setProperty: "#/components/schemas/SetFilesetPropertyRequest"
           updateComment: "#/components/schemas/UpdateFilesetCommentRequest"
           removeProperty: "#/components/schemas/RemoveFilesetPropertyRequest"
+          addBackupStorageLocation: "#/components/schemas/AddFilesetBackupStorageLocationRequest"
+          removeBackupStorageLocation: "#/components/schemas/RemoveFilesetBackupStorageLocationRequest"
+          updateBackupStorageLocation: "#/components/schemas/UpdateFilesetBackupStorageLocationRequest"
+          updatePrimaryStorageLocation: "#/components/schemas/UpdateFilesetPrimaryStorageLocationRequest"
+          switchBackupStorageLocation: "#/components/schemas/SwitchFilesetBackupStorageLocationRequest"
+          switchPrimaryAndBackupStorageLocation: "#/components/schemas/SwitchFilesetPrimaryAndBackupStorageLocationRequest"
 
     RenameFilesetRequest:
       type: object
@@ -409,6 +421,135 @@ components:
           type: string
           description: The application id that initiated the data operation. Can be empty.
           nullable: true
+
+    AddFilesetBackupStorageLocationRequest:
+      type: object
+      required:
+        - "@type"
+        - backupStorageLocationKey
+        - backupStorageLocationValue
+      properties:
+        "@type":
+          type: string
+          description: The type of the update
+          enum:
+            - addBackupStorageLocation
+        backupStorageLocationKey:
+          type: string
+          description: The key of the backup storage location to add
+        backupStorageLocationValue:
+          type: string
+          description: The value of the backup storage location to add
+      example: {
+        "@type": "addBackupStorageLocation",
+        "backupStorageLocationKey": "backup.storage.location.1",
+        "backupStorageLocationValue": "file:///tmp/backup"
+      }
+
+    RemoveFilesetBackupStorageLocationRequest:
+      type: object
+      required:
+        - "@type"
+        - backupStorageLocationKey
+      properties:
+        "@type":
+          type: string
+          description: The type of the update
+          enum:
+            - removeBackupStorageLocation
+        backupStorageLocationKey:
+          type: string
+          description: The key of the backup storage location to remove
+      example: {
+        "@type": "removeBackupStorageLocation",
+        "backupStorageLocationKey": "backup.storage.location.1"
+      }
+
+    UpdateFilesetBackupStorageLocationRequest:
+      type: object
+      required:
+        - "@type"
+        - backupStorageLocationKey
+        - backupStorageLocationNewValue
+      properties:
+        "@type":
+          type: string
+          description: The type of the update
+          enum:
+            - updateBackupStorageLocation
+        backupStorageLocationKey:
+          type: string
+          description: The key of the backup storage location to update
+        backupStorageLocationNewValue:
+          type: string
+          description: The new value of the backup storage location to update
+      example: {
+        "@type": "addBackupStorageLocation",
+        "backupStorageLocationKey": "backup.storage.location.1",
+        "backupStorageLocationNewValue": "file:///tmp/backup"
+      }
+
+    UpdateFilesetPrimaryStorageLocationRequest:
+      type: object
+      required:
+        - "@type"
+        - newPrimaryStorageLocation
+      properties:
+        "@type":
+          type: string
+          description: The type of the update
+          enum:
+            - updatePrimaryStorageLocation
+        newPrimaryStorageLocation:
+          type: string
+          description: The new value of the primary storage location to update
+      example: {
+        "@type": "updatePrimaryStorageLocation",
+        "newPrimaryStorageLocation": "file:///tmp/new_primary_storage_location"
+      }
+
+    SwitchFilesetBackupStorageLocationRequest:
+      type: object
+      required:
+        - "@type"
+        - firstBackupStorageLocationKey
+        - secondBackupStorageLocationKey
+      properties:
+        "@type":
+          type: string
+          description: The type of the update
+          enum:
+            - switchBackupStorageLocation
+        firstBackupStorageLocationKey:
+          type: string
+          description: The first key of the backup storage location to switch
+        secondBackupStorageLocationKey:
+          type: string
+          description: The second key of the backup storage location to switch
+      example: {
+        "@type": "switchBackupStorageLocation",
+        "firstBackupStorageLocationKey": "backup.storage.location.1",
+        "secondBackupStorageLocationKey": "backup.storage.location.2"
+      }
+
+    SwitchFilesetPrimaryAndBackupStorageLocationRequest:
+      type: object
+      required:
+        - "@type"
+        - backupStorageLocationKey
+      properties:
+        "@type":
+          type: string
+          description: The type of the update
+          enum:
+            - switchPrimaryAndBackupStorageLocation
+        backupStorageLocationKey:
+          type: string
+          description: The key of the backup storage location to switch with the primary storage location
+      example: {
+        "@type": "switchPrimaryAndBackupStorageLocation",
+        "backupStorageLocationKey": "backup.storage.location.1"
+      }
 
   responses:
     FilesetResponse:

@@ -44,10 +44,14 @@ import com.google.common.collect.Maps;
 import java.nio.file.NoSuchFileException;
 import java.time.Instant;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.hc.core5.http.Method;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestFilesetCatalog extends TestBase {
 
@@ -60,6 +64,8 @@ public class TestFilesetCatalog extends TestBase {
   protected static final String catalogName = "testCatalog";
 
   private static final String provider = "test";
+
+  private static final String BACKUP_STORAGE_LOCATION_KEY = "backup.storage.location.";
 
   @BeforeAll
   public static void setUp() throws Exception {
@@ -424,6 +430,237 @@ public class TestFilesetCatalog extends TestBase {
     Assertions.assertEquals(mockActualPaths[0], filesetContext.actualPaths()[0]);
   }
 
+  @ParameterizedTest
+  @MethodSource("filesetTypes")
+  public void testCreateLoadAndDropFilesetWithMultipleLocs(Fileset.Type type)
+      throws JsonProcessingException {
+    String schemaName = "schema1_" + type.name();
+    String filesetName = "fileset1_" + type.name();
+    NameIdentifier ident = NameIdentifier.of(metalakeName, catalogName, schemaName, filesetName);
+    String filesetPath = withSlash(FilesetCatalog.formatFilesetRequestPath(ident.namespace()));
+
+    String comment = "mock comment";
+    String storageLocation = "mock location";
+    String backStorageLocation = "mock bak location";
+    Map<String, String> properties =
+        ImmutableMap.of("k1", "v1", BACKUP_STORAGE_LOCATION_KEY + 1, backStorageLocation);
+
+    // Create fileset
+    FilesetDTO mockFileset =
+        mockFilesetDTO(ident.name(), type, comment, storageLocation, properties);
+    FilesetCreateRequest req =
+        FilesetCreateRequest.builder()
+            .name(ident.name())
+            .type(type)
+            .comment(comment)
+            .storageLocation(storageLocation)
+            .properties(properties)
+            .build();
+    FilesetResponse resp = new FilesetResponse(mockFileset);
+    buildMockResource(Method.POST, filesetPath, req, resp, SC_OK);
+    Fileset loadedFileset =
+        catalog.asFilesetCatalog().createFileset(ident, comment, type, storageLocation, properties);
+    Assertions.assertNotNull(loadedFileset);
+    assertFileset(mockFileset, loadedFileset);
+
+    // Load fileset
+    filesetPath =
+        withSlash(FilesetCatalog.formatFilesetRequestPath(ident.namespace()) + "/" + filesetName);
+
+    mockFileset = mockFilesetDTO(ident.name(), type, comment, storageLocation, properties);
+    resp = new FilesetResponse(mockFileset);
+    buildMockResource(Method.GET, filesetPath, null, resp, SC_OK);
+    loadedFileset = catalog.asFilesetCatalog().loadFileset(ident);
+    Assertions.assertNotNull(loadedFileset);
+    assertFileset(mockFileset, loadedFileset);
+
+    // Drop fileset
+    filesetPath =
+        withSlash(FilesetCatalog.formatFilesetRequestPath(ident.namespace()) + "/" + filesetName);
+
+    DropResponse dropResponse = new DropResponse(true);
+    buildMockResource(Method.DELETE, filesetPath, null, dropResponse, SC_OK);
+    boolean dropped = catalog.asFilesetCatalog().dropFileset(ident);
+    Assertions.assertTrue(dropped);
+
+    DropResponse dropResponse1 = new DropResponse(false);
+    buildMockResource(Method.DELETE, filesetPath, null, dropResponse1, SC_OK);
+    boolean dropped1 = catalog.asFilesetCatalog().dropFileset(ident);
+    Assertions.assertFalse(dropped1);
+  }
+
+  @ParameterizedTest
+  @MethodSource("filesetTypes")
+  public void testStorageLocationFilesetChanges(Fileset.Type type) throws JsonProcessingException {
+    String schemaName = "schema2_" + type.name();
+    String filesetName = "fileset1_" + type.name();
+    NameIdentifier ident = NameIdentifier.of(metalakeName, catalogName, schemaName, filesetName);
+    String filesetPath =
+        withSlash(FilesetCatalog.formatFilesetRequestPath(ident.namespace()) + "/" + filesetName);
+
+    String comment = "mock comment";
+    String storageLocation = "mock location";
+    String backStorageLocation = "mock bak location";
+    Map<String, String> properties =
+        ImmutableMap.of("k1", "v1", BACKUP_STORAGE_LOCATION_KEY + 1, backStorageLocation);
+
+    // Test add backup storage location
+    FilesetUpdateRequest.AddFilesetBackupStorageLocationRequest add =
+        new FilesetUpdateRequest.AddFilesetBackupStorageLocationRequest(
+            BACKUP_STORAGE_LOCATION_KEY + 1, backStorageLocation);
+    FilesetDTO mockFileset =
+        mockFilesetDTO(ident.name(), type, comment, storageLocation, properties);
+    FilesetResponse resp = new FilesetResponse(mockFileset);
+    buildMockResource(
+        Method.PUT, filesetPath, new FilesetUpdatesRequest(ImmutableList.of(add)), resp, SC_OK);
+    Fileset res = catalog.asFilesetCatalog().alterFileset(ident, add.filesetChange());
+    assertFileset(mockFileset, res);
+
+    // Test remove backup storage location
+    FilesetUpdateRequest.RemoveFilesetBackupStorageLocationRequest remove =
+        new FilesetUpdateRequest.RemoveFilesetBackupStorageLocationRequest(
+            BACKUP_STORAGE_LOCATION_KEY + 1);
+    mockFileset =
+        mockFilesetDTO(ident.name(), type, comment, storageLocation, ImmutableMap.of("k1", "v1"));
+    resp = new FilesetResponse(mockFileset);
+    buildMockResource(
+        Method.PUT, filesetPath, new FilesetUpdatesRequest(ImmutableList.of(remove)), resp, SC_OK);
+    res = catalog.asFilesetCatalog().alterFileset(ident, remove.filesetChange());
+    assertFileset(mockFileset, res);
+
+    // Test update backup storage location
+    String newBackStorageLocation = "mock bak new location";
+    FilesetUpdateRequest.UpdateFilesetBackupStorageLocationRequest update =
+        new FilesetUpdateRequest.UpdateFilesetBackupStorageLocationRequest(
+            BACKUP_STORAGE_LOCATION_KEY + 1, newBackStorageLocation);
+    mockFileset =
+        mockFilesetDTO(
+            ident.name(),
+            type,
+            comment,
+            storageLocation,
+            ImmutableMap.of("k1", "v1", BACKUP_STORAGE_LOCATION_KEY + 1, newBackStorageLocation));
+    resp = new FilesetResponse(mockFileset);
+    buildMockResource(
+        Method.PUT, filesetPath, new FilesetUpdatesRequest(ImmutableList.of(update)), resp, SC_OK);
+    res = catalog.asFilesetCatalog().alterFileset(ident, update.filesetChange());
+    assertFileset(mockFileset, res);
+
+    // Test update primary storage location
+    String newStorageLocation = "mock new location";
+    FilesetUpdateRequest.UpdateFilesetPrimaryStorageLocationRequest update2 =
+        new FilesetUpdateRequest.UpdateFilesetPrimaryStorageLocationRequest(newStorageLocation);
+    mockFileset =
+        mockFilesetDTO(
+            ident.name(),
+            type,
+            comment,
+            newStorageLocation,
+            ImmutableMap.of("k1", "v1", BACKUP_STORAGE_LOCATION_KEY + 1, newBackStorageLocation));
+    resp = new FilesetResponse(mockFileset);
+    buildMockResource(
+        Method.PUT, filesetPath, new FilesetUpdatesRequest(ImmutableList.of(update2)), resp, SC_OK);
+    res = catalog.asFilesetCatalog().alterFileset(ident, update2.filesetChange());
+    assertFileset(mockFileset, res);
+
+    // Test switch backup storage locations
+    String backStorageLocation1 = "mock bak location1";
+    String createFilesetPath =
+        withSlash(FilesetCatalog.formatFilesetRequestPath(ident.namespace()));
+    mockFileset =
+        mockFilesetDTO(
+            ident.name(),
+            type,
+            comment,
+            storageLocation,
+            ImmutableMap.of(
+                "k1",
+                "v1",
+                BACKUP_STORAGE_LOCATION_KEY + 1,
+                backStorageLocation,
+                BACKUP_STORAGE_LOCATION_KEY + 2,
+                backStorageLocation1));
+    FilesetCreateRequest req =
+        FilesetCreateRequest.builder()
+            .name(ident.name())
+            .type(type)
+            .comment(comment)
+            .storageLocation(storageLocation)
+            .properties(
+                ImmutableMap.of(
+                    "k1",
+                    "v1",
+                    BACKUP_STORAGE_LOCATION_KEY + 1,
+                    backStorageLocation,
+                    BACKUP_STORAGE_LOCATION_KEY + 2,
+                    backStorageLocation1))
+            .build();
+    resp = new FilesetResponse(mockFileset);
+    buildMockResource(Method.POST, createFilesetPath, req, resp, SC_OK);
+    Fileset loadedFileset =
+        catalog
+            .asFilesetCatalog()
+            .createFileset(
+                ident,
+                comment,
+                type,
+                storageLocation,
+                ImmutableMap.of(
+                    "k1",
+                    "v1",
+                    BACKUP_STORAGE_LOCATION_KEY + 1,
+                    backStorageLocation,
+                    BACKUP_STORAGE_LOCATION_KEY + 2,
+                    backStorageLocation1));
+    Assertions.assertNotNull(loadedFileset);
+    assertFileset(mockFileset, loadedFileset);
+
+    FilesetUpdateRequest.SwitchFilesetBackupStorageLocationRequest switch1 =
+        new FilesetUpdateRequest.SwitchFilesetBackupStorageLocationRequest(
+            BACKUP_STORAGE_LOCATION_KEY + 1, BACKUP_STORAGE_LOCATION_KEY + 2);
+    mockFileset =
+        mockFilesetDTO(
+            ident.name(),
+            type,
+            comment,
+            storageLocation,
+            ImmutableMap.of(
+                "k1",
+                "v1",
+                BACKUP_STORAGE_LOCATION_KEY + 1,
+                backStorageLocation1,
+                BACKUP_STORAGE_LOCATION_KEY + 2,
+                backStorageLocation));
+    resp = new FilesetResponse(mockFileset);
+    buildMockResource(
+        Method.PUT, filesetPath, new FilesetUpdatesRequest(ImmutableList.of(switch1)), resp, SC_OK);
+    res = catalog.asFilesetCatalog().alterFileset(ident, switch1.filesetChange());
+    assertFileset(mockFileset, res);
+
+    // Test awitch primary and backup storage location
+    FilesetUpdateRequest.SwitchFilesetPrimaryAndBackupStorageLocationRequest switch2 =
+        new FilesetUpdateRequest.SwitchFilesetPrimaryAndBackupStorageLocationRequest(
+            BACKUP_STORAGE_LOCATION_KEY + 1);
+    mockFileset =
+        mockFilesetDTO(
+            ident.name(),
+            type,
+            comment,
+            backStorageLocation1,
+            ImmutableMap.of(
+                "k1",
+                "v1",
+                BACKUP_STORAGE_LOCATION_KEY + 1,
+                storageLocation,
+                BACKUP_STORAGE_LOCATION_KEY + 2,
+                backStorageLocation));
+    resp = new FilesetResponse(mockFileset);
+    buildMockResource(
+        Method.PUT, filesetPath, new FilesetUpdatesRequest(ImmutableList.of(switch2)), resp, SC_OK);
+    res = catalog.asFilesetCatalog().alterFileset(ident, switch2.filesetChange());
+    assertFileset(mockFileset, res);
+  }
+
   private FilesetDTO mockFilesetDTO(
       String name,
       Fileset.Type type,
@@ -449,5 +686,9 @@ public class TestFilesetCatalog extends TestBase {
     Assertions.assertEquals(expected.comment(), actual.comment());
     Assertions.assertEquals(expected.type(), actual.type());
     Assertions.assertEquals(expected.properties(), actual.properties());
+  }
+
+  private static Stream<Arguments> filesetTypes() {
+    return Stream.of(Arguments.of(Fileset.Type.EXTERNAL), Arguments.of(Fileset.Type.MANAGED));
   }
 }

@@ -55,8 +55,10 @@ public class HadoopFilesetPropertiesMetadata extends BasePropertiesMetadata {
                 false,
                 false),
             PropertyEntry.stringPropertyEntry(
-                FilesetProperties.OWNER_KEY,
-                "The fileset owner",
+                FilesetProperties.OWNER_KEY, "The fileset owner", false, false, null, false, false),
+            PropertyEntry.stringPropertyEntry(
+                FilesetProperties.BACKUP_STORAGE_LOCATION_KEY,
+                "The fileset backup storage location key",
                 false,
                 false,
                 null,

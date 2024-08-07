@@ -391,13 +391,23 @@ fileset_new = catalog.as_fileset_catalog().alter_fileset(NameIdentifier.of("meta
 
 Currently, Gravitino supports the following changes to a fileset:
 
-| Supported modification             | JSON                                                         | Java                                          |
-|------------------------------------|--------------------------------------------------------------|-----------------------------------------------|
-| Rename a fileset                     | `{"@type":"rename","newName":"fileset_renamed"}`             | `FilesetChange.rename("fileset_renamed")`     |
-| Update a comment                     | `{"@type":"updateComment","newComment":"new_comment"}`       | `FilesetChange.updateComment("new_comment")`  |
-| Set a fileset property             | `{"@type":"setProperty","property":"key1","value":"value1"}` | `FilesetChange.setProperty("key1", "value1")` |
-| Remove a fileset property          | `{"@type":"removeProperty","property":"key1"}`               | `FilesetChange.removeProperty("key1")`        |
-| Remove comment                     | `{"@type":"removeComment"}`                                  | `FilesetChange.removeComment()`               |
+| Supported modification                     | JSON                                                                                                                                                                 | Java                                                                                                  |
+|--------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
+| Rename a fileset                           | `{"@type":"rename","newName":"fileset_renamed"}`                                                                                                                     | `FilesetChange.rename("fileset_renamed")`                                                             |
+| Update a comment                           | `{"@type":"updateComment","newComment":"new_comment"}`                                                                                                               | `FilesetChange.updateComment("new_comment")`                                                          |
+| Set a fileset property                     | `{"@type":"setProperty","property":"key1","value":"value1"}`                                                                                                         | `FilesetChange.setProperty("key1", "value1")`                                                         |
+| Remove a fileset property                  | `{"@type":"removeProperty","property":"key1"}`                                                                                                                       | `FilesetChange.removeProperty("key1")`                                                                |
+| Remove comment                             | `{"@type":"removeComment"}`                                                                                                                                          | `FilesetChange.removeComment()`                                                                       |
+| Add backup storage location                | `{"@type":"addBackupStorageLocation","backupStorageLocationKey":"backup.storage.location.1","backupStorageLocationValue":"file:///tmp/backup"}`                      | `FilesetChange.addBackupStorageLocation("backup.storage.location.1", "file:///tmp/backup")`           |
+| Remove backup storage location             | `{"@type":"removeBackupStorageLocation","backupStorageLocationKey":"backup.storage.location.1"}`                                                                     | `FilesetChange.removeBackupStorageLocation("backup.storage.location.1")`                              |
+| Update backup storage location             | `{"@type":"updateBackupStorageLocation","backupStorageLocationKey":"backup.storage.location.1","backupStorageLocationNewValue":"file:///tmp/backup_new"}`            | `FilesetChange.updateBackupStorageLocation("backup.storage.location.1", "file:///tmp/backup_new")`    |
+| Update primary storage location            | `{"@type":"updatePrimaryStorageLocation","newPrimaryStorageLocation":"file:///tmp/primary_new"}`                                                                     | `FilesetChange.updatePrimaryStorageLocation("file:///tmp/primary_new")`                               |
+| Switch backup storage location             | `{"@type":"switchBackupStorageLocation","firstBackupStorageLocationKey":"backup.storage.location.1","secondBackupStorageLocationKey":"backup.storage.location.2"}`   | `FilesetChange.switchBackupStorageLocation("backup.storage.location.1", "backup.storage.location.2")` |
+| Switch primary and backup storage location | `{"@type":"switchPrimaryAndBackupStorageLocation","backupStorageLocationKey":"backup.storage.location.2"}`                                                           | `FilesetChange.switchPrimaryAndBackupStorageLocation("backup.storage.location.2")`                    |
+
+:::Notice
+The backup storage location key must match the pattern `^backup.storage.location.d+$`.
+:::
 
 ### Drop a fileset
 
