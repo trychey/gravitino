@@ -64,6 +64,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
@@ -444,14 +445,16 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
         break;
     }
 
-    String actualPath;
+    List<String> actualPaths;
     // subPath cannot be null, so we only need check if it is blank
-    if (subPath.startsWith(SLASH) && subPath.length() == 1) {
-      actualPath = fileset.storageLocation();
+    if (StringUtils.isBlank(subPath)) {
+      actualPaths = getStorageLocations(fileset);
     } else {
-      actualPath = fileset.storageLocation() + subPath;
+      actualPaths =
+          getStorageLocations(fileset).stream()
+              .map(location -> location + subPath)
+              .collect(Collectors.toList());
     }
-
     return HadoopFilesetContext.builder()
         .withFileset(
             EntityCombinedFileset.of(fileset)
@@ -459,7 +462,7 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
                     fileset.properties().keySet().stream()
                         .filter(FILESET_PROPERTIES_METADATA::isHiddenProperty)
                         .collect(Collectors.toSet())))
-        .withActualPaths(new String[] {actualPath})
+        .withActualPaths(actualPaths.toArray(new String[0]))
         .build();
   }
 
@@ -1505,5 +1508,25 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
         "The sub Path: %s is not valid, the whole path should like `%s`,"
             + " and max sub directory level after fileset identifier should be less than %d.",
         subPath, pattern.getExample(), maxLevel);
+  }
+
+  @VisibleForTesting
+  public static List<String> getStorageLocations(Fileset fileset) {
+    return Stream.concat(
+            Stream.of(fileset.storageLocation()),
+            fileset.properties().entrySet().stream()
+                .filter(
+                    entry ->
+                        entry.getKey().startsWith(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY))
+                .sorted(
+                    (loc1, loc2) -> {
+                      String priority1 =
+                          loc1.getKey().replace(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY, "");
+                      String priority2 =
+                          loc2.getKey().replace(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY, "");
+                      return Integer.parseInt(priority1) - Integer.parseInt(priority2);
+                    })
+                .map(Map.Entry::getValue))
+        .collect(Collectors.toList());
   }
 }

@@ -11,6 +11,7 @@ import static com.datastrato.gravitino.Configs.ENTRY_KV_ROCKSDB_BACKEND_PATH;
 import static com.datastrato.gravitino.Configs.STORE_DELETE_AFTER_TIME;
 import static com.datastrato.gravitino.Configs.STORE_TRANSACTION_MAX_SKEW_TIME;
 import static com.datastrato.gravitino.StringIdentifier.ID_KEY;
+import static com.datastrato.gravitino.catalog.hadoop.HadoopCatalogOperations.getStorageLocations;
 import static com.datastrato.gravitino.catalog.hadoop.HadoopCatalogPropertiesMetadata.CHECK_UNIQUE_STORAGE_LOCATION_SCHEME;
 import static com.datastrato.gravitino.connector.BaseCatalog.CATALOG_BYPASS_PREFIX;
 
@@ -34,6 +35,7 @@ import com.datastrato.gravitino.file.FilesetChange;
 import com.datastrato.gravitino.file.FilesetContext;
 import com.datastrato.gravitino.file.FilesetDataOperation;
 import com.datastrato.gravitino.file.SourceEngineType;
+import com.datastrato.gravitino.meta.AuditInfo;
 import com.datastrato.gravitino.properties.FilesetProperties;
 import com.datastrato.gravitino.rel.Schema;
 import com.datastrato.gravitino.rel.SchemaChange;
@@ -62,6 +64,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 public class TestHadoopCatalogOperations {
@@ -1548,6 +1551,132 @@ public class TestHadoopCatalogOperations {
                     .withAppId("application_1_1")
                     .build());
       }
+    }
+  }
+
+  @Test
+  public void testGetStorageLocations() {
+    Map<String, String> props =
+        ImmutableMap.of(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, "mocked_backup_storage_location1",
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2, "mocked_backup_storage_location2",
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 3, "mocked_backup_storage_location3",
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 4, "mocked_backup_storage_location4");
+    List<String> expectedStorageLocations =
+        Arrays.asList(
+            "mocked_primary_storage_location",
+            "mocked_backup_storage_location1",
+            "mocked_backup_storage_location2",
+            "mocked_backup_storage_location3",
+            "mocked_backup_storage_location4");
+    Fileset fileset =
+        HadoopFileset.builder()
+            .withName("fileset")
+            .withType(Fileset.Type.MANAGED)
+            .withComment("comment")
+            .withStorageLocation("mocked_primary_storage_location")
+            .withProperties(props)
+            .withAuditInfo(AuditInfo.EMPTY)
+            .build();
+    List<String> storageLocations = getStorageLocations(fileset);
+    Assertions.assertEquals(expectedStorageLocations, storageLocations);
+
+    props =
+        ImmutableMap.of(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 3, "mocked_backup_storage_location3",
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, "mocked_backup_storage_location1",
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 4, "mocked_backup_storage_location4",
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 11, "mocked_backup_storage_location11",
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2, "mocked_backup_storage_location2");
+    expectedStorageLocations =
+        Arrays.asList(
+            "mocked_primary_storage_location",
+            "mocked_backup_storage_location1",
+            "mocked_backup_storage_location2",
+            "mocked_backup_storage_location3",
+            "mocked_backup_storage_location4",
+            "mocked_backup_storage_location11");
+    fileset =
+        HadoopFileset.builder()
+            .withName("fileset")
+            .withType(Fileset.Type.MANAGED)
+            .withComment("comment")
+            .withStorageLocation("mocked_primary_storage_location")
+            .withProperties(props)
+            .withAuditInfo(AuditInfo.EMPTY)
+            .build();
+    storageLocations = getStorageLocations(fileset);
+    Assertions.assertEquals(expectedStorageLocations, storageLocations);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"/test/test.parquet", "test/test.parquet"})
+  public void testFilesetCtxToGetActualPaths(String subPath) throws IOException {
+    String schemaName = "schema_" + UUID.randomUUID().toString().replace("-", "");
+    String comment = "comment";
+    String schemaPath = TEST_ROOT_PATH + "/" + schemaName;
+    createSchema(schemaName, comment, null, schemaPath);
+
+    String catalogName = "c1";
+
+    String filesetName1 = "test_get_actual_paths_from_fileset_context";
+    String filesetLocation1 =
+        TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + filesetName1;
+    String filesetBackupLocation1 =
+        TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + filesetName1 + "_bak_1";
+    String filesetBackupLocation2 =
+        TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + filesetName1 + "_bak_2";
+    String filesetBackupLocation3 =
+        TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + filesetName1 + "_bak_3";
+    String filesetBackupLocation4 =
+        TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + filesetName1 + "_bak_4";
+    Map<String, String> props =
+        ImmutableMap.of(
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 3, filesetBackupLocation3,
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, filesetBackupLocation1,
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 2, filesetBackupLocation2,
+            FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 4, filesetBackupLocation4);
+
+    List<String> storageLocations =
+        Stream.of(
+                filesetLocation1,
+                filesetBackupLocation1,
+                filesetBackupLocation2,
+                filesetBackupLocation3,
+                filesetBackupLocation4)
+            .map(loc -> subPath.startsWith("/") ? loc + subPath : loc + "/" + subPath)
+            .collect(Collectors.toList());
+
+    Fileset fileset1 =
+        createFileset(
+            filesetName1, schemaName, comment, Fileset.Type.MANAGED, null, filesetLocation1, props);
+
+    Map<String, String> catalogProps = Maps.newHashMap();
+    catalogProps.put(CATALOG_BYPASS_PREFIX + CHECK_UNIQUE_STORAGE_LOCATION_SCHEME, "false");
+    try (HadoopCatalogOperations ops = new HadoopCatalogOperations(store)) {
+      ops.initialize(catalogProps, null);
+      NameIdentifier filesetIdent = NameIdentifier.of("m1", "c1", schemaName, filesetName1);
+      BaseFilesetDataOperationCtx dataOperationCtx1 =
+          BaseFilesetDataOperationCtx.builder()
+              .withSubPath("/test/test.parquet")
+              .withOperation(FilesetDataOperation.OPEN)
+              .withClientType(ClientType.UNKNOWN)
+              .withIp("127.0.0.1")
+              .withSourceEngineType(SourceEngineType.UNKNOWN)
+              .withAppId("application_1_1")
+              .build();
+      FilesetContext context1 = ops.getFilesetContext(filesetIdent, dataOperationCtx1);
+      Assertions.assertEquals(filesetName1, context1.fileset().name());
+      Assertions.assertEquals(Fileset.Type.MANAGED, context1.fileset().type());
+      Assertions.assertEquals(comment, context1.fileset().comment());
+      Assertions.assertEquals(fileset1.storageLocation(), context1.fileset().storageLocation());
+      Assertions.assertEquals(
+          4,
+          (int)
+              context1.fileset().properties().keySet().stream()
+                  .filter(loc -> loc.startsWith(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY))
+                  .count());
+      Assertions.assertArrayEquals(storageLocations.toArray(new String[0]), context1.actualPaths());
     }
   }
 
