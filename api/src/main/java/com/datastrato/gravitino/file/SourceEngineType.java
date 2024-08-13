@@ -10,5 +10,6 @@ public enum SourceEngineType {
   PYSPARK,
   FLINK,
   CLOUDML,
+  NOTEBOOK,
   UNKNOWN;
 }

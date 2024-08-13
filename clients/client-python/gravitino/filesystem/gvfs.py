@@ -701,6 +701,9 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
 
     @staticmethod
     def _get_source_engine_type():
+        notebook_task = os.environ.get("NOTEBOOK_TASK")
+        if notebook_task is not None and notebook_task == "true":
+            return SourceEngineType.NOTEBOOK
         spark_dist_classpath = os.environ.get("SPARK_DIST_CLASSPATH")
         if spark_dist_classpath is not None:
             return SourceEngineType.PYSPARK

@@ -9,18 +9,18 @@ from enum import Enum
 class FilesetDataOperation(Enum):
     """An enum class containing fileset data operations that supported."""
 
-    LIST_STATUS = 1
-    GET_FILE_STATUS = 2
-    EXISTS = 3
-    RENAME = 4
-    APPEND = 5
-    CREATE = 6
-    DELETE = 7
-    OPEN = 8
-    MKDIRS = 9
-    CREATED_TIME = 10
-    MODIFIED_TIME = 11
-    COPY_FILE = 12
-    CAT_FILE = 13
-    GET_FILE = 14
-    UNKNOWN = 15
+    CREATE = "create"
+    OPEN = "open"
+    APPEND = "append"
+    RENAME = "rename"
+    DELETE = "delete"
+    GET_FILE_STATUS = "get_file_status"
+    LIST_STATUS = "list_status"
+    MKDIRS = "mkdirs"
+    EXISTS = "exists"
+    CREATED_TIME = "created_time"
+    MODIFIED_TIME = "modified_time"
+    COPY_FILE = "copy_file"
+    CAT_FILE = "cat_file"
+    GET_FILE = "get_file"
+    UNKNOWN = "unknown"

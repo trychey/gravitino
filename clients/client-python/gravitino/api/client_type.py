@@ -9,5 +9,5 @@ from enum import Enum
 class ClientType(Enum):
     """An enum class containing fileset data operations client type that supported."""
 
-    PYTHON_GVFS = 1
-    UNKNOWN = 2
+    PYTHON_GVFS = "python_gvfs"
+    UNKNOWN = "unknown"

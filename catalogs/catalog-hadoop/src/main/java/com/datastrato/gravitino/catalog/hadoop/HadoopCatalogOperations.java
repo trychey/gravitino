@@ -388,7 +388,7 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
     Preconditions.checkArgument(ctx.subPath() != null, "subPath must not be null");
     // fill the sub path with a leading slash if it does not have one
     String subPath;
-    if (!ctx.subPath().trim().startsWith(SLASH)) {
+    if (!ctx.subPath().trim().isEmpty() && !ctx.subPath().trim().startsWith(SLASH)) {
       subPath = SLASH + ctx.subPath().trim();
     } else {
       subPath = ctx.subPath().trim();

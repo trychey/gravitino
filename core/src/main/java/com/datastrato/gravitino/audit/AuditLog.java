@@ -163,6 +163,7 @@ public class AuditLog<E, C> {
     PURGE,
     LIST,
     LOAD,
+    GET_FILESET_CONTEXT,
     UNKNOWN;
 
     public static Action from(Event event) {
@@ -179,6 +180,8 @@ public class AuditLog<E, C> {
         return LIST;
       } else if (eventClassName.startsWith("Load")) {
         return LOAD;
+      } else if (eventClassName.startsWith("GetFilesetContext")) {
+        return GET_FILESET_CONTEXT;
       } else {
         return UNKNOWN;
       }

@@ -54,6 +54,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -1167,6 +1168,16 @@ public class TestHadoopCatalogOperations {
       },
       {
         FilesetPrefixPattern.ANY,
+        FilesetDataOperation.MKDIRS,
+        "",
+        ImmutableMap.of(
+            FilesetProperties.PREFIX_PATTERN_KEY,
+            FilesetPrefixPattern.ANY.name(),
+            FilesetProperties.DIR_MAX_LEVEL_KEY,
+            "3")
+      },
+      {
+        FilesetPrefixPattern.ANY,
         FilesetDataOperation.CREATE,
         "test/t.parquet",
         ImmutableMap.of(
@@ -1450,7 +1461,7 @@ public class TestHadoopCatalogOperations {
     try (HadoopCatalogOperations ops = new HadoopCatalogOperations(store)) {
       ops.initialize(Maps.newHashMap(), null);
       NameIdentifier filesetIdent = NameIdentifier.of("m1", "c1", schemaName, filesetName);
-      // test create valid
+      // test operation valid
       BaseFilesetDataOperationCtx ctx =
           BaseFilesetDataOperationCtx.builder()
               .withSubPath(subPath)
@@ -1466,11 +1477,15 @@ public class TestHadoopCatalogOperations {
       Assertions.assertEquals(Fileset.Type.MANAGED, context1.fileset().type());
       Assertions.assertEquals("comment1024", context1.fileset().comment());
       Assertions.assertEquals(fileset.storageLocation(), context1.fileset().storageLocation());
-      Assertions.assertEquals(
-          subPath.startsWith("/")
-              ? String.format("%s%s", context1.fileset().storageLocation(), subPath)
-              : String.format("%s/%s", context1.fileset().storageLocation(), subPath),
-          context1.actualPaths()[0]);
+      if (StringUtils.isBlank(subPath)) {
+        Assertions.assertEquals(context1.fileset().storageLocation(), context1.actualPaths()[0]);
+      } else {
+        Assertions.assertEquals(
+            subPath.startsWith("/")
+                ? String.format("%s%s", context1.fileset().storageLocation(), subPath)
+                : String.format("%s/%s", context1.fileset().storageLocation(), subPath),
+            context1.actualPaths()[0]);
+      }
     }
   }
 

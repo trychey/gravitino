@@ -326,6 +326,10 @@ public class GravitinoVirtualFileSystem extends FileSystem {
 
   private static SourceEngineType getSourceType() {
     try {
+      String notebookVar = System.getenv("NOTEBOOK_TASK");
+      if (StringUtils.isNotBlank(notebookVar) && notebookVar.equals("true")) {
+        return SourceEngineType.NOTEBOOK;
+      }
       String sparkClasspathVar = System.getenv("SPARK_DIST_CLASSPATH");
       if (StringUtils.isNotBlank(sparkClasspathVar)) {
         return SourceEngineType.SPARK;

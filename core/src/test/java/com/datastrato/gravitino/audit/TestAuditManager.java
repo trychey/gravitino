@@ -8,6 +8,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.datastrato.gravitino.NameIdentifier;
+import com.datastrato.gravitino.TestFileset;
+import com.datastrato.gravitino.TestFilesetContext;
+import com.datastrato.gravitino.exceptions.GravitinoRuntimeException;
+import com.datastrato.gravitino.file.BaseFilesetDataOperationCtx;
+import com.datastrato.gravitino.file.ClientType;
+import com.datastrato.gravitino.file.Fileset;
+import com.datastrato.gravitino.file.FilesetContext;
+import com.datastrato.gravitino.file.FilesetDataOperation;
+import com.datastrato.gravitino.file.FilesetDataOperationCtx;
+import com.datastrato.gravitino.file.SourceEngineType;
 import com.datastrato.gravitino.json.JsonUtils;
 import com.datastrato.gravitino.listener.EventBus;
 import com.datastrato.gravitino.listener.EventListenerManager;
@@ -18,7 +28,10 @@ import com.datastrato.gravitino.listener.api.event.CreateTableFailureEvent;
 import com.datastrato.gravitino.listener.api.event.DropTableEvent;
 import com.datastrato.gravitino.listener.api.event.DropTableFailureEvent;
 import com.datastrato.gravitino.listener.api.event.Event;
+import com.datastrato.gravitino.listener.api.event.GetFilesetContextEvent;
+import com.datastrato.gravitino.listener.api.event.GetFilesetContextFailureEvent;
 import com.datastrato.gravitino.listener.api.info.TableInfo;
+import com.datastrato.gravitino.meta.AuditInfo;
 import com.datastrato.gravitino.rel.Column;
 import com.datastrato.gravitino.rel.TableChange;
 import com.datastrato.gravitino.rel.expressions.NamedReference;
@@ -33,6 +46,8 @@ import com.datastrato.gravitino.rel.indexes.Indexes;
 import com.datastrato.gravitino.rel.types.Types;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Assertions;
@@ -55,6 +70,9 @@ public class TestAuditManager {
 
   private AlterTableFailureEvent alterTableFailureEvent;
   private DropTableFailureEvent dropTableFailureEvent;
+  private GetFilesetContextEvent getFilesetContextEvent;
+
+  private GetFilesetContextFailureEvent getFilesetContextFailureEvent;
 
   @BeforeAll
   public void init() {
@@ -64,6 +82,8 @@ public class TestAuditManager {
     this.createTableFailureEvent = mockCreateTableFailureEvent();
     this.dropTableFailureEvent = mockDropTableFailEvent();
     this.alterTableFailureEvent = mockAlterTableFailEvent();
+    this.getFilesetContextEvent = mockGetFilesetContextEvent();
+    this.getFilesetContextFailureEvent = mockGetFilesetContextFailureEvent();
     this.unknownEvent = mockUnknownEvent();
   }
 
@@ -231,6 +251,42 @@ public class TestAuditManager {
     Assertions.assertEquals(String.format(expected, unknownEvent.eventTime()), json);
   }
 
+  @Test
+  public void formatGetFilesetContextJson() throws JsonProcessingException {
+    AuditLog auditLog = new AuditLogFormatter().format(getFilesetContextEvent);
+    String json = JsonUtils.eventFieldMapper().writeValueAsString(auditLog);
+    Long timestamp = getFilesetContextEvent.eventTime();
+    String expected =
+        String.format(
+            "{\"user\":\"user\",\"action\":\"get_fileset_context\",\"object_type\":\"fileset\","
+                + "\"identifier\":\"b.c.d\",\"request\":{\"entity\":{\"sub_path\":\"/test.txt\","
+                + "\"operation\":\"create\",\"client_type\":\"hadoop_gvfs\",\"ip\":\"127.0.0.1\","
+                + "\"source_engine_type\":\"spark\",\"app_id\":\"application_1_1\",\"extra_info\":null,"
+                + "\"fileset_type\":\"managed\",\"storage_location\":\"file:/tmp/test/b/c/d\","
+                + "\"actual_paths\":[\"file:/tmp/test/b/c/d/test.txt\"]},"
+                + "\"changes\":null},\"response\":{\"status\":\"success\",\"error_message\":null},"
+                + "\"event_name\":\"GetFilesetContextEvent\",\"timestamp\":%d}",
+            timestamp);
+    Assertions.assertEquals(expected, json);
+  }
+
+  @Test
+  public void formatGetFilesetFailureContextJson() throws JsonProcessingException {
+    AuditLog auditLog = new AuditLogFormatter().format(getFilesetContextFailureEvent);
+    String json = JsonUtils.eventFieldMapper().writeValueAsString(auditLog);
+    Long timestamp = getFilesetContextFailureEvent.eventTime();
+    String expected =
+        String.format(
+            "{\"user\":\"user\",\"action\":\"get_fileset_context\",\"object_type\":\"fileset\","
+                + "\"identifier\":\"b.c.d\",\"request\":{\"entity\":{\"sub_path\":\"/test.txt\","
+                + "\"operation\":\"create\",\"client_type\":\"hadoop_gvfs\",\"ip\":\"127.0.0.1\","
+                + "\"source_engine_type\":\"spark\",\"app_id\":\"application_1_1\",\"extra_info\":null},"
+                + "\"changes\":null},\"response\":{\"status\":\"fail\",\"error_message\":\"test\"},"
+                + "\"event_name\":\"GetFilesetContextFailureEvent\",\"timestamp\":%d}",
+            timestamp);
+    Assertions.assertEquals(expected, json);
+  }
+
   private CreateTableEvent mockCreateTableEvent() {
     CreateTableEvent event =
         new CreateTableEvent(
@@ -330,6 +386,51 @@ public class TestAuditManager {
 
   private DummyEvent mockUnknownEvent() {
     return new DummyEvent("user", NameIdentifier.of("a", "b", "c", "d"));
+  }
+
+  private GetFilesetContextEvent mockGetFilesetContextEvent() {
+    FilesetDataOperationCtx ctx =
+        BaseFilesetDataOperationCtx.builder()
+            .withSubPath("/test.txt")
+            .withOperation(FilesetDataOperation.CREATE)
+            .withClientType(ClientType.HADOOP_GVFS)
+            .withIp("127.0.0.1")
+            .withSourceEngineType(SourceEngineType.SPARK)
+            .withAppId("application_1_1")
+            .build();
+    AuditInfo auditInfo =
+        AuditInfo.builder().withCreator("creator").withCreateTime(Instant.now()).build();
+    Fileset fileset =
+        TestFileset.builder()
+            .withName("d")
+            .withType(Fileset.Type.MANAGED)
+            .withComment("this is test")
+            .withStorageLocation("file:/tmp/test/b/c/d")
+            .withProperties(Maps.newHashMap())
+            .withAuditInfo(auditInfo)
+            .build();
+    String[] actualPaths = new String[] {"file:/tmp/test/b/c/d/test.txt"};
+    FilesetContext filesetContext =
+        TestFilesetContext.builder().withFileset(fileset).withActualPaths(actualPaths).build();
+    return new GetFilesetContextEvent(
+        "user", NameIdentifier.ofFileset("a", "b", "c", "d"), ctx, filesetContext);
+  }
+
+  private GetFilesetContextFailureEvent mockGetFilesetContextFailureEvent() {
+    FilesetDataOperationCtx ctx =
+        BaseFilesetDataOperationCtx.builder()
+            .withSubPath("/test.txt")
+            .withOperation(FilesetDataOperation.CREATE)
+            .withClientType(ClientType.HADOOP_GVFS)
+            .withIp("127.0.0.1")
+            .withSourceEngineType(SourceEngineType.SPARK)
+            .withAppId("application_1_1")
+            .build();
+    return new GetFilesetContextFailureEvent(
+        "user",
+        NameIdentifier.ofFileset("a", "b", "c", "d"),
+        ctx,
+        new GravitinoRuntimeException("test"));
   }
 
   private EventListenerManager mockEventListenerManager() {

@@ -136,7 +136,7 @@ public class FilesetEventDispatcher implements FilesetDispatcher {
     try {
       FilesetContext context = dispatcher.getFilesetContext(ident, ctx);
       eventBus.dispatchEvent(
-          new GetFilesetContextEvent(PrincipalUtils.getCurrentUserName(), ident, ctx));
+          new GetFilesetContextEvent(PrincipalUtils.getCurrentUserName(), ident, ctx, context));
       return context;
     } catch (Exception e) {
       eventBus.dispatchEvent(

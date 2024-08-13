@@ -9,5 +9,7 @@ from enum import Enum
 class SourceEngineType(Enum):
     """An enum class containing fileset data operations source engine type that supported."""
 
-    PYSPARK = 1
-    UNKNOWN = 2
+    PYSPARK = "pyspark"
+    CLOUDML = "cloudml"
+    NOTEBOOK = "notebook"
+    UNKNOWN = "unknown"

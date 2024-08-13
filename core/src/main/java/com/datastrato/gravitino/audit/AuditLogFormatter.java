@@ -8,6 +8,7 @@ import com.datastrato.gravitino.CatalogChange;
 import com.datastrato.gravitino.MetalakeChange;
 import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.Namespace;
+import com.datastrato.gravitino.audit.entity.GetFilesetContextAuditEntity;
 import com.datastrato.gravitino.file.FilesetChange;
 import com.datastrato.gravitino.listener.api.event.AlterCatalogEvent;
 import com.datastrato.gravitino.listener.api.event.AlterCatalogFailureEvent;
@@ -39,6 +40,8 @@ import com.datastrato.gravitino.listener.api.event.Event;
 import com.datastrato.gravitino.listener.api.event.FailureEvent;
 import com.datastrato.gravitino.listener.api.event.FilesetEvent;
 import com.datastrato.gravitino.listener.api.event.FilesetFailureEvent;
+import com.datastrato.gravitino.listener.api.event.GetFilesetContextEvent;
+import com.datastrato.gravitino.listener.api.event.GetFilesetContextFailureEvent;
 import com.datastrato.gravitino.listener.api.event.ListCatalogEvent;
 import com.datastrato.gravitino.listener.api.event.ListCatalogFailureEvent;
 import com.datastrato.gravitino.listener.api.event.ListFilesetEvent;
@@ -106,8 +109,8 @@ public class AuditLogFormatter implements Formatter<AuditLog> {
   /**
    * Convert the event to AuditLog.
    *
-   * @param event
-   * @return
+   * @param event The reporting event
+   * @return The audit log
    */
   private AuditLog fromSuccessEvent(Event event) {
     Long timestamp = event.eventTime();
@@ -152,8 +155,8 @@ public class AuditLogFormatter implements Formatter<AuditLog> {
   /**
    * Convert the event to AuditLog.
    *
-   * @param event
-   * @return
+   * @param event The reporting event
+   * @return The audit log
    */
   private AuditLog fromFailEvent(FailureEvent event) {
     Long timestamp = event.eventTime();
@@ -353,6 +356,14 @@ public class AuditLogFormatter implements Formatter<AuditLog> {
           alterFilesetEvent.updatedFilesetInfo(), parseChange(alterFilesetEvent.filesetChanges()));
     } else if (event instanceof ListFilesetEvent || event instanceof LoadFilesetEvent) {
       return new AuditLog.Request<>();
+    } else if (event instanceof GetFilesetContextEvent) {
+      GetFilesetContextEvent getFilesetContextEvent = (GetFilesetContextEvent) event;
+      GetFilesetContextAuditEntity entity =
+          GetFilesetContextAuditEntity.builder()
+              .withFilesetContext(getFilesetContextEvent.filesetContext())
+              .withDataOperationCtx(getFilesetContextEvent.dataOperationContext())
+              .build();
+      return new AuditLog.Request(entity);
     } else {
       return null;
     }
@@ -370,6 +381,10 @@ public class AuditLogFormatter implements Formatter<AuditLog> {
     } else if (event instanceof ListFilesetFailureEvent
         || event instanceof LoadFilesetFailureEvent) {
       return new AuditLog.Request<FilesetInfo, FilesetChange>();
+    } else if (event instanceof GetFilesetContextFailureEvent) {
+      GetFilesetContextFailureEvent filesetContextFailureEvent =
+          (GetFilesetContextFailureEvent) event;
+      return new AuditLog.Request(filesetContextFailureEvent.dataOperationContext());
     } else {
       return null;
     }
