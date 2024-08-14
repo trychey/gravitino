@@ -1511,7 +1511,7 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
   }
 
   @VisibleForTesting
-  public static List<String> getStorageLocations(Fileset fileset) {
+  static List<String> getStorageLocations(Fileset fileset) {
     return Stream.concat(
             Stream.of(fileset.storageLocation()),
             fileset.properties().entrySet().stream()

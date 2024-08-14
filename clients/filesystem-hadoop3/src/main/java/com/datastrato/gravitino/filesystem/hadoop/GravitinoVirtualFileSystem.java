@@ -13,10 +13,12 @@ import com.datastrato.gravitino.client.TokenAuthProvider;
 import com.datastrato.gravitino.exceptions.GravitinoRuntimeException;
 import com.datastrato.gravitino.file.BaseFilesetDataOperationCtx;
 import com.datastrato.gravitino.file.ClientType;
+import com.datastrato.gravitino.file.Fileset;
 import com.datastrato.gravitino.file.FilesetCatalog;
 import com.datastrato.gravitino.file.FilesetContext;
 import com.datastrato.gravitino.file.FilesetDataOperation;
 import com.datastrato.gravitino.file.SourceEngineType;
+import com.datastrato.gravitino.properties.FilesetProperties;
 import com.datastrato.gravitino.shaded.com.google.common.annotations.VisibleForTesting;
 import com.datastrato.gravitino.shaded.com.google.common.base.Preconditions;
 import com.datastrato.gravitino.shaded.com.google.common.collect.ImmutableMap;
@@ -25,13 +27,19 @@ import com.datastrato.gravitino.shaded.org.apache.commons.lang3.StringUtils;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Scheduler;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -40,6 +48,7 @@ import java.util.regex.Pattern;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileChecksum;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -377,6 +386,21 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     return fileStatus;
   }
 
+  private String getStorageLocation(Fileset fileset, int index) {
+    Preconditions.checkArgument(index >= 0, "Index cannot be negative.");
+    Map<String, String> properties = fileset.properties();
+    if (index == 0) {
+      return fileset.storageLocation();
+    } else {
+      String backupStorageLocation =
+          properties.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + index);
+      Preconditions.checkArgument(
+          StringUtils.isNotBlank(backupStorageLocation),
+          "Backup storage location cannot be null or empty.");
+      return backupStorageLocation;
+    }
+  }
+
   @VisibleForTesting
   NameIdentifier extractIdentifier(URI virtualUri) {
     String virtualPath = virtualUri.toString();
@@ -471,16 +495,31 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   @Override
   public synchronized void setWorkingDirectory(Path newDir) {
     FilesetContextPair pair = getFilesetContext(newDir, FilesetDataOperation.SET_WORKING_DIR);
-    Path actualPath = new Path(pair.getContext().actualPaths()[0]);
-    pair.getFileSystems()[0].setWorkingDirectory(actualPath);
+    FileSystem[] fileSystems = pair.getFileSystems();
+    String[] actualPaths = pair.getContext().actualPaths();
+    for (int i = 0; i < actualPaths.length; i++) {
+      fileSystems[i].setWorkingDirectory(new Path(actualPaths[i]));
+    }
     this.workingDirectory = newDir;
   }
 
   @Override
   public FSDataInputStream open(Path path, int bufferSize) throws IOException {
     FilesetContextPair pair = getFilesetContext(path, FilesetDataOperation.OPEN);
-    Path actualPath = new Path(pair.getContext().actualPaths()[0]);
-    return pair.getFileSystems()[0].open(actualPath, bufferSize);
+    FileSystem[] fileSystems = pair.getFileSystems();
+    String[] actualPaths = pair.getContext().actualPaths();
+    for (int i = 0; i < actualPaths.length; i++) {
+      try {
+        return fileSystems[i].open(new Path(actualPaths[i]), bufferSize);
+      } catch (FileNotFoundException e) {
+        Logger.debug(
+            "Cannot find the gvfs file: {} in the underline Filesystem: {}.",
+            path,
+            fileSystems[i].getUri(),
+            e);
+      }
+    }
+    throw fileNotFoundException(path.toString());
   }
 
   @Override
@@ -494,17 +533,42 @@ public class GravitinoVirtualFileSystem extends FileSystem {
       Progressable progress)
       throws IOException {
     FilesetContextPair pair = getFilesetContext(path, FilesetDataOperation.CREATE);
-    Path actualPath = new Path(pair.getContext().actualPaths()[0]);
-    return pair.getFileSystems()[0].create(
-        actualPath, permission, overwrite, bufferSize, replication, blockSize, progress);
+    FileSystem[] fileSystems = pair.getFileSystems();
+    String[] actualPaths = pair.getContext().actualPaths();
+    List<Integer> validateActualPathIndexes = validateActualPaths(fileSystems, actualPaths);
+    if (validateActualPathIndexes.isEmpty()) {
+      return fileSystems[0].create(
+          new Path(actualPaths[0]),
+          permission,
+          overwrite,
+          bufferSize,
+          replication,
+          blockSize,
+          progress);
+    }
+    Integer index = validateActualPathIndexes.get(0);
+    return fileSystems[index].create(
+        new Path(actualPaths[index]),
+        permission,
+        overwrite,
+        bufferSize,
+        replication,
+        blockSize,
+        progress);
   }
 
   @Override
   public FSDataOutputStream append(Path path, int bufferSize, Progressable progress)
       throws IOException {
     FilesetContextPair pair = getFilesetContext(path, FilesetDataOperation.APPEND);
-    Path actualPath = new Path(pair.getContext().actualPaths()[0]);
-    return pair.getFileSystems()[0].append(actualPath, bufferSize, progress);
+    FileSystem[] fileSystems = pair.getFileSystems();
+    String[] actualPaths = pair.getContext().actualPaths();
+    List<Integer> validateActualPathIndexes = validateActualPaths(fileSystems, actualPaths);
+    if (validateActualPathIndexes.isEmpty()) {
+      throw fileNotFoundException(path.toString());
+    }
+    Integer index = validateActualPathIndexes.get(0);
+    return fileSystems[index].append(new Path(actualPaths[index]), bufferSize, progress);
   }
 
   @Override
@@ -523,54 +587,105 @@ public class GravitinoVirtualFileSystem extends FileSystem {
         dstIdentifier);
 
     FilesetContextPair srcPair = getFilesetContext(src, FilesetDataOperation.RENAME);
-    Path srcActualPath = new Path(srcPair.getContext().actualPaths()[0]);
-
     FilesetContextPair dstPair = getFilesetContext(dst, FilesetDataOperation.RENAME);
-    Path dstActualPath = new Path(dstPair.getContext().actualPaths()[0]);
 
-    return srcPair.getFileSystems()[0].rename(srcActualPath, dstActualPath);
+    FileSystem[] srcFileSystems = srcPair.getFileSystems();
+    String[] srcActualPaths = srcPair.getContext().actualPaths();
+    String[] dstActualPaths = dstPair.getContext().actualPaths();
+
+    List<Integer> validateActualPathIndexes =
+        validateActualPaths(srcFileSystems, srcActualPaths, dstActualPaths);
+    if (validateActualPathIndexes.isEmpty()) {
+      throw fileNotFoundException(src.toString());
+    }
+    Integer index = validateActualPathIndexes.get(0);
+    return srcFileSystems[index].rename(
+        new Path(srcActualPaths[index]), new Path(dstActualPaths[index]));
   }
 
   @Override
   public boolean delete(Path path, boolean recursive) throws IOException {
     FilesetContextPair pair = getFilesetContext(path, FilesetDataOperation.DELETE);
-    Path actualPath = new Path(pair.getContext().actualPaths()[0]);
-    return pair.getFileSystems()[0].delete(actualPath, recursive);
+    FileSystem[] fileSystems = pair.getFileSystems();
+    String[] actualPaths = pair.getContext().actualPaths();
+    List<Integer> validateActualPathIndexes = validateActualPaths(fileSystems, actualPaths);
+    if (validateActualPathIndexes.isEmpty()) {
+      throw fileNotFoundException(path.toString());
+    }
+    Integer index = validateActualPathIndexes.get(0);
+    return fileSystems[index].delete(new Path(actualPaths[index]), recursive);
   }
 
   @Override
   public FileStatus getFileStatus(Path path) throws IOException {
     FilesetContextPair pair = getFilesetContext(path, FilesetDataOperation.GET_FILE_STATUS);
-    Path actualPath = new Path(pair.getContext().actualPaths()[0]);
-    FileStatus fileStatus = pair.getFileSystems()[0].getFileStatus(actualPath);
+    FileSystem[] fileSystems = pair.getFileSystems();
+    String[] actualPaths = pair.getContext().actualPaths();
     NameIdentifier identifier = extractIdentifier(path.toUri());
-    return convertFileStatusPathPrefix(
-        fileStatus,
-        pair.getContext().fileset().storageLocation(),
-        getVirtualLocation(identifier, true));
+    for (int i = 0; i < actualPaths.length; i++) {
+      try {
+        FileStatus fileStatus = fileSystems[i].getFileStatus(new Path(actualPaths[i]));
+        return convertFileStatusPathPrefix(
+            fileStatus,
+            getStorageLocation(pair.getContext().fileset(), i),
+            getVirtualLocation(identifier, true));
+      } catch (FileNotFoundException e) {
+        // Skipping log to avoid print to many logs
+      }
+    }
+    throw fileNotFoundException(path.toString());
   }
 
   @Override
   public FileStatus[] listStatus(Path path) throws IOException {
     FilesetContextPair pair = getFilesetContext(path, FilesetDataOperation.LIST_STATUS);
-    Path actualPath = new Path(pair.getContext().actualPaths()[0]);
-    FileStatus[] fileStatusResults = pair.getFileSystems()[0].listStatus(actualPath);
     NameIdentifier identifier = extractIdentifier(path.toUri());
-    return Arrays.stream(fileStatusResults)
-        .map(
-            fileStatus ->
-                convertFileStatusPathPrefix(
-                    fileStatus,
-                    new Path(pair.getContext().fileset().storageLocation()).toString(),
-                    getVirtualLocation(identifier, true)))
-        .toArray(FileStatus[]::new);
+
+    List<FileStatus> gvfsFileStatus = new ArrayList<>();
+    Set<String> distinctFileStatus = new HashSet<>();
+
+    FileSystem[] fileSystems = pair.getFileSystems();
+    String[] actualPaths = pair.getContext().actualPaths();
+
+    List<Integer> validateActualPathsForList = validateActualPathsForList(fileSystems, actualPaths);
+    for (int i = 0; i < validateActualPathsForList.size(); i++) {
+      int index = validateActualPathsForList.get(i);
+      try {
+        FileStatus[] fileStatuses = fileSystems[index].listStatus(new Path(actualPaths[index]));
+        Arrays.stream(fileStatuses)
+            .map(
+                fileStatus ->
+                    convertFileStatusPathPrefix(
+                        fileStatus,
+                        getStorageLocation(pair.getContext().fileset(), index),
+                        getVirtualLocation(identifier, true)))
+            .forEach(
+                fileStatus -> {
+                  if (distinctFileStatus.add(fileStatus.getPath().toString())) {
+                    gvfsFileStatus.add(fileStatus);
+                  }
+                });
+      } catch (FileNotFoundException e) {
+        // Skipping log to avoid print to many logs
+      }
+    }
+
+    return gvfsFileStatus.toArray(new FileStatus[0]);
   }
 
   @Override
   public boolean mkdirs(Path path, FsPermission permission) throws IOException {
     FilesetContextPair pair = getFilesetContext(path, FilesetDataOperation.MKDIRS);
-    Path actualPath = new Path(pair.getContext().actualPaths()[0]);
-    return pair.getFileSystems()[0].mkdirs(actualPath, permission);
+    FileSystem[] fileSystems = pair.getFileSystems();
+    String[] actualPaths = pair.getContext().actualPaths();
+    for (int i = 0; i < actualPaths.length; i++) {
+      if (fileSystems[i].exists(new Path(actualPaths[i]))) {
+        throw new FileAlreadyExistsException(
+            String.format("The gvfs directory: %s already exists.", path));
+      }
+    }
+    Path actualPath = new Path(actualPaths[0]);
+    return fileSystems[0].mkdirs(actualPath, permission);
   }
 
   @Override
@@ -580,31 +695,71 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   }
 
   @Override
-  public boolean truncate(Path f, long newLength) throws IOException {
-    FilesetContextPair pair = getFilesetContext(f, FilesetDataOperation.TRUNCATE);
-    Path actualPath = new Path(pair.getContext().actualPaths()[0]);
-    return pair.getFileSystems()[0].truncate(actualPath, newLength);
+  public boolean truncate(Path file, long newLength) throws IOException {
+    FilesetContextPair pair = getFilesetContext(file, FilesetDataOperation.TRUNCATE);
+    FileSystem[] fileSystems = pair.getFileSystems();
+    String[] actualPaths = pair.getContext().actualPaths();
+
+    List<Integer> validateActualPathIndexes = validateActualPaths(fileSystems, actualPaths);
+    if (validateActualPathIndexes.isEmpty()) {
+      throw fileNotFoundException(file.toString());
+    }
+    Integer index = validateActualPathIndexes.get(0);
+    return fileSystems[index].truncate(new Path(actualPaths[index]), newLength);
   }
 
   @Override
   public short getDefaultReplication(Path f) {
     FilesetContextPair pair = getFilesetContext(f, FilesetDataOperation.GET_DEFAULT_REPLICATION);
-    Path actualPath = new Path(pair.getContext().actualPaths()[0]);
-    return pair.getFileSystems()[0].getDefaultReplication(actualPath);
+    FileSystem[] fileSystems = pair.getFileSystems();
+    String[] actualPaths = pair.getContext().actualPaths();
+    for (int i = 0; i < actualPaths.length; i++) {
+      try {
+        return fileSystems[i].getDefaultReplication(new Path(actualPaths[i]));
+      } catch (Exception e) {
+        Logger.warn(
+            "Cannot find the gvfs file: {} in the underline Filesystem: {}.",
+            actualPaths[i],
+            fileSystems[i].getClass().getName(),
+            e);
+      }
+    }
+    throw new RuntimeException(
+        String.format("Failed to getDefaultReplication for gvfs path: %s", f));
   }
 
   @Override
   public long getDefaultBlockSize(Path f) {
     FilesetContextPair pair = getFilesetContext(f, FilesetDataOperation.GET_DEFAULT_BLOCK_SIZE);
-    Path actualPath = new Path(pair.getContext().actualPaths()[0]);
-    return pair.getFileSystems()[0].getDefaultBlockSize(actualPath);
+    FileSystem[] fileSystems = pair.getFileSystems();
+    String[] actualPaths = pair.getContext().actualPaths();
+    for (int i = 0; i < actualPaths.length; i++) {
+      try {
+        return fileSystems[i].getDefaultBlockSize(new Path(actualPaths[i]));
+      } catch (Exception e) {
+        Logger.warn(
+            "Cannot find the gvfs file: {} in the underline Filesystem: {}.",
+            actualPaths[i],
+            fileSystems[i].getClass().getName(),
+            e);
+      }
+    }
+    throw new RuntimeException(String.format("Failed to getDefaultBlockSize for gvfs path: %s", f));
   }
 
   @Override
-  public FileChecksum getFileChecksum(Path f) throws IOException {
-    FilesetContextPair pair = getFilesetContext(f, FilesetDataOperation.GET_FILE_CHECKSUM);
-    Path actualPath = new Path(pair.getContext().actualPaths()[0]);
-    return pair.getFileSystems()[0].getFileChecksum(actualPath);
+  public FileChecksum getFileChecksum(Path file) throws IOException {
+    FilesetContextPair pair = getFilesetContext(file, FilesetDataOperation.GET_FILE_CHECKSUM);
+    FileSystem[] fileSystems = pair.getFileSystems();
+    String[] actualPaths = pair.getContext().actualPaths();
+    for (int i = 0; i < actualPaths.length; i++) {
+      try {
+        return fileSystems[i].getFileChecksum(new Path(actualPaths[i]));
+      } catch (FileNotFoundException e) {
+        // Skipping log to avoid print to many logs
+      }
+    }
+    throw fileNotFoundException(file.toString());
   }
 
   @Override
@@ -636,6 +791,79 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     catalogCleanScheduler.shutdownNow();
     filesetFSCleanScheduler.shutdownNow();
     super.close();
+  }
+
+  private List<Integer> validateActualPaths(FileSystem[] fileSystems, String[] actualPaths)
+      throws IOException {
+    Preconditions.checkArgument(fileSystems != null, "The file systems cannot be null.");
+    Preconditions.checkArgument(actualPaths != null, "The actual paths cannot be null.");
+    Preconditions.checkArgument(
+        fileSystems.length == actualPaths.length,
+        String.format(
+            "The number of actual paths is different from the number of file systems, actual paths: %s, file systems: %s.",
+            actualPaths.length, fileSystems.length));
+
+    List<Integer> validatedActualPathIndexes = new ArrayList<>();
+    for (int i = 0; i < fileSystems.length; i++) {
+      if (fileSystems[i].exists(new Path(actualPaths[i]))) {
+        validatedActualPathIndexes.add(i);
+      }
+      Preconditions.checkArgument(
+          validatedActualPathIndexes.size() <= 1,
+          "Only support no more than one actual path exists.");
+    }
+    return validatedActualPathIndexes;
+  }
+
+  private List<Integer> validateActualPathsForList(FileSystem[] fileSystems, String[] actualPaths)
+      throws IOException {
+    Preconditions.checkArgument(fileSystems != null, "The file systems cannot be null.");
+    Preconditions.checkArgument(actualPaths != null, "The actual paths cannot be null.");
+    Preconditions.checkArgument(
+        fileSystems.length == actualPaths.length,
+        String.format(
+            "The number of actual paths is different from the number of file systems, actual paths: %s, file systems: %s.",
+            actualPaths.length, fileSystems.length));
+
+    List<Integer> validatedActualPathIndexes = new ArrayList<>();
+    for (int i = 0; i < fileSystems.length; i++) {
+      if (fileSystems[i].exists(new Path(actualPaths[i]))) {
+        validatedActualPathIndexes.add(i);
+      }
+    }
+    Preconditions.checkArgument(
+        !validatedActualPathIndexes.isEmpty(), "No actual path exists for list.");
+    return validatedActualPathIndexes;
+  }
+
+  private List<Integer> validateActualPaths(
+      FileSystem[] fileSystems, String[] srcPaths, String[] dstPaths) throws IOException {
+    Preconditions.checkArgument(fileSystems != null, "The file systems cannot be null.");
+    Preconditions.checkArgument(srcPaths != null, "The src paths cannot be null.");
+    Preconditions.checkArgument(dstPaths != null, "The dst paths cannot be null.");
+    Preconditions.checkArgument(
+        fileSystems.length == srcPaths.length && fileSystems.length == dstPaths.length,
+        String.format(
+            "The number of src and dst paths is different from the number of file systems, src paths: %s, dst paths: %s, file systems: %s.",
+            srcPaths.length, dstPaths.length, fileSystems.length));
+
+    List<Integer> validatedSrcPathIndexes = new ArrayList<>();
+    for (int i = 0; i < fileSystems.length; i++) {
+      Preconditions.checkArgument(
+          !fileSystems[i].exists(new Path(dstPaths[i])),
+          String.format("The dst path: %s already exists, cannot rename again.", dstPaths[i]));
+      if (fileSystems[i].exists(new Path(srcPaths[i]))) {
+        validatedSrcPathIndexes.add(i);
+      }
+      Preconditions.checkArgument(
+          validatedSrcPathIndexes.size() <= 1, "Only support no more than one actual path exists.");
+    }
+    return validatedSrcPathIndexes;
+  }
+
+  private static FileNotFoundException fileNotFoundException(String gvfsPath) {
+    return new FileNotFoundException(
+        String.format("Cannot find a valid actual path for gvfs path: %s.", gvfsPath));
   }
 
   private static class FilesetContextPair {

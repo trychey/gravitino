@@ -50,8 +50,8 @@ public class FileSystemTestUtils {
     return new Path(String.format("%s/%s/%s/%s", LOCAL_FS_PREFIX, filesetCatalog, schema, fileset));
   }
 
-  public static void create(Path path, FileSystem fileSystem) throws IOException {
-    boolean overwrite = true;
+  public static void create(Path path, FileSystem fileSystem, boolean overwrite)
+      throws IOException {
     try (FSDataOutputStream outputStream =
         fileSystem.create(
             path,
