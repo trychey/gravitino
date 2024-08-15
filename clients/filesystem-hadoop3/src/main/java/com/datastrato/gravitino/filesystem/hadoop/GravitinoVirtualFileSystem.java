@@ -610,7 +610,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     String[] actualPaths = pair.getContext().actualPaths();
     List<Integer> validateActualPathIndexes = validateActualPaths(fileSystems, actualPaths);
     if (validateActualPathIndexes.isEmpty()) {
-      throw fileNotFoundException(path.toString());
+      return false;
     }
     Integer index = validateActualPathIndexes.get(0);
     return fileSystems[index].delete(new Path(actualPaths[index]), recursive);

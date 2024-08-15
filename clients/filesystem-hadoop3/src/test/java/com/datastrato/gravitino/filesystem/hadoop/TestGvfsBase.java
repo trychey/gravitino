@@ -1014,8 +1014,7 @@ public class TestGvfsBase extends GravitinoMockServerBase {
         backupFs.delete(backupDirPath, true);
         assertFalse(primaryFs.exists(primaryDirPath));
         assertFalse(backupFs.exists(backupDirPath));
-        assertThrowsExactly(
-            FileNotFoundException.class, () -> gravitinoFileSystem.delete(dirPath, true));
+        assertFalse(gravitinoFileSystem.delete(dirPath, true));
       }
     }
   }

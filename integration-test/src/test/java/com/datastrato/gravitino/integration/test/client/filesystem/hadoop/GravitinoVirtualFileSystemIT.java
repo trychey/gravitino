@@ -705,6 +705,9 @@ public class GravitinoVirtualFileSystemIT extends AbstractIT {
         Assertions.assertFalse(gvfs.exists(deletePath));
         Assertions.assertFalse(primaryFs.exists(new Path(storageLocation + "/" + fileName)));
         Assertions.assertFalse(backupFs.exists(new Path(backupStorageLocation + "/" + fileName)));
+
+        // test actual paths do not exist.
+        Assertions.assertFalse(gvfs.delete(deletePath, true));
       } else {
         gvfs.delete(deletePath, true);
         Assertions.assertFalse(gvfs.exists(deletePath));
