@@ -105,4 +105,11 @@ class SimpleAuthenticator implements Authenticator {
       throw new UnauthorizedException("Invalid authenticated user.");
     }
   }
+
+  @Override
+  public boolean supportsToken(byte[] tokenData) {
+    return tokenData == null
+        || new String(tokenData, StandardCharsets.UTF_8)
+            .startsWith(AuthConstants.AUTHORIZATION_BASIC_HEADER);
+  }
 }

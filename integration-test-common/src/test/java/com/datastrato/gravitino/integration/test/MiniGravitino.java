@@ -21,12 +21,15 @@ import com.datastrato.gravitino.rest.RESTUtils;
 import com.datastrato.gravitino.server.GravitinoServer;
 import com.datastrato.gravitino.server.ServerConfig;
 import com.datastrato.gravitino.server.web.JettyServerConfig;
+import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
@@ -44,6 +47,7 @@ import org.slf4j.LoggerFactory;
  */
 public class MiniGravitino {
   private static final Logger LOG = LoggerFactory.getLogger(MiniGravitino.class);
+  private static final Splitter COMMA = Splitter.on(",").omitEmptyStrings().trimResults();
   private MiniGravitinoContext context;
   private RESTClient restClient;
   private final File mockConfDir;
@@ -108,19 +112,18 @@ public class MiniGravitino {
     this.host = jettyServerConfig.getHost();
     this.port = jettyServerConfig.getHttpPort();
     String URI = String.format("http://%s:%d", host, port);
-    if (AuthenticatorType.OAUTH
-        .name()
-        .toLowerCase()
-        .equals(context.customConfig.get(Configs.AUTHENTICATOR.getKey()))) {
+    List<String> authenticators = new ArrayList<>();
+    String authenticatorStr = context.customConfig.get(Configs.AUTHENTICATORS.getKey());
+    if (authenticatorStr != null) {
+      authenticators = COMMA.splitToList(authenticatorStr);
+    }
+    if (authenticators.contains(AuthenticatorType.OAUTH.name().toLowerCase())) {
       restClient =
           HTTPClient.builder(ImmutableMap.of())
               .uri(URI)
               .withAuthDataProvider(OAuthMockDataProvider.getInstance())
               .build();
-    } else if (AuthenticatorType.KERBEROS
-        .name()
-        .toLowerCase()
-        .equals(context.customConfig.get(Configs.AUTHENTICATOR.getKey()))) {
+    } else if (authenticators.contains(AuthenticatorType.KERBEROS.name().toLowerCase())) {
       restClient =
           HTTPClient.builder(ImmutableMap.of())
               .uri(URI)

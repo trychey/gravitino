@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.Enumeration;
+import java.util.List;
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
 import javax.servlet.FilterConfig;
@@ -24,15 +25,15 @@ import org.apache.commons.lang3.StringUtils;
 
 public class AuthenticationFilter implements Filter {
 
-  private final Authenticator filterAuthenticator;
+  private final List<Authenticator> filterAuthenticators;
 
   public AuthenticationFilter() {
-    filterAuthenticator = null;
+    filterAuthenticators = null;
   }
 
   @VisibleForTesting
-  AuthenticationFilter(Authenticator authenticator) {
-    this.filterAuthenticator = authenticator;
+  AuthenticationFilter(List<Authenticator> authenticators) {
+    this.filterAuthenticators = authenticators;
   }
 
   @Override
@@ -42,11 +43,11 @@ public class AuthenticationFilter implements Filter {
   public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
       throws IOException, ServletException {
     try {
-      Authenticator authenticator;
-      if (filterAuthenticator == null) {
-        authenticator = ServerAuthenticator.getInstance().authenticator();
+      List<Authenticator> authenticators;
+      if (filterAuthenticators == null || filterAuthenticators.isEmpty()) {
+        authenticators = ServerAuthenticator.getInstance().authenticators();
       } else {
-        authenticator = filterAuthenticator;
+        authenticators = filterAuthenticators;
       }
       HttpServletRequest req = (HttpServletRequest) request;
       Enumeration<String> headerData = req.getHeaders(AuthConstants.HTTP_HEADER_AUTHORIZATION);
@@ -55,15 +56,25 @@ public class AuthenticationFilter implements Filter {
       if (headerData.hasMoreElements()) {
         authData = headerData.nextElement().getBytes(StandardCharsets.UTF_8);
       }
-      if (authenticator.isDataFromToken()) {
-        Principal principal = authenticator.authenticateToken(authData);
-        request.setAttribute(AuthConstants.AUTHENTICATED_PRINCIPAL_ATTRIBUTE_NAME, principal);
+      Principal principal = null;
+      for (Authenticator authenticator : authenticators) {
+        if (authenticator.supportsToken(authData) && authenticator.isDataFromToken()) {
+          principal = authenticator.authenticateToken(authData);
+          if (principal != null) {
+            request.setAttribute(AuthConstants.AUTHENTICATED_PRINCIPAL_ATTRIBUTE_NAME, principal);
+            if (supportedProxyUser(authenticator) && StringUtils.isNotBlank(proxyUser)) {
+              // We will use the proxy-user override the principal from the authData. If we want to
+              // use
+              // principal from the authData, so do not pass the proxy-user in header.
+              principal = new UserPrincipal(proxyUser);
+              request.setAttribute(AuthConstants.AUTHENTICATED_PRINCIPAL_ATTRIBUTE_NAME, principal);
+            }
+            break;
+          }
+        }
       }
-      if (supportedProxyUser(authenticator) && StringUtils.isNotBlank(proxyUser)) {
-        // We will use the proxy-user override the principal from the authData. If we want to use
-        // principal from the authData, so do not pass the proxy-user in header.
-        Principal principal = new UserPrincipal(proxyUser);
-        request.setAttribute(AuthConstants.AUTHENTICATED_PRINCIPAL_ATTRIBUTE_NAME, principal);
+      if (principal == null) {
+        throw new UnauthorizedException("The provided credentials did not support");
       }
       chain.doFilter(request, response);
     } catch (UnauthorizedException ue) {

@@ -6,10 +6,11 @@
 package com.datastrato.gravitino.server.authentication;
 
 import com.datastrato.gravitino.Config;
+import java.util.List;
 
 public class ServerAuthenticator {
 
-  private Authenticator authenticator;
+  private List<Authenticator> authenticators;
 
   private ServerAuthenticator() {}
 
@@ -33,11 +34,13 @@ public class ServerAuthenticator {
    */
   public void initialize(Config config) {
     // Create and initialize Authenticator related modules
-    this.authenticator = AuthenticatorFactory.createAuthenticator(config);
-    this.authenticator.initialize(config);
+    this.authenticators = AuthenticatorFactory.createAuthenticators(config);
+    for (Authenticator authenticator : authenticators) {
+      authenticator.initialize(config);
+    }
   }
 
-  public Authenticator authenticator() {
-    return authenticator;
+  public List<Authenticator> authenticators() {
+    return authenticators;
   }
 }

@@ -59,7 +59,7 @@ public class KerberosOperationsIT extends AbstractIT {
             .withClientPrincipal(clientPrincipal)
             .withKeyTabFile(new File(keytabFile))
             .build());
-    configs.put(Configs.AUTHENTICATOR.getKey(), AuthenticatorType.KERBEROS.name().toLowerCase());
+    configs.put(Configs.AUTHENTICATORS.getKey(), AuthenticatorType.KERBEROS.name().toLowerCase());
     configs.put(PRINCIPAL.getKey(), serverPrincipal);
     configs.put(KEYTAB.getKey(), keytabFile);
     registerCustomConfigs(configs);
