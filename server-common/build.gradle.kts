@@ -26,11 +26,13 @@ dependencies {
   implementation(libs.commons.lang3)
   implementation(libs.guava)
   implementation(libs.prometheus.servlet)
+  implementation(libs.httpclient5)
 
   testImplementation(libs.commons.io)
   testImplementation(libs.junit.jupiter.api)
   testImplementation(libs.junit.jupiter.params)
   testImplementation(libs.mockito.core)
+  testImplementation(libs.mockserver.netty)
   testImplementation(libs.commons.io)
   testImplementation(libs.minikdc) {
     exclude("org.apache.directory.api", "api-ldap-schema-data")
