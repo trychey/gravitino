@@ -144,6 +144,11 @@ tasks.test {
       exclude("**/integration/test/web/ui/**")
     }
 
+    val skipTrinoITs = project.hasProperty("skipTrinoITs")
+    if (skipTrinoITs) {
+      exclude("**/integration/test/trino/**")
+    }
+
     dependsOn(":trino-connector:jar")
     dependsOn(":catalogs:catalog-lakehouse-iceberg:jar", ":catalogs:catalog-lakehouse-iceberg:runtimeJars")
     dependsOn(":catalogs:catalog-jdbc-doris:jar", ":catalogs:catalog-jdbc-doris:runtimeJars")
