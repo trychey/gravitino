@@ -112,4 +112,8 @@ class SimpleAuthenticator implements Authenticator {
         || new String(tokenData, StandardCharsets.UTF_8)
             .startsWith(AuthConstants.AUTHORIZATION_BASIC_HEADER);
   }
+
+  public boolean isLocalEnv() {
+    return localEnv;
+  }
 }

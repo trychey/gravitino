@@ -30,14 +30,21 @@ public class Utils {
       GravitinoEnv.getInstance().config() != null
           ? GravitinoEnv.getInstance().config().get(SimpleConfig.LOCAL_ENV)
           : true;
+  private static final String ENCRYPTED_SUPER_USERS =
+      GravitinoEnv.getInstance().config() != null
+          ? GravitinoEnv.getInstance().config().get(SimpleConfig.SUPER_USERS)
+          : null;
   private static final String ENCRYPTED_READ_ONLY_USERS =
       GravitinoEnv.getInstance().config() != null
           ? GravitinoEnv.getInstance().config().get(SimpleConfig.READONLY_SUPER_USERS)
           : null;
   private static volatile Set<String> READ_ONLY_USERS = null;
+  private static volatile Set<String> SUPER_USERS = null;
   private static final Splitter SPLITTER = Splitter.on(",").omitEmptyStrings().trimResults();
   private static final Pattern GET_FILESET_CONTEXT_API_PATTERN =
       Pattern.compile(".*metalakes/.+/catalogs/.+/schemas/.+/filesets/.+/context");
+  private static final Pattern DATA_WORKSHOP_USER_PRINCIPAL_PATTERN =
+      Pattern.compile("^[^:]+:[0-9]+:[^:]+$");
 
   private Utils() {}
 
@@ -144,27 +151,71 @@ public class Utils {
       if (principal == null) {
         return Response.status(Response.Status.UNAUTHORIZED).build();
       }
-      if (StringUtils.isNotBlank(ENCRYPTED_READ_ONLY_USERS)) {
-        if (READ_ONLY_USERS == null) {
-          synchronized (Utils.class) {
-            if (READ_ONLY_USERS == null) {
-              // load read only users from config
-              String readOnlyUsers =
-                  CipherUtils.decryptStringWithoutCompress(ENCRYPTED_READ_ONLY_USERS);
-              READ_ONLY_USERS = SPLITTER.splitToStream(readOnlyUsers).collect(Collectors.toSet());
+
+      loadSuperUsers();
+      loadReadOnlySuperUsers();
+
+      Object superUserObject =
+          httpRequest.getAttribute(AuthConstants.AUTHENTICATED_SUPERUSER_ATTRIBUTE_NAME);
+      if (superUserObject != null) {
+        UserPrincipal superUserPrincipal = (UserPrincipal) superUserObject;
+        String superUserName = superUserPrincipal.getName();
+        if (SUPER_USERS.contains(superUserName)) {
+          // check read only superusers
+          if (READ_ONLY_USERS.contains(superUserName)) {
+            // check whether it is `GET` request, except for getFilesetContext
+            Matcher matcher = GET_FILESET_CONTEXT_API_PATTERN.matcher(httpRequest.getRequestURI());
+            if (!httpRequest.getMethod().equals("GET") && !matcher.matches()) {
+              return Response.status(Response.Status.FORBIDDEN).build();
             }
           }
+        } else {
+          return Response.status(Response.Status.UNAUTHORIZED).build();
         }
-        // check read only users
-        if (READ_ONLY_USERS.contains(principal.getName())) {
-          // check whether it is `GET` request, except for getFilesetContext
+      } else {
+        // check token user
+        String principalName = principal.getName();
+        Matcher tokenMatcher = DATA_WORKSHOP_USER_PRINCIPAL_PATTERN.matcher(principalName);
+        if (tokenMatcher.matches()) {
           Matcher matcher = GET_FILESET_CONTEXT_API_PATTERN.matcher(httpRequest.getRequestURI());
           if (!httpRequest.getMethod().equals("GET") && !matcher.matches()) {
             return Response.status(Response.Status.FORBIDDEN).build();
           }
+        } else {
+          return Response.status(Response.Status.UNAUTHORIZED).build();
         }
       }
     }
+
     return PrincipalUtils.doAs(principal, action);
+  }
+
+  private static void loadSuperUsers() {
+    if (StringUtils.isNotBlank(ENCRYPTED_SUPER_USERS)) {
+      if (SUPER_USERS == null) {
+        synchronized (Utils.class) {
+          if (SUPER_USERS == null) {
+            // load superusers from config
+            String superUsers = CipherUtils.decryptStringWithoutCompress(ENCRYPTED_SUPER_USERS);
+            SUPER_USERS = SPLITTER.splitToStream(superUsers).collect(Collectors.toSet());
+          }
+        }
+      }
+    }
+  }
+
+  private static void loadReadOnlySuperUsers() {
+    if (StringUtils.isNotBlank(ENCRYPTED_READ_ONLY_USERS)) {
+      if (READ_ONLY_USERS == null) {
+        synchronized (Utils.class) {
+          if (READ_ONLY_USERS == null) {
+            // load read only users from config
+            String readOnlyUsers =
+                CipherUtils.decryptStringWithoutCompress(ENCRYPTED_READ_ONLY_USERS);
+            READ_ONLY_USERS = SPLITTER.splitToStream(readOnlyUsers).collect(Collectors.toSet());
+          }
+        }
+      }
+    }
   }
 }

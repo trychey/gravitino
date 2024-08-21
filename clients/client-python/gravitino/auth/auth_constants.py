@@ -8,3 +8,5 @@ class AuthConstants:
     HTTP_HEADER_AUTHORIZATION: str = "Authorization"
 
     AUTHORIZATION_BASIC_HEADER: str = "Basic "
+
+    AUTHORIZATION_TOKEN_HEADER: str = "Token "

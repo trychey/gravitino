@@ -61,7 +61,9 @@ gravitino.auxService.iceberg-rest.httpPort = 9001
 # Enable the authorization
 gravitino.authorization.enable = true
 
-gravitino.authenticators = simple
+gravitino.authenticators = simple,token
+gravitino.authenticator.token.serverUri = http://workspace-token.dp.pt.xiaomi.com/api/users
+
 # Gravitino super users authenticated by Simple Authenticator. Will encrypted by KeyCenter.
 gravitino.authenticator.simple.superUsers=GIABrAPvGDnBhFqRKkJY3ndPhwk08gablFuplnEeScJwTVlGaoDnE3TjYQzXzaZQiWJKriLdzi/bidGxMtGr+TVDh4qCb1bCw30gJ02x6y0xNbxrhMNyDd1OII24pn3VCZpivGy5kENz2ccg5kguxAP/FXYQzUOKbHq5cxT6a90GnIYYEoC2ksyuk09thmtDMf7ScvA5/xgQLHkDzvlzQUG+g8i8M0WFUxgU215AhdULwve0TB5wnh50zCV5wRwA
 gravitino.authenticator.simple.readOnly.superUsers=GFCqk07mZjmnQxmg5G/Jj/YK9gOQTGCFK4+2ZcP2Vt6iTXdHrL4ShDY4T9er4JIRH7b9Za3GdAf7ceMD1zjrWYnT3B3pN1/PACKychLD2QZlQBgSZf81XhN1Qm2gBty9ZmKZcTb/GBDOx2NaB3xIZI/d8B6tquZwGBQLFpdhy2iF14fQ8wxwQ2iWInbZVgA=

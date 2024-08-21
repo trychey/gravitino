@@ -42,6 +42,14 @@ public final class AuthConstants {
       AuthConstants.class.getName() + "-principal";
 
   /**
+   * The default name of the attribute that stores the superuser in the request.
+   *
+   * <p>Refer to the style of `AuthenticationFilter#AuthenticatedRoleAttributeName` of Apache Pulsar
+   */
+  public static final String AUTHENTICATED_SUPERUSER_ATTRIBUTE_NAME =
+      AuthConstants.class.getName() + "-superuser";
+
+  /**
    * There are no OAuth in Xiaomi. So we can't authenticate who the user really is in data platform.
    * So we use X-Proxy-User to pass the username.
    */

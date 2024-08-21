@@ -28,9 +28,11 @@ from gravitino.api.fileset_context import FilesetContext
 from gravitino.api.fileset_data_operation import FilesetDataOperation
 from gravitino.api.source_engine_type import SourceEngineType
 from gravitino.auth.simple_auth_provider import SimpleAuthProvider
+from gravitino.auth.token_auth_provider import TokenAuthProvider
 from gravitino.catalog.fileset_catalog import FilesetCatalog
 from gravitino.client.gravitino_client import GravitinoClient
 from gravitino.exceptions.gravitino_runtime_exception import GravitinoRuntimeException
+from gravitino.filesystem.gvfs_config import GVFSConfig
 from gravitino.name_identifier import NameIdentifier
 
 PROTOCOL_NAME = "gvfs"
@@ -74,10 +76,9 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
 
     def __init__(
         self,
-        server_uri=None,
-        metalake_name=None,
-        cache_size=20,
-        cache_expired_time=300,
+        server_uri: str = None,
+        metalake_name: str = None,
+        options: Dict = None,
         **kwargs,
     ):
         if metalake_name is not None:
@@ -100,10 +101,43 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
                     + "'GRAVITINO_SERVER' or provide it as a parameter."
                 )
             self._server_uri = server_uri
-        self._client = GravitinoClient(
-            uri=self._server_uri,
-            metalake_name=self._metalake,
-            auth_data_provider=SimpleAuthProvider(),
+        auth_type = (
+            GVFSConfig.DEFAULT_AUTH_TYPE
+            if options is None
+            else options.get(GVFSConfig.AUTH_TYPE, GVFSConfig.DEFAULT_AUTH_TYPE)
+        )
+        if auth_type == GVFSConfig.DEFAULT_AUTH_TYPE:
+            self._client = GravitinoClient(
+                uri=self._server_uri,
+                metalake_name=self._metalake,
+                auth_data_provider=SimpleAuthProvider(),
+            )
+        elif auth_type == GVFSConfig.TOKEN_AUTH_TYPE:
+            token_value = options.get(GVFSConfig.TOKEN_VALUE, None)
+            assert (
+                token_value is not None
+            ), "Token value is not provided when using token auth type."
+            token_provider: TokenAuthProvider = TokenAuthProvider(token_value)
+            self._client = GravitinoClient(
+                uri=self._server_uri,
+                metalake_name=self._metalake,
+                auth_data_provider=token_provider,
+            )
+        else:
+            raise GravitinoRuntimeException(
+                f"Authentication type {auth_type} is not supported."
+            )
+        cache_size = (
+            GVFSConfig.DEFAULT_CACHE_SIZE
+            if options is None
+            else options.get(GVFSConfig.CACHE_SIZE, GVFSConfig.DEFAULT_CACHE_SIZE)
+        )
+        cache_expired_time = (
+            GVFSConfig.DEFAULT_CACHE_EXPIRED_TIME
+            if options is None
+            else options.get(
+                GVFSConfig.CACHE_EXPIRED_TIME, GVFSConfig.DEFAULT_CACHE_EXPIRED_TIME
+            )
         )
         assert cache_expired_time != 0, "Cache expired time cannot be 0."
         assert cache_size > 0, "Cache size cannot be less than or equal to 0."

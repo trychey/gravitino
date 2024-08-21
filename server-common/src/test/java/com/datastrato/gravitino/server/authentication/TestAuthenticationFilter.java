@@ -78,30 +78,7 @@ public class TestAuthenticationFilter {
     when(authenticator.isDataFromToken()).thenReturn(true);
     when(authenticator.authenticateToken(any())).thenReturn(new UserPrincipal("user"));
     filter.doFilter(mockRequest, mockResponse, mockChain);
-    verify(mockRequest, times(2))
-        .setAttribute(eq(AuthConstants.AUTHENTICATED_PRINCIPAL_ATTRIBUTE_NAME), any());
     verify(mockRequest, times(1))
-        .setAttribute(
-            eq(AuthConstants.AUTHENTICATED_PRINCIPAL_ATTRIBUTE_NAME),
-            eq(new UserPrincipal("proxy-user")));
-    verify(mockResponse, never()).sendError(anyInt(), anyString());
-  }
-
-  @Test
-  public void testKerberosFilterWithProxyUser() throws ServletException, IOException {
-    Authenticator authenticator = mock(KerberosAuthenticator.class);
-    AuthenticationFilter filter = new AuthenticationFilter(Lists.newArrayList(authenticator));
-    FilterChain mockChain = mock(FilterChain.class);
-    HttpServletRequest mockRequest = mock(HttpServletRequest.class);
-    HttpServletResponse mockResponse = mock(HttpServletResponse.class);
-    when(mockRequest.getHeaders(AuthConstants.HTTP_HEADER_AUTHORIZATION))
-        .thenReturn(new Vector<>(Collections.singletonList("user")).elements());
-    when(mockRequest.getHeader(AuthConstants.PROXY_USER)).thenReturn("proxy-user");
-    when(authenticator.supportsToken(any())).thenReturn(true);
-    when(authenticator.isDataFromToken()).thenReturn(true);
-    when(authenticator.authenticateToken(any())).thenReturn(new UserPrincipal("user"));
-    filter.doFilter(mockRequest, mockResponse, mockChain);
-    verify(mockRequest, times(2))
         .setAttribute(eq(AuthConstants.AUTHENTICATED_PRINCIPAL_ATTRIBUTE_NAME), any());
     verify(mockRequest, times(1))
         .setAttribute(

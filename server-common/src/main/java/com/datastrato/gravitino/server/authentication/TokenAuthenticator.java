@@ -7,15 +7,16 @@ package com.datastrato.gravitino.server.authentication;
 import static com.datastrato.gravitino.server.authentication.TokenAuthConfig.SERVER_URI;
 
 import com.datastrato.gravitino.Config;
+import com.datastrato.gravitino.UserPrincipal;
 import com.datastrato.gravitino.auth.AuthConstants;
 import com.datastrato.gravitino.exceptions.UnauthorizedException;
 import com.datastrato.gravitino.json.JsonUtils;
-import com.sun.security.auth.UserPrincipal;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
+import java.util.Base64;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -47,7 +48,8 @@ public class TokenAuthenticator implements Authenticator {
       throw new UnauthorizedException("Invalid token authorization header");
     }
     String token = authData.substring(AuthConstants.AUTHORIZATION_TOKEN_HEADER.length());
-    HttpGet httpGet = buildTokenRequest(token);
+    String userToken = new String(Base64.getDecoder().decode(token), StandardCharsets.UTF_8);
+    HttpGet httpGet = buildTokenRequest(userToken);
     try (CloseableHttpResponse response = httpClient.execute(httpGet)) {
       if (response.getEntity() == null) {
         throw new UnauthorizedException("Unable to authenticate from token server");
@@ -77,6 +79,13 @@ public class TokenAuthenticator implements Authenticator {
   public void initialize(Config config) throws RuntimeException {
     this.tokenServerUri = config.get(SERVER_URI);
     this.httpClient = HttpClients.createDefault();
+  }
+
+  @Override
+  public boolean supportsToken(byte[] tokenData) {
+    return tokenData != null
+        && new String(tokenData, StandardCharsets.UTF_8)
+            .startsWith(AuthConstants.AUTHORIZATION_TOKEN_HEADER);
   }
 
   private HttpGet buildTokenRequest(String token) {

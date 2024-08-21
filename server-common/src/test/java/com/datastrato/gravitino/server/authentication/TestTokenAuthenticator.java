@@ -11,10 +11,11 @@ import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
 
 import com.datastrato.gravitino.Config;
+import com.datastrato.gravitino.UserPrincipal;
+import com.datastrato.gravitino.auth.AuthConstants;
 import com.datastrato.gravitino.exceptions.UnauthorizedException;
-import com.sun.security.auth.UserPrincipal;
 import java.nio.charset.StandardCharsets;
-import java.security.Principal;
+import java.util.Base64;
 import java.util.Locale;
 import org.apache.hc.core5.http.Method;
 import org.junit.jupiter.api.AfterAll;
@@ -67,22 +68,58 @@ public class TestTokenAuthenticator {
     UnauthorizedException failedAuth1 =
         assertThrows(
             UnauthorizedException.class,
-            () -> MOCK_AUTHENTICATOR.authenticateToken("Token 1".getBytes(StandardCharsets.UTF_8)));
-    assertEquals("Unable to authenticate with token: 1, code: 500", failedAuth1.getMessage());
+            () ->
+                MOCK_AUTHENTICATOR.authenticateToken(
+                    (AuthConstants.AUTHORIZATION_TOKEN_HEADER
+                            + new String(
+                                Base64.getEncoder().encode("1".getBytes(StandardCharsets.UTF_8)),
+                                StandardCharsets.UTF_8))
+                        .getBytes(StandardCharsets.UTF_8)));
+    assertEquals(
+        String.format(
+            "Unable to authenticate with token: %s, code: 500",
+            new String(
+                Base64.getEncoder().encode("1".getBytes(StandardCharsets.UTF_8)),
+                StandardCharsets.UTF_8)),
+        failedAuth1.getMessage());
 
     mockTokenResponse("2", 400, "{\"code\":\"-1\",\"msg\":\"token not exist: 2\"}");
     UnauthorizedException failedAuth2 =
         assertThrows(
             UnauthorizedException.class,
-            () -> MOCK_AUTHENTICATOR.authenticateToken("Token 2".getBytes(StandardCharsets.UTF_8)));
-    assertEquals("Unable to authenticate with token: 2, code: 400", failedAuth2.getMessage());
+            () ->
+                MOCK_AUTHENTICATOR.authenticateToken(
+                    (AuthConstants.AUTHORIZATION_TOKEN_HEADER
+                            + new String(
+                                Base64.getEncoder().encode("2".getBytes(StandardCharsets.UTF_8)),
+                                StandardCharsets.UTF_8))
+                        .getBytes(StandardCharsets.UTF_8)));
+    assertEquals(
+        String.format(
+            "Unable to authenticate with token: %s, code: 400",
+            new String(
+                Base64.getEncoder().encode("2".getBytes(StandardCharsets.UTF_8)),
+                StandardCharsets.UTF_8)),
+        failedAuth2.getMessage());
 
     mockTokenResponse("3", 200, null);
     UnauthorizedException failedAuth3 =
         assertThrows(
             UnauthorizedException.class,
-            () -> MOCK_AUTHENTICATOR.authenticateToken("Token 3".getBytes(StandardCharsets.UTF_8)));
-    assertEquals("Unable to authenticate with token: 3", failedAuth3.getMessage());
+            () ->
+                MOCK_AUTHENTICATOR.authenticateToken(
+                    (AuthConstants.AUTHORIZATION_TOKEN_HEADER
+                            + new String(
+                                Base64.getEncoder().encode("3".getBytes(StandardCharsets.UTF_8)),
+                                StandardCharsets.UTF_8))
+                        .getBytes(StandardCharsets.UTF_8)));
+    assertEquals(
+        String.format(
+            "Unable to authenticate with token: %s",
+            new String(
+                Base64.getEncoder().encode("3".getBytes(StandardCharsets.UTF_8)),
+                StandardCharsets.UTF_8)),
+        failedAuth3.getMessage());
   }
 
   @Test
@@ -91,8 +128,14 @@ public class TestTokenAuthenticator {
         "4",
         200,
         "{\"username\":\"zhangsan\",\"workspaceId\":10001,\"role\":\"admin\",\"rangerRole\":\"workspace_10001.admin\"}");
-    Principal principal =
-        MOCK_AUTHENTICATOR.authenticateToken("Token 4".getBytes(StandardCharsets.UTF_8));
+    UserPrincipal principal =
+        (UserPrincipal)
+            MOCK_AUTHENTICATOR.authenticateToken(
+                (AuthConstants.AUTHORIZATION_TOKEN_HEADER
+                        + new String(
+                            Base64.getEncoder().encode("4".getBytes(StandardCharsets.UTF_8)),
+                            StandardCharsets.UTF_8))
+                    .getBytes(StandardCharsets.UTF_8));
     assertEquals(new UserPrincipal("zhangsan:10001:admin"), principal);
   }
 

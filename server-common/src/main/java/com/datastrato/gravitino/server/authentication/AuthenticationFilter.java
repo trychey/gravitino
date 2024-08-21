@@ -61,14 +61,20 @@ public class AuthenticationFilter implements Filter {
         if (authenticator.supportsToken(authData) && authenticator.isDataFromToken()) {
           principal = authenticator.authenticateToken(authData);
           if (principal != null) {
-            request.setAttribute(AuthConstants.AUTHENTICATED_PRINCIPAL_ATTRIBUTE_NAME, principal);
-            if (supportedProxyUser(authenticator) && StringUtils.isNotBlank(proxyUser)) {
-              // We will use the proxy-user override the principal from the authData. If we want to
-              // use
-              // principal from the authData, so do not pass the proxy-user in header.
-              principal = new UserPrincipal(proxyUser);
-              request.setAttribute(AuthConstants.AUTHENTICATED_PRINCIPAL_ATTRIBUTE_NAME, principal);
+            if (authenticator instanceof SimpleAuthenticator) {
+              SimpleAuthenticator simpleAuthenticator = (SimpleAuthenticator) authenticator;
+              if (!simpleAuthenticator.isLocalEnv()) {
+                // Set the superuser in the header.
+                request.setAttribute(
+                    AuthConstants.AUTHENTICATED_SUPERUSER_ATTRIBUTE_NAME, principal);
+                // We will use the proxy-user override the principal from the authData. If we want
+                // to use principal from the authData, so do not pass the proxy-user in header.
+                if (StringUtils.isNotBlank(proxyUser)) {
+                  principal = new UserPrincipal(proxyUser);
+                }
+              }
             }
+            request.setAttribute(AuthConstants.AUTHENTICATED_PRINCIPAL_ATTRIBUTE_NAME, principal);
             break;
           }
         }
@@ -93,11 +99,4 @@ public class AuthenticationFilter implements Filter {
 
   @Override
   public void destroy() {}
-
-  // Only simple and kerberos support proxy user. We will not support proxy-user
-  // for OAuth and Token.
-  private boolean supportedProxyUser(Authenticator authenticator) {
-    return authenticator instanceof SimpleAuthenticator
-        || authenticator instanceof KerberosAuthenticator;
-  }
 }
