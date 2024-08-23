@@ -1,0 +1,77 @@
+<!--
+  ~ Copyright 2024 Datastrato Pvt Ltd.
+  ~ This software is licensed under the Apache License version 2.
+  -->
+<configuration>
+
+  <property>
+    <name>fs.defaultFS</name>
+    <value>hdfs://alsgprc-hadoop</value>
+  </property>
+
+  <property>
+    <name>ha.zookeeper.quorum</name>
+    <value>10.58.127.73:11000,10.58.125.161:11000,10.58.127.74:11000,10.58.125.162:11000,10.58.127.75:11000</value>
+  </property>
+
+  <property>
+    <name>hadoop.http.staticuser.user</name>
+    <value>yarn</value>
+  </property>
+
+  <property>
+    <name>hadoop.proxyuser.hive_prc.groups</name>
+    <value>*</value>
+  </property>
+
+  <property>
+    <name>hadoop.proxyuser.hive_prc.hosts</name>
+    <value>*</value>
+  </property>
+
+  <property>
+    <name>hadoop.proxyuser.hue.groups</name>
+    <value>*</value>
+  </property>
+
+  <property>
+    <name>hadoop.proxyuser.hue.hosts</name>
+    <value>*</value>
+  </property>
+
+  <property>
+    <name>hadoop.security.authentication</name>
+    <value>kerberos</value>
+  </property>
+
+  <property>
+    <name>hadoop.security.authorization</name>
+    <value>true</value>
+  </property>
+
+  <property>
+    <name>hadoop.security.group.mapping</name>
+    <value>org.apache.hadoop.yarn.server.resourcemanager.scheduler.fair.DummyGroupsMapping</value>
+  </property>
+
+  <property>
+    <name>hadoop.security.use-weak-http-crypto</name>
+    <value>false</value>
+  </property>
+
+  <property>
+    <name>hadoop.tmp.dir</name>
+    <value>/tmp/hadoop</value>
+  </property>
+
+  <property>
+    <name>io.file.buffer.size</name>
+    <value>131072</value>
+  </property>
+
+  <property>
+    <name>ipc.client.ping</name>
+    <value>false</value>
+  </property>
+
+</configuration>
