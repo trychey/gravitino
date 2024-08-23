@@ -50,11 +50,6 @@
   </property>
 
   <property>
-    <name>hadoop.security.group.mapping</name>
-    <value>org.apache.hadoop.yarn.server.resourcemanager.scheduler.fair.DummyGroupsMapping</value>
-  </property>
-
-  <property>
     <name>hadoop.security.use-weak-http-crypto</name>
     <value>false</value>
   </property>
