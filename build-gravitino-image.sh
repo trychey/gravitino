@@ -1,4 +1,11 @@
+
 #bin/bash
+
+#
+# Copyright 2024 Datastrato Pvt Ltd.
+# This software is licensed under the Apache License version 2.
+#
+
 # build gravitino docker image: ./build-gravitino-image ${cluster} ${image_name}
 
 ./gradlew compileDistribution -x test -PjdkVersion=8 -Pcluster=$1 --no-build-cache \

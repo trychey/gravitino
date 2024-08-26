@@ -10,6 +10,7 @@ variables:
 
 stages:
   - spotless_check
+  - license_check
   - unit_test
   - integration_test
   - staging_deploy
@@ -67,6 +68,21 @@ checkstyle:
     - ./gradlew clean spotlessCheck -x test --no-build-cache
       "-Dorg.gradle.jvmargs=-Xmx16g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
 
+  allow_failure: false
+  retry: 1
+  interruptible: true
+  tags:
+    - grav-it
+
+license-check:
+  stage: license_check
+  variables:
+    GIT_STRATEGY: clone
+  <<: *clean_up_running_environment
+  rules:
+    - !reference [ .check_and_test_rules, rules ]
+  script:
+    - ./gradlew rat
   allow_failure: false
   retry: 1
   interruptible: true
