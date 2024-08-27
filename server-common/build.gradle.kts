@@ -24,6 +24,7 @@ dependencies {
   implementation(libs.bundles.log4j)
   implementation(libs.bundles.metrics)
   implementation(libs.commons.lang3)
+  implementation(libs.caffeine)
   implementation(libs.guava)
   implementation(libs.prometheus.servlet)
   implementation(libs.httpclient5)

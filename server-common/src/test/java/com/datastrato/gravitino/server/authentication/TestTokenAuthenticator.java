@@ -76,11 +76,7 @@ public class TestTokenAuthenticator {
                                 StandardCharsets.UTF_8))
                         .getBytes(StandardCharsets.UTF_8)));
     assertEquals(
-        String.format(
-            "Unable to authenticate with token: %s, code: 500",
-            new String(
-                Base64.getEncoder().encode("1".getBytes(StandardCharsets.UTF_8)),
-                StandardCharsets.UTF_8)),
+        String.format("Unable to authenticate with token: %s, code: 500", "1"),
         failedAuth1.getMessage());
 
     mockTokenResponse("2", 400, "{\"code\":\"-1\",\"msg\":\"token not exist: 2\"}");
@@ -95,11 +91,7 @@ public class TestTokenAuthenticator {
                                 StandardCharsets.UTF_8))
                         .getBytes(StandardCharsets.UTF_8)));
     assertEquals(
-        String.format(
-            "Unable to authenticate with token: %s, code: 400",
-            new String(
-                Base64.getEncoder().encode("2".getBytes(StandardCharsets.UTF_8)),
-                StandardCharsets.UTF_8)),
+        String.format("Unable to authenticate with token: %s, code: 400", "2"),
         failedAuth2.getMessage());
 
     mockTokenResponse("3", 200, null);
@@ -114,12 +106,7 @@ public class TestTokenAuthenticator {
                                 StandardCharsets.UTF_8))
                         .getBytes(StandardCharsets.UTF_8)));
     assertEquals(
-        String.format(
-            "Unable to authenticate with token: %s",
-            new String(
-                Base64.getEncoder().encode("3".getBytes(StandardCharsets.UTF_8)),
-                StandardCharsets.UTF_8)),
-        failedAuth3.getMessage());
+        String.format("Unable to authenticate with token: %s", "3"), failedAuth3.getMessage());
   }
 
   @Test
