@@ -36,10 +36,8 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -48,7 +46,6 @@ import java.util.regex.Pattern;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
-import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileChecksum;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -80,6 +77,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   private String appId;
   private SourceEngineType sourceType;
   private static final ClientType clientType = ClientType.HADOOP_GVFS;
+  private static boolean isFsGravitinoFilesetWritePrimaryOnly = false;
 
   // The pattern is used to match gvfs path. The scheme prefix (gvfs://fileset) is optional.
   // The following path can be match:
@@ -137,6 +135,12 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     this.localAddress = getLocalAddress();
     this.appId = getAppId();
     this.sourceType = getSourceType();
+
+    isFsGravitinoFilesetWritePrimaryOnly =
+        configuration.getBoolean(
+            GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_FILESET_WRITE_PRIMARY_ONLY,
+            GravitinoVirtualFileSystemConfiguration
+                .FS_GRAVITINO_FILESET_WRITE_PRIMARY_ONLY_DEFAULT);
 
     setConf(configuration);
     super.initialize(uri, getConf());
@@ -535,6 +539,16 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     FilesetContextPair pair = getFilesetContext(path, FilesetDataOperation.CREATE);
     FileSystem[] fileSystems = pair.getFileSystems();
     String[] actualPaths = pair.getContext().actualPaths();
+    if (isFsGravitinoFilesetWritePrimaryOnly) {
+      return fileSystems[0].create(
+          new Path(actualPaths[0]),
+          permission,
+          overwrite,
+          bufferSize,
+          replication,
+          blockSize,
+          progress);
+    }
     List<Integer> validateActualPathIndexes = validateActualPaths(fileSystems, actualPaths);
     if (validateActualPathIndexes.isEmpty()) {
       return fileSystems[0].create(
@@ -608,6 +622,9 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     FilesetContextPair pair = getFilesetContext(path, FilesetDataOperation.DELETE);
     FileSystem[] fileSystems = pair.getFileSystems();
     String[] actualPaths = pair.getContext().actualPaths();
+    if (isFsGravitinoFilesetWritePrimaryOnly) {
+      return fileSystems[0].delete(new Path(actualPaths[0]), recursive);
+    }
     List<Integer> validateActualPathIndexes = validateActualPaths(fileSystems, actualPaths);
     if (validateActualPathIndexes.isEmpty()) {
       return false;
@@ -641,36 +658,20 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     FilesetContextPair pair = getFilesetContext(path, FilesetDataOperation.LIST_STATUS);
     NameIdentifier identifier = extractIdentifier(path.toUri());
 
-    List<FileStatus> gvfsFileStatus = new ArrayList<>();
-    Set<String> distinctFileStatus = new HashSet<>();
-
     FileSystem[] fileSystems = pair.getFileSystems();
     String[] actualPaths = pair.getContext().actualPaths();
 
     List<Integer> validateActualPathsForList = validateActualPathsForList(fileSystems, actualPaths);
-    for (int i = 0; i < validateActualPathsForList.size(); i++) {
-      int index = validateActualPathsForList.get(i);
-      try {
-        FileStatus[] fileStatuses = fileSystems[index].listStatus(new Path(actualPaths[index]));
-        Arrays.stream(fileStatuses)
-            .map(
-                fileStatus ->
-                    convertFileStatusPathPrefix(
-                        fileStatus,
-                        getStorageLocation(pair.getContext().fileset(), index),
-                        getVirtualLocation(identifier, true)))
-            .forEach(
-                fileStatus -> {
-                  if (distinctFileStatus.add(fileStatus.getPath().toString())) {
-                    gvfsFileStatus.add(fileStatus);
-                  }
-                });
-      } catch (FileNotFoundException e) {
-        // Skipping log to avoid print to many logs
-      }
-    }
-
-    return gvfsFileStatus.toArray(new FileStatus[0]);
+    int index = validateActualPathsForList.get(0);
+    FileStatus[] fileStatuses = fileSystems[index].listStatus(new Path(actualPaths[index]));
+    return Arrays.stream(fileStatuses)
+        .map(
+            fileStatus ->
+                convertFileStatusPathPrefix(
+                    fileStatus,
+                    getStorageLocation(pair.getContext().fileset(), index),
+                    getVirtualLocation(identifier, true)))
+        .toArray(FileStatus[]::new);
   }
 
   @Override
@@ -680,8 +681,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     String[] actualPaths = pair.getContext().actualPaths();
     for (int i = 0; i < actualPaths.length; i++) {
       if (fileSystems[i].exists(new Path(actualPaths[i]))) {
-        throw new FileAlreadyExistsException(
-            String.format("The gvfs directory: %s already exists.", path));
+        return true;
       }
     }
     Path actualPath = new Path(actualPaths[0]);

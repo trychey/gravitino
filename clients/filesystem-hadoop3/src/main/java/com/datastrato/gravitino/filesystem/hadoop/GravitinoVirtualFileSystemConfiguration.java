@@ -70,5 +70,10 @@ class GravitinoVirtualFileSystemConfiguration {
 
   public static final String FS_GRAVITINO_TESTING_DEFAULT = "false";
 
+  public static final String FS_GRAVITINO_FILESET_WRITE_PRIMARY_ONLY =
+      "fs.gravitino.fileset.write.primaryOnly";
+
+  public static final boolean FS_GRAVITINO_FILESET_WRITE_PRIMARY_ONLY_DEFAULT = false;
+
   private GravitinoVirtualFileSystemConfiguration() {}
 }

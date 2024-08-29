@@ -6,6 +6,7 @@ package com.datastrato.gravitino.integration.test.client.filesystem.hadoop;
 
 import static com.datastrato.gravitino.connector.BaseCatalog.CATALOG_BYPASS_PREFIX;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastrato.gravitino.Catalog;
 import com.datastrato.gravitino.NameIdentifier;
@@ -32,7 +33,6 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
-import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -57,6 +57,8 @@ public class GravitinoVirtualFileSystemIT extends AbstractIT {
   private static Configuration conf = new Configuration();
   private static final String CHECK_UNIQUE_STORAGE_LOCATION_SCHEME =
       "check.unique.storage.location.scheme";
+  private static final String FS_GRAVITINO_FILESET_WRITE_PRIMARY_ONLY =
+      "fs.gravitino.fileset.write.primaryOnly";
 
   @BeforeAll
   public static void startUp() {
@@ -637,6 +639,57 @@ public class GravitinoVirtualFileSystemIT extends AbstractIT {
     }
   }
 
+  @Test
+  public void testCreateWithDoubleWrite() throws IOException {
+    // create fileset
+    String filesetName = "test_fileset_create_with_double_write";
+    NameIdentifier filesetIdent =
+        NameIdentifier.ofFileset(metalakeName, catalogName, schemaName, filesetName);
+    Catalog catalog = metalake.loadCatalog(NameIdentifier.ofCatalog(metalakeName, catalogName));
+    String storageLocation;
+    String backupStorageLocation;
+    Map<String, String> props;
+    storageLocation = genStorageLocation(filesetName);
+    backupStorageLocation = genBackupStorageLocation(filesetName);
+    props =
+        ImmutableMap.of(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, backupStorageLocation);
+
+    catalog
+        .asFilesetCatalog()
+        .createFileset(
+            filesetIdent, "fileset comment", Fileset.Type.MANAGED, storageLocation, props);
+    Assertions.assertTrue(catalog.asFilesetCatalog().filesetExists(filesetIdent));
+
+    // test gvfs create
+    Path primaryPath = new Path(storageLocation);
+    Path backupPath = new Path(backupStorageLocation);
+    Path gvfsPath = genGvfsPath(filesetName);
+
+    Configuration newConf = new Configuration(conf);
+    newConf.setBoolean(FS_GRAVITINO_FILESET_WRITE_PRIMARY_ONLY, true);
+
+    try (FileSystem primaryFs = primaryPath.getFileSystem(newConf);
+        FileSystem backupFs = backupPath.getFileSystem(newConf);
+        FileSystem gvfs = gvfsPath.getFileSystem(newConf)) {
+      Assertions.assertTrue(primaryFs.exists(primaryPath));
+      Assertions.assertTrue(backupFs.exists(backupPath));
+
+      Assertions.assertTrue(gvfs.exists(gvfsPath));
+      String fileName = "test.txt";
+      Path createPath = new Path(gvfsPath + "/" + fileName);
+
+      // Create a file in the primary location when double write is enabled
+      backupFs.create(new Path(backupStorageLocation + "/" + fileName));
+      Assertions.assertFalse(primaryFs.exists(new Path(storageLocation + "/" + fileName)));
+      Assertions.assertTrue(backupFs.exists(new Path(backupStorageLocation + "/" + fileName)));
+      gvfs.create(createPath, true);
+      Assertions.assertTrue(gvfs.exists(createPath));
+      Assertions.assertTrue(gvfs.getFileStatus(createPath).isFile());
+      Assertions.assertTrue(primaryFs.exists(new Path(storageLocation + "/" + fileName)));
+      Assertions.assertTrue(backupFs.exists(new Path(backupStorageLocation + "/" + fileName)));
+    }
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   public void testDeleteWithMultipleLocs(boolean isTestPrimaryLocation) throws IOException {
@@ -730,6 +783,61 @@ public class GravitinoVirtualFileSystemIT extends AbstractIT {
         Assertions.assertTrue(primaryFs.exists(new Path(storageLocation + "/" + fileName)));
         Assertions.assertFalse(backupFs.exists(new Path(backupStorageLocation + "/" + fileName)));
       }
+    }
+  }
+
+  @Test
+  public void testDeleteWithDoubleWrite() throws IOException {
+    // create fileset
+    String filesetName = "test_fileset_delete_with_double_write";
+    NameIdentifier filesetIdent =
+        NameIdentifier.ofFileset(metalakeName, catalogName, schemaName, filesetName);
+    Catalog catalog = metalake.loadCatalog(NameIdentifier.ofCatalog(metalakeName, catalogName));
+    String storageLocation;
+    String backupStorageLocation;
+    Map<String, String> props;
+    storageLocation = genStorageLocation(filesetName);
+    backupStorageLocation = genBackupStorageLocation(filesetName);
+    props =
+        ImmutableMap.of(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, backupStorageLocation);
+    catalog
+        .asFilesetCatalog()
+        .createFileset(
+            filesetIdent, "fileset comment", Fileset.Type.MANAGED, storageLocation, props);
+    Assertions.assertTrue(catalog.asFilesetCatalog().filesetExists(filesetIdent));
+
+    // test gvfs delete
+    Path primaryPath = new Path(storageLocation);
+    Path backupPath = new Path(backupStorageLocation);
+    Path gvfsPath = genGvfsPath(filesetName);
+
+    Configuration newConf = new Configuration(conf);
+    newConf.setBoolean(FS_GRAVITINO_FILESET_WRITE_PRIMARY_ONLY, true);
+
+    try (FileSystem primaryFs = primaryPath.getFileSystem(newConf);
+        FileSystem backupFs = backupPath.getFileSystem(newConf);
+        FileSystem gvfs = gvfsPath.getFileSystem(newConf)) {
+      Assertions.assertTrue(primaryFs.exists(primaryPath));
+      Assertions.assertTrue(backupFs.exists(backupPath));
+      String fileName = "test.txt";
+      Path deletePath = new Path(gvfsPath + "/" + fileName);
+
+      Assertions.assertFalse(primaryFs.exists(new Path(storageLocation + "/" + fileName)));
+      Assertions.assertFalse(backupFs.exists(new Path(backupStorageLocation + "/" + fileName)));
+      primaryFs.create(new Path(storageLocation + "/" + fileName));
+      backupFs.create(new Path(backupStorageLocation + "/" + fileName));
+      Assertions.assertTrue(primaryFs.exists(new Path(storageLocation + "/" + fileName)));
+      Assertions.assertTrue(backupFs.exists(new Path(backupStorageLocation + "/" + fileName)));
+
+      Assertions.assertTrue(gvfs.exists(deletePath));
+      // Only delete the file in the primary location if enable double write.
+      gvfs.delete(deletePath, true);
+      Assertions.assertFalse(primaryFs.exists(new Path(storageLocation + "/" + fileName)));
+      Assertions.assertTrue(backupFs.exists(new Path(backupStorageLocation + "/" + fileName)));
+
+      // Only delete the file in the primary location if enable double write.
+      gvfs.delete(deletePath, true);
+      Assertions.assertTrue(backupFs.exists(new Path(backupStorageLocation + "/" + fileName)));
     }
   }
 
@@ -944,8 +1052,8 @@ public class GravitinoVirtualFileSystemIT extends AbstractIT {
           Assertions.assertTrue(primaryFs.exists(new Path(storageLocation + "/" + dirName)));
           Assertions.assertFalse(backupFs.exists(new Path(backupStorageLocation + "/" + dirName)));
         } else {
-          Assertions.assertThrowsExactly(
-              FileAlreadyExistsException.class, () -> gvfs.mkdirs(dirPath));
+          // Return true when the dir already exists.
+          assertTrue(gvfs.mkdirs(dirPath));
 
           Assertions.assertTrue(gvfs.exists(dirPath));
           Assertions.assertTrue(gvfs.delete(dirPath, true));
