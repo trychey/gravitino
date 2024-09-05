@@ -49,6 +49,7 @@ import com.datastrato.gravitino.dto.rel.partitions.IdentityPartitionDTO;
 import com.datastrato.gravitino.dto.rel.partitions.ListPartitionDTO;
 import com.datastrato.gravitino.dto.rel.partitions.PartitionDTO;
 import com.datastrato.gravitino.dto.rel.partitions.RangePartitionDTO;
+import com.datastrato.gravitino.dto.secret.SecretDTO;
 import com.datastrato.gravitino.file.Fileset;
 import com.datastrato.gravitino.file.FilesetContext;
 import com.datastrato.gravitino.messaging.Topic;
@@ -75,6 +76,7 @@ import com.datastrato.gravitino.rel.partitions.Partition;
 import com.datastrato.gravitino.rel.partitions.Partitions;
 import com.datastrato.gravitino.rel.partitions.RangePartition;
 import com.datastrato.gravitino.rel.types.Types;
+import com.datastrato.gravitino.secret.Secret;
 import java.util.Arrays;
 import java.util.Map;
 import org.apache.commons.lang3.ArrayUtils;
@@ -891,5 +893,21 @@ public class DTOConverters {
       return new UserDTO[0];
     }
     return Arrays.stream(users).map(DTOConverters::toDTO).toArray(UserDTO[]::new);
+  }
+
+  /**
+   * Converts a secret implementation to an SecretDTO.
+   *
+   * @param secret The secret implementation.
+   * @return The secret DTO.
+   */
+  public static SecretDTO toDTO(Secret secret) {
+    return SecretDTO.builder()
+        .withName(secret.name())
+        .withValue(secret.value())
+        .withType(secret.type())
+        .withProperties(secret.properties())
+        .withAudit(toDTO(secret.auditInfo()))
+        .build();
   }
 }

@@ -89,6 +89,11 @@ public class ExceptionHandlers {
     return GroupPermissionOperationExceptionHandler.INSTANCE.handle(op, roles, parent, e);
   }
 
+  public static Response handleSecretException(
+      OperationType op, String target, String metalake, Exception e) {
+    return SecretExceptionHandler.INSTANCE.handle(op, target, metalake, e);
+  }
+
   private static class PartitionExceptionHandler extends BaseExceptionHandler {
 
     private static final ExceptionHandler INSTANCE = new PartitionExceptionHandler();
@@ -448,6 +453,33 @@ public class ExceptionHandlers {
       return String.format(
           "Failed to operate role(s)%s operation [%s] under group [%s], reason [%s]",
           roles, operation, parent, reason);
+    }
+  }
+
+  private static class SecretExceptionHandler extends BaseExceptionHandler {
+    private static final ExceptionHandler INSTANCE = new SecretExceptionHandler();
+
+    private static String getSecretErrorMsg(
+        String target, String operation, String metalake, String reason) {
+      return String.format(
+          "Failed to operate secret(s)%s operation [%s] under metalake [%s], reason [%s]",
+          target, operation, metalake, reason);
+    }
+
+    @Override
+    public Response handle(OperationType op, String fileset, String schema, Exception e) {
+      String formatted = StringUtil.isBlank(fileset) ? "" : " [" + fileset + "]";
+      String errorMsg = getSecretErrorMsg(formatted, op.name(), schema, getErrorMsg(e));
+      LOG.warn(errorMsg, e);
+
+      if (e instanceof IllegalArgumentException) {
+        return Utils.illegalArguments(errorMsg, e);
+
+      } else if (e instanceof NotFoundException) {
+        return Utils.notFound(errorMsg, e);
+      } else {
+        return super.handle(op, fileset, schema, e);
+      }
     }
   }
 

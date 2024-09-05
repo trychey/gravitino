@@ -81,3 +81,9 @@ gravitino.audit.writer.rocketmq.producer.access-key = GCCSf3t0epeJGEyP/MKIrvg6WB
 gravitino.audit.writer.rocketmq.producer.secret-key = GDDuHz/NjCO23I4lXSz65qzfMn9JebTf9aEXX+Jb93Z0jgosfkmOFyPWjpvUEfl3AGMYEmFlzAmp0ETGvmQGBduxVRRcAxgQxsbLhUsNSp+LNcRExx70rhgUwMx4MnMX2DiU1YAp8qN5dY2Ls5wA
 gravitino.audit.writer.rocketmq.producer.group = gravitino_producer
 gravitino.audit.writer.rocketmq.producer.enable-msg-trace = true
+
+#secret config
+gravitino.secret.kerberos.host = http://workspace-whitelist-proxy.dp.pt.xiaomi.com
+gravitino.secret.kerberos.user = yangliwei
+gravitino.secret.kerberos.password = GDAFuVlbCVdgE3sWtIaBPuVzAEHbpf6LqZjgr/qrAXQijsImu1KC3Vm9gAE7BZ7/0vwYEgkMeQhZXk29nd92dfk+mkxUARgQ1mlupYpmR8S2noZcdGEt8hgU0IWPUZSgKkN5pLvHEik8wYeL6DkA
+gravitino.secret.kerberos.format = s_workspace_%s_krb@XIAOMI.HADOOP

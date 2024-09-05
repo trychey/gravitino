@@ -28,6 +28,7 @@ dependencies {
   }
   implementation(libs.rocksdbjni)
   implementation(libs.rocketmq)
+  implementation(libs.httpclient5)
   annotationProcessor(libs.lombok)
 
   compileOnly(libs.lombok)
@@ -41,6 +42,7 @@ dependencies {
   testImplementation(libs.junit.jupiter.api)
   testImplementation(libs.junit.jupiter.params)
   testImplementation(libs.mockito.core)
+  testImplementation(libs.mockserver.netty)
 
   testRuntimeOnly(libs.junit.jupiter.engine)
 }

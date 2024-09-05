@@ -9,6 +9,7 @@ import static com.datastrato.gravitino.server.authentication.TokenAuthConfig.SER
 import com.datastrato.gravitino.Config;
 import com.datastrato.gravitino.UserPrincipal;
 import com.datastrato.gravitino.auth.AuthConstants;
+import com.datastrato.gravitino.auth.DataWorkshopUser;
 import com.datastrato.gravitino.exceptions.UnauthorizedException;
 import com.datastrato.gravitino.json.JsonUtils;
 import com.github.benmanes.caffeine.cache.Cache;
@@ -79,12 +80,7 @@ public class TokenAuthenticator implements Authenticator {
                 }
                 DataWorkshopUser dataWorkshopUser =
                     JsonUtils.objectMapper().readValue(responseBody, DataWorkshopUser.class);
-                return new UserPrincipal(
-                    String.format(
-                        "%s:%s:%s",
-                        dataWorkshopUser.getUsername(),
-                        dataWorkshopUser.getWorkspaceId(),
-                        dataWorkshopUser.getRole()));
+                return new UserPrincipal(dataWorkshopUser.toUserPrincipal());
               } catch (IOException | ParseException e) {
                 throw new UnauthorizedException(e, "Unable to authenticate with token: %s", token);
               }

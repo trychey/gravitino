@@ -35,6 +35,7 @@ import com.datastrato.gravitino.metalake.MetalakeDispatcher;
 import com.datastrato.gravitino.metalake.MetalakeManager;
 import com.datastrato.gravitino.metrics.MetricsSystem;
 import com.datastrato.gravitino.metrics.source.JVMMetricsSource;
+import com.datastrato.gravitino.secret.SecretsManager;
 import com.datastrato.gravitino.storage.IdGenerator;
 import com.datastrato.gravitino.storage.RandomIdGenerator;
 import com.google.common.annotations.VisibleForTesting;
@@ -77,6 +78,8 @@ public class GravitinoEnv {
 
   private LockManager lockManager;
   private EventListenerManager eventListenerManager;
+
+  private SecretsManager secretsManager;
 
   private GravitinoEnv() {}
 
@@ -125,6 +128,16 @@ public class GravitinoEnv {
   @VisibleForTesting
   public void setEntityStore(EntityStore entityStore) {
     this.entityStore = entityStore;
+  }
+
+  /**
+   * This method is used for testing purposes only to set the secretsManager for test
+   *
+   * @param secretsManager The secretsManager to be set.
+   */
+  @VisibleForTesting
+  public void setSecretsManager(SecretsManager secretsManager) {
+    this.secretsManager = secretsManager;
   }
 
   /**
@@ -195,6 +208,8 @@ public class GravitinoEnv {
     } else {
       this.accessControlManager = null;
     }
+
+    this.secretsManager = new SecretsManager(entityStore, idGenerator, config);
 
     this.auxServiceManager = new AuxiliaryServiceManager();
     this.auxServiceManager.serviceInit(
@@ -307,6 +322,15 @@ public class GravitinoEnv {
    */
   public AccessControlManager accessControlManager() {
     return accessControlManager;
+  }
+
+  /**
+   * Get the SecretsManager
+   *
+   * @return The SecretsManager instance
+   */
+  public SecretsManager secretsManager() {
+    return secretsManager;
   }
 
   public void start() {

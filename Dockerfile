@@ -19,6 +19,15 @@ COPY distribution/package /opt/gravitino
 ADD https://pkgs.d.xiaomi.net/artifactory/aliyun-maven-central/mysql/mysql-connector-java/5.1.49/mysql-connector-java-5.1.49.jar $MYSQL_DRIVER_PATH
 ADD https://pkgs.d.xiaomi.net/artifactory/releases/io/opentelemetry/javaagent/opentelemetry-javaagent/1.13.1-milatest/opentelemetry-javaagent-1.13.1-milatest.jar $HERA_AGENT_PATH
 
+# aliyun yum source
+RUN yum install -y wget
+RUN wget -O /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-7.repo
+RUN yum clean all && yum makecache fast
+
+# Install Kerberos client
+RUN yum install -y krb5-workstation krb5-libs
+
+RUN chmod 644 /etc/krb5.conf
 RUN chmod +x /opt/entrypoint.sh
 RUN chmod -R +x /opt/gravitino
 
