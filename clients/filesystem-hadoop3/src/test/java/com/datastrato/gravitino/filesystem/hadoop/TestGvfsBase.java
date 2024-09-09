@@ -1276,6 +1276,88 @@ public class TestGvfsBase extends GravitinoMockServerBase {
     }
   }
 
+  @Test
+  public void testGetStatusWithDoubleWrite() throws IOException {
+    String filesetName = "testGetStatus_with_double_write";
+    Path managedFilesetPath =
+        FileSystemTestUtils.createFilesetPath(catalogName, schemaName, filesetName, true);
+
+    Path primaryPath;
+    Path backupPath;
+    primaryPath = FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetName);
+    backupPath =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetName + "_bak");
+    Map<String, String> props =
+        ImmutableMap.of(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, backupPath.toString());
+
+    String contextPath =
+        String.format(
+            "/api/metalakes/%s/catalogs/%s/schemas/%s/filesets/%s/context",
+            metalakeName, catalogName, schemaName, filesetName);
+
+    Configuration newConf = new Configuration(conf);
+    newConf.setBoolean(
+        GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_FILESET_WRITE_PRIMARY_ONLY, true);
+
+    try (FileSystem gravitinoFileSystem = managedFilesetPath.getFileSystem(newConf);
+        FileSystem primaryFs = primaryPath.getFileSystem(newConf);
+        FileSystem backupFs = backupPath.getFileSystem(newConf)) {
+
+      FileSystemTestUtils.mkdirs(primaryPath, primaryFs);
+      FileSystemTestUtils.mkdirs(backupPath, backupFs);
+      assertTrue(primaryFs.exists(primaryPath));
+      assertTrue(backupFs.exists(backupPath));
+
+      FilesetDTO managedFileset =
+          mockFilesetDTO(
+              metalakeName,
+              catalogName,
+              schemaName,
+              filesetName,
+              Fileset.Type.MANAGED,
+              primaryPath.toString(),
+              props);
+      FilesetContextDTO mockContextDTO =
+          FilesetContextDTO.builder()
+              .fileset(managedFileset)
+              .actualPaths(new String[] {primaryPath.toString(), backupPath.toString()})
+              .build();
+      FilesetContextResponse contextResponse = new FilesetContextResponse(mockContextDTO);
+      try {
+        buildMockResource(
+            Method.POST,
+            contextPath,
+            mockGetContextRequest(FilesetDataOperation.GET_FILE_STATUS, ""),
+            contextResponse,
+            SC_OK);
+      } catch (JsonProcessingException e) {
+        throw new RuntimeException(e);
+      }
+
+      assertTrue(gravitinoFileSystem.exists(managedFilesetPath));
+      assertTrue(gravitinoFileSystem.getFileStatus(managedFilesetPath).isDirectory());
+      FileStatus gravitinoStatus = gravitinoFileSystem.getFileStatus(managedFilesetPath);
+      FileStatus primaryFileStatus = primaryFs.getFileStatus(primaryPath);
+      assertEquals(
+          primaryFileStatus.getPath().toString(),
+          gravitinoStatus
+              .getPath()
+              .toString()
+              .replaceFirst(
+                  GravitinoVirtualFileSystemConfiguration.GVFS_FILESET_PREFIX,
+                  FileSystemTestUtils.localRootPrefix()));
+
+      // only support getting file status in the primary location when enable double write.
+      primaryFs.delete(primaryPath, true);
+      assertFalse(primaryFs.exists(primaryPath));
+      assertTrue(backupFs.exists(backupPath));
+      assertFalse(gravitinoFileSystem.exists(managedFilesetPath));
+      assertThrowsExactly(
+          FileNotFoundException.class,
+          () -> gravitinoFileSystem.getFileStatus(managedFilesetPath).isDirectory());
+    }
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   public void testListStatusWithMultipleLocs(boolean isTestPrimaryLocation) throws IOException {

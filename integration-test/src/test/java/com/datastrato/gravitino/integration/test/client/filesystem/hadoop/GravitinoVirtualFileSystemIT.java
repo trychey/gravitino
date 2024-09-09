@@ -6,6 +6,7 @@ package com.datastrato.gravitino.integration.test.client.filesystem.hadoop;
 
 import static com.datastrato.gravitino.connector.BaseCatalog.CATALOG_BYPASS_PREFIX;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastrato.gravitino.Catalog;
@@ -21,6 +22,7 @@ import com.datastrato.gravitino.properties.FilesetProperties;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -922,6 +924,70 @@ public class GravitinoVirtualFileSystemIT extends AbstractIT {
                   .toString()
                   .replaceFirst(genGvfsPath(filesetName).toString(), backupStorageLocation));
         }
+      }
+    }
+  }
+
+  @Test
+  public void testGetStatusWithDoubleWrite() throws IOException {
+    // create fileset
+    String filesetName = "test_fileset_get_status_with_double_write";
+    NameIdentifier filesetIdent =
+        NameIdentifier.ofFileset(metalakeName, catalogName, schemaName, filesetName);
+    Catalog catalog = metalake.loadCatalog(NameIdentifier.ofCatalog(metalakeName, catalogName));
+    String storageLocation;
+    String backupStorageLocation;
+    Map<String, String> props;
+    storageLocation = genStorageLocation(filesetName);
+    backupStorageLocation = genBackupStorageLocation(filesetName);
+    props =
+        ImmutableMap.of(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, backupStorageLocation);
+    catalog
+        .asFilesetCatalog()
+        .createFileset(
+            filesetIdent, "fileset comment", Fileset.Type.MANAGED, storageLocation, props);
+    Assertions.assertTrue(catalog.asFilesetCatalog().filesetExists(filesetIdent));
+
+    Configuration newConf = new Configuration(conf);
+    newConf.setBoolean(FS_GRAVITINO_FILESET_WRITE_PRIMARY_ONLY, true);
+
+    // test gvfs get fileStatus
+    Path primaryPath = new Path(storageLocation);
+    Path backupPath = new Path(backupStorageLocation);
+    try (FileSystem primaryFs = primaryPath.getFileSystem(newConf);
+        FileSystem backupFs = backupPath.getFileSystem(newConf)) {
+      Assertions.assertTrue(primaryFs.exists(primaryPath));
+      Assertions.assertTrue(backupFs.exists(backupPath));
+      Path gvfsPath = genGvfsPath(filesetName);
+      String fileName = "test.txt";
+      Path statusPath = new Path(gvfsPath + "/" + fileName);
+      try (FileSystem gvfs = gvfsPath.getFileSystem(newConf)) {
+        Assertions.assertTrue(gvfs.exists(gvfsPath));
+
+        gvfs.create(statusPath);
+        Assertions.assertTrue(gvfs.exists(statusPath));
+        Assertions.assertTrue(gvfs.getFileStatus(statusPath).isFile());
+        Assertions.assertTrue(primaryFs.exists(new Path(storageLocation + "/" + fileName)));
+        Assertions.assertFalse(backupFs.exists(new Path(backupStorageLocation + "/" + fileName)));
+
+        FileStatus gvfsStatus = gvfs.getFileStatus(statusPath);
+        FileStatus primaryFileStatus =
+            primaryFs.getFileStatus(new Path(storageLocation + "/" + fileName));
+        Assertions.assertEquals(
+            primaryFileStatus.getPath().toString(),
+            gvfsStatus
+                .getPath()
+                .toString()
+                .replaceFirst(genGvfsPath(filesetName).toString(), storageLocation));
+
+        // only support get file status in the primary location when enable double write.
+        primaryFs.delete(new Path(storageLocation + "/" + fileName), false);
+        backupFs.create(new Path(backupStorageLocation + "/" + fileName));
+        Assertions.assertFalse(primaryFs.exists(new Path(storageLocation + "/" + fileName)));
+        Assertions.assertTrue(backupFs.exists(new Path(backupStorageLocation + "/" + fileName)));
+        Assertions.assertFalse(gvfs.exists(statusPath));
+        assertThrowsExactly(
+            FileNotFoundException.class, () -> gvfs.getFileStatus(statusPath).isDirectory());
       }
     }
   }

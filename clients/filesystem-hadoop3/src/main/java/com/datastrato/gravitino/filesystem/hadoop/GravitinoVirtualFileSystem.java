@@ -638,6 +638,9 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     FilesetContextPair pair = getFilesetContext(path, FilesetDataOperation.GET_FILE_STATUS);
     FileSystem[] fileSystems = pair.getFileSystems();
     String[] actualPaths = pair.getContext().actualPaths();
+    if (isFsGravitinoFilesetWritePrimaryOnly) {
+      return fileSystems[0].getFileStatus(new Path(actualPaths[0]));
+    }
     NameIdentifier identifier = extractIdentifier(path.toUri());
     for (int i = 0; i < actualPaths.length; i++) {
       try {
