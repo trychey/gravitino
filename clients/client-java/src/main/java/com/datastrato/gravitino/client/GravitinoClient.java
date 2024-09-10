@@ -10,9 +10,11 @@ import com.datastrato.gravitino.CatalogChange;
 import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.Namespace;
 import com.datastrato.gravitino.SupportsCatalogs;
+import com.datastrato.gravitino.SupportsSecrets;
 import com.datastrato.gravitino.exceptions.CatalogAlreadyExistsException;
 import com.datastrato.gravitino.exceptions.NoSuchCatalogException;
 import com.datastrato.gravitino.exceptions.NoSuchMetalakeException;
+import com.datastrato.gravitino.secret.Secret;
 import com.google.common.base.Preconditions;
 import java.util.Map;
 
@@ -23,7 +25,8 @@ import java.util.Map;
  * <p>It uses an underlying {@link RESTClient} to send HTTP requests and receive responses from the
  * API.
  */
-public class GravitinoClient extends GravitinoClientBase implements SupportsCatalogs {
+public class GravitinoClient extends GravitinoClientBase
+    implements SupportsCatalogs, SupportsSecrets {
 
   private final GravitinoMetalake metalake;
 
@@ -93,6 +96,11 @@ public class GravitinoClient extends GravitinoClientBase implements SupportsCata
   @Override
   public boolean dropCatalog(NameIdentifier ident) {
     return getMetalake().dropCatalog(ident);
+  }
+
+  @Override
+  public Secret getSecret(String type) {
+    return getMetalake().getSecret(type);
   }
 
   /**

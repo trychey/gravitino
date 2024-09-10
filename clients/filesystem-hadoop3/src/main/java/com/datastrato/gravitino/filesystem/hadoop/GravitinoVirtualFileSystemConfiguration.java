@@ -8,7 +8,9 @@ package com.datastrato.gravitino.filesystem.hadoop;
 class GravitinoVirtualFileSystemConfiguration {
   public static final String GVFS_FILESET_PREFIX = "gvfs://fileset";
   public static final String GVFS_SCHEME = "gvfs";
-  public static final String LOCAL_SCHEME_WITH_SLASH = "file:/";
+  public static final String LOCAL_SCHEME = "file";
+  public static final String HDFS_SCHEME = "hdfs";
+  public static final String LAVAFS_SCHEME = "lavafs";
 
   /** The configuration key for the Gravitino server URI. */
   public static final String FS_GRAVITINO_SERVER_URI_KEY = "fs.gravitino.server.uri";
@@ -74,6 +76,12 @@ class GravitinoVirtualFileSystemConfiguration {
       "fs.gravitino.fileset.write.primaryOnly";
 
   public static final boolean FS_GRAVITINO_FILESET_WRITE_PRIMARY_ONLY_DEFAULT = false;
+
+  public static final String FS_GRAVITINO_INTERNAL_FILESYSTEM_DELAY_CLOSE_MILLS_KEY =
+      "fs.gravitino.internalFilesystem.delayCloseMills";
+
+  public static final long FS_GRAVITINO_INTERNAL_FILESYSTEM_DELAY_CLOSE_MILLS_DEFAULT =
+      1000L * 60 * 60;
 
   private GravitinoVirtualFileSystemConfiguration() {}
 }

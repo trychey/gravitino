@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockserver.model.HttpRequest.request;
 
 import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.dto.file.FilesetContextDTO;
@@ -158,9 +159,11 @@ public class TestGvfsBase extends GravitinoMockServerBase {
       FileSystemTestUtils.mkdirs(managedFilesetPath, gravitinoFileSystem);
       FileSystem proxyLocalFs =
           Objects.requireNonNull(
-              ((GravitinoVirtualFileSystem) gravitinoFileSystem)
-                  .getFilesetFSCache()
-                  .getIfPresent(GravitinoVirtualFileSystemConfiguration.LOCAL_SCHEME_WITH_SLASH));
+                  ((GravitinoVirtualFileSystem) gravitinoFileSystem)
+                      .getFileSystemManager()
+                      .getInternalContextCache()
+                      .getIfPresent(GravitinoVirtualFileSystemConfiguration.LOCAL_SCHEME))
+              .getFileSystem();
 
       String anotherFilesetName = "test_new_fs";
       Path diffLocalPath =
@@ -174,7 +177,20 @@ public class TestGvfsBase extends GravitinoMockServerBase {
 
   @Test
   public void testInternalCache() throws IOException {
+    String authType =
+        conf.get(
+            GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_AUTH_TYPE_KEY,
+            GravitinoVirtualFileSystemConfiguration.TOKEN_AUTH_TYPE);
+    if (authType.equals(GravitinoVirtualFileSystemConfiguration.TOKEN_AUTH_TYPE)) {
+      GravitinoMockServerBase.mockServer()
+          .clear(request().withPath("/api/metalakes/" + metalakeName + "/secrets"));
+      GravitinoMockServerBase.mockSecretDTO("testInternalCache", System.currentTimeMillis() + 1000);
+    }
     Configuration configuration = new Configuration(conf);
+    configuration.set(
+        GravitinoVirtualFileSystemConfiguration
+            .FS_GRAVITINO_INTERNAL_FILESYSTEM_DELAY_CLOSE_MILLS_KEY,
+        "0");
     configuration.set(
         GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_FILESET_CACHE_MAX_CAPACITY_KEY, "1");
     configuration.set(
@@ -228,7 +244,12 @@ public class TestGvfsBase extends GravitinoMockServerBase {
           .untilAsserted(
               () ->
                   assertEquals(
-                      0, ((GravitinoVirtualFileSystem) fs).getFilesetFSCache().asMap().size()));
+                      0,
+                      ((GravitinoVirtualFileSystem) fs)
+                          .getFileSystemManager()
+                          .getInternalContextCache()
+                          .asMap()
+                          .size()));
     }
   }
 

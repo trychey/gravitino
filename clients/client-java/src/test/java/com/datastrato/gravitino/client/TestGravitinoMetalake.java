@@ -21,13 +21,19 @@ import com.datastrato.gravitino.dto.responses.DropResponse;
 import com.datastrato.gravitino.dto.responses.EntityListResponse;
 import com.datastrato.gravitino.dto.responses.ErrorResponse;
 import com.datastrato.gravitino.dto.responses.MetalakeResponse;
+import com.datastrato.gravitino.dto.responses.SecretResponse;
+import com.datastrato.gravitino.dto.secret.SecretDTO;
 import com.datastrato.gravitino.exceptions.CatalogAlreadyExistsException;
 import com.datastrato.gravitino.exceptions.NoSuchCatalogException;
 import com.datastrato.gravitino.exceptions.NoSuchMetalakeException;
 import com.datastrato.gravitino.exceptions.RESTException;
+import com.datastrato.gravitino.secret.Secret;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.collect.Maps;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -381,6 +387,34 @@ public class TestGravitinoMetalake extends TestBase {
     buildMockResource(Method.DELETE, path, null, resp1, HttpStatus.SC_OK);
     boolean dropped1 = gravitinoClient.dropCatalog(NameIdentifier.of(metalakeName, catalogName));
     Assertions.assertFalse(dropped1);
+  }
+
+  @Test
+  public void testGetSecret() throws JsonProcessingException {
+    String path = "/api/metalakes/" + metalakeName + "/secrets";
+    Map<String, String> props = Maps.newHashMap();
+    props.put("k1", "v1");
+    SecretDTO secretDTO =
+        SecretDTO.builder()
+            .withName("this is test")
+            .withValue(
+                Base64.getEncoder().encodeToString("hello world".getBytes(StandardCharsets.UTF_8)))
+            .withType("test")
+            .withProperties(props)
+            .withAudit(
+                AuditDTO.builder().withCreator("creator").withCreateTime(Instant.now()).build())
+            .build();
+    SecretResponse resp = new SecretResponse(secretDTO);
+    Map<String, String> queryParam = Maps.newHashMap();
+    queryParam.put("type", "test");
+    buildMockResource(Method.GET, path, queryParam, null, resp, HttpStatus.SC_OK);
+    Secret actualSecret = gravitinoClient.getSecret("test");
+    Assertions.assertEquals(secretDTO.name(), actualSecret.name());
+    Assertions.assertEquals(
+        new String(Base64.getDecoder().decode(secretDTO.value()), StandardCharsets.UTF_8),
+        new String(Base64.getDecoder().decode(actualSecret.value()), StandardCharsets.UTF_8));
+    Assertions.assertEquals(secretDTO.type(), actualSecret.type());
+    Assertions.assertEquals(secretDTO.properties(), actualSecret.properties());
   }
 
   static GravitinoMetalake createMetalake(GravitinoAdminClient client, String metalakeName)

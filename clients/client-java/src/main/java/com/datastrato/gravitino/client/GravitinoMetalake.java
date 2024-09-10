@@ -9,6 +9,7 @@ import com.datastrato.gravitino.CatalogChange;
 import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.Namespace;
 import com.datastrato.gravitino.SupportsCatalogs;
+import com.datastrato.gravitino.SupportsSecrets;
 import com.datastrato.gravitino.dto.AuditDTO;
 import com.datastrato.gravitino.dto.MetalakeDTO;
 import com.datastrato.gravitino.dto.requests.CatalogCreateRequest;
@@ -18,10 +19,13 @@ import com.datastrato.gravitino.dto.responses.CatalogListResponse;
 import com.datastrato.gravitino.dto.responses.CatalogResponse;
 import com.datastrato.gravitino.dto.responses.DropResponse;
 import com.datastrato.gravitino.dto.responses.EntityListResponse;
+import com.datastrato.gravitino.dto.responses.SecretResponse;
 import com.datastrato.gravitino.exceptions.CatalogAlreadyExistsException;
 import com.datastrato.gravitino.exceptions.NoSuchCatalogException;
 import com.datastrato.gravitino.exceptions.NoSuchMetalakeException;
+import com.datastrato.gravitino.secret.Secret;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Maps;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -37,7 +41,7 @@ import org.slf4j.LoggerFactory;
  * as sub-level metadata collections. With {@link GravitinoMetalake}, users can list, create, load,
  * alter and drop a catalog with specified identifier.
  */
-public class GravitinoMetalake extends MetalakeDTO implements SupportsCatalogs {
+public class GravitinoMetalake extends MetalakeDTO implements SupportsCatalogs, SupportsSecrets {
 
   private static final Logger LOG = LoggerFactory.getLogger(GravitinoMetalake.class);
 
@@ -220,6 +224,29 @@ public class GravitinoMetalake extends MetalakeDTO implements SupportsCatalogs {
       LOG.warn("Failed to drop catalog {}", ident, e);
       return false;
     }
+  }
+
+  /**
+   * Get the secret in the metalake.
+   *
+   * @param type The type of the secret.
+   * @return The corresponding secret.
+   */
+  @Override
+  public Secret getSecret(String type) {
+    Preconditions.checkArgument(StringUtils.isNotBlank(type), "Secret type cannot be blank.");
+    Map<String, String> queryParams = Maps.newHashMap();
+    queryParams.put("type", type);
+    SecretResponse resp =
+        restClient.get(
+            String.format("api/metalakes/%s/secrets", this.name()),
+            queryParams,
+            SecretResponse.class,
+            Collections.emptyMap(),
+            ErrorHandlers.secretErrorHandler());
+    resp.validate();
+
+    return resp.getSecret();
   }
 
   static class Builder extends MetalakeDTO.Builder<Builder> {

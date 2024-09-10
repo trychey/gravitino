@@ -15,7 +15,9 @@ import com.datastrato.gravitino.dto.file.FilesetDTO;
 import com.datastrato.gravitino.dto.requests.GetFilesetContextRequest;
 import com.datastrato.gravitino.dto.responses.CatalogResponse;
 import com.datastrato.gravitino.dto.responses.MetalakeResponse;
+import com.datastrato.gravitino.dto.responses.SecretResponse;
 import com.datastrato.gravitino.dto.responses.VersionResponse;
+import com.datastrato.gravitino.dto.secret.SecretDTO;
 import com.datastrato.gravitino.file.ClientType;
 import com.datastrato.gravitino.file.Fileset;
 import com.datastrato.gravitino.file.FilesetDataOperation;
@@ -23,11 +25,14 @@ import com.datastrato.gravitino.file.SourceEngineType;
 import com.datastrato.gravitino.json.JsonUtils;
 import com.datastrato.gravitino.shaded.com.fasterxml.jackson.core.JsonProcessingException;
 import com.datastrato.gravitino.shaded.com.fasterxml.jackson.databind.ObjectMapper;
+import com.datastrato.gravitino.shaded.com.google.common.collect.Maps;
 import com.google.common.collect.ImmutableMap;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
@@ -135,6 +140,36 @@ public abstract class GravitinoMockServerBase {
     MetalakeResponse resp = new MetalakeResponse(mockMetalake);
     try {
       buildMockResource(Method.GET, "/api/metalakes/" + metalakeName, null, resp, HttpStatus.SC_OK);
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  protected static void mockSecretDTO(String name, long expirationTime) {
+    String secretValue =
+        Base64.getEncoder().encodeToString("Hello World".getBytes(StandardCharsets.UTF_8));
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("expireTime", String.valueOf(expirationTime));
+    SecretDTO secretDTO =
+        SecretDTO.builder()
+            .withName(name)
+            .withType("kerberos")
+            .withValue(secretValue)
+            .withAudit(
+                AuditDTO.builder().withCreator("creator").withCreateTime(Instant.now()).build())
+            .withProperties(properties)
+            .build();
+    SecretResponse resp = new SecretResponse(secretDTO);
+    Map<String, String> queryParams = Maps.newHashMap();
+    queryParams.put("type", "kerberos");
+    try {
+      buildMockResource(
+          Method.GET,
+          "/api/metalakes/" + metalakeName + "/secrets",
+          queryParams,
+          null,
+          resp,
+          HttpStatus.SC_OK);
     } catch (JsonProcessingException e) {
       throw new RuntimeException(e);
     }

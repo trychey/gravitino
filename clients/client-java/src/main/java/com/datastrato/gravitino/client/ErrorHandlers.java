@@ -164,6 +164,15 @@ public class ErrorHandlers {
     return PermissionOperationErrorHandler.INSTANCE;
   }
 
+  /**
+   * Creates an error handler specific to Secret operations.
+   *
+   * @return A Consumer representing the Secret error handler.
+   */
+  public static Consumer<ErrorResponse> secretErrorHandler() {
+    return SecretOperationErrorHandler.INSTANCE;
+  }
+
   private ErrorHandlers() {}
 
   /**
@@ -629,6 +638,36 @@ public class ErrorHandlers {
             throw new NoSuchGroupException(errorMessage);
           } else if (errorResponse.getType().equals(NoSuchRoleException.class.getSimpleName())) {
             throw new NoSuchRoleException(errorMessage);
+          } else {
+            throw new NotFoundException(errorMessage);
+          }
+
+        case ErrorConstants.INTERNAL_ERROR_CODE:
+          throw new RuntimeException(errorMessage);
+
+        default:
+          super.accept(errorResponse);
+      }
+    }
+  }
+
+  /** Error handler specific to Secret operations. */
+  @SuppressWarnings("FormatStringAnnotation")
+  private static class SecretOperationErrorHandler extends RestErrorHandler {
+
+    private static final SecretOperationErrorHandler INSTANCE = new SecretOperationErrorHandler();
+
+    @Override
+    public void accept(ErrorResponse errorResponse) {
+      String errorMessage = formatErrorMessage(errorResponse);
+
+      switch (errorResponse.getCode()) {
+        case ErrorConstants.ILLEGAL_ARGUMENTS_CODE:
+          throw new IllegalArgumentException(errorMessage);
+
+        case ErrorConstants.NOT_FOUND_CODE:
+          if (errorResponse.getType().equals(NoSuchMetalakeException.class.getSimpleName())) {
+            throw new NoSuchMetalakeException(errorMessage);
           } else {
             throw new NotFoundException(errorMessage);
           }

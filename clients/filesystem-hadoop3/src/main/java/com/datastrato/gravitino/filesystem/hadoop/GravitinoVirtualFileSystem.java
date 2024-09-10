@@ -10,7 +10,6 @@ import com.datastrato.gravitino.client.DefaultOAuth2TokenProvider;
 import com.datastrato.gravitino.client.GravitinoClient;
 import com.datastrato.gravitino.client.GravitinoClientBase;
 import com.datastrato.gravitino.client.TokenAuthProvider;
-import com.datastrato.gravitino.exceptions.GravitinoRuntimeException;
 import com.datastrato.gravitino.file.BaseFilesetDataOperationCtx;
 import com.datastrato.gravitino.file.ClientType;
 import com.datastrato.gravitino.file.Fileset;
@@ -39,8 +38,6 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.hadoop.conf.Configuration;
@@ -71,8 +68,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   private String metalakeName;
   private Cache<NameIdentifier, FilesetCatalog> catalogCache;
   private ScheduledThreadPoolExecutor catalogCleanScheduler;
-  private Cache<String, FileSystem> filesetFSCache;
-  private ScheduledThreadPoolExecutor filesetFSCleanScheduler;
+  private InternalFileSystemManager fileSystemManager;
   private String localAddress;
   private String appId;
   private SourceEngineType sourceType;
@@ -95,30 +91,6 @@ public class GravitinoVirtualFileSystem extends FileSystem {
               name.getScheme(), GravitinoVirtualFileSystemConfiguration.GVFS_SCHEME));
     }
 
-    int maxCapacity =
-        configuration.getInt(
-            GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_FILESET_CACHE_MAX_CAPACITY_KEY,
-            GravitinoVirtualFileSystemConfiguration
-                .FS_GRAVITINO_FILESET_CACHE_MAX_CAPACITY_DEFAULT);
-    Preconditions.checkArgument(
-        maxCapacity > 0,
-        "'%s' should be greater than 0",
-        GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_FILESET_CACHE_MAX_CAPACITY_KEY);
-
-    long evictionMillsAfterAccess =
-        configuration.getLong(
-            GravitinoVirtualFileSystemConfiguration
-                .FS_GRAVITINO_FILESET_CACHE_EVICTION_MILLS_AFTER_ACCESS_KEY,
-            GravitinoVirtualFileSystemConfiguration
-                .FS_GRAVITINO_FILESET_CACHE_EVICTION_MILLS_AFTER_ACCESS_DEFAULT);
-    Preconditions.checkArgument(
-        evictionMillsAfterAccess != 0,
-        "'%s' should not be 0",
-        GravitinoVirtualFileSystemConfiguration
-            .FS_GRAVITINO_FILESET_CACHE_EVICTION_MILLS_AFTER_ACCESS_KEY);
-
-    initializeFSCache(maxCapacity, evictionMillsAfterAccess);
-
     this.metalakeName =
         configuration.get(GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_METALAKE_KEY);
     Preconditions.checkArgument(
@@ -129,6 +101,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     initializeClient(configuration);
     initializeCatalogCache();
 
+    this.fileSystemManager = new InternalFileSystemManager(configuration);
     this.workingDirectory = new Path(name);
     this.uri = URI.create(name.getScheme() + "://" + name.getAuthority());
 
@@ -146,51 +119,21 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     super.initialize(uri, getConf());
   }
 
-  @VisibleForTesting
-  Cache<String, FileSystem> getFilesetFSCache() {
-    return filesetFSCache;
-  }
-
-  private void initializeFSCache(int maxCapacity, long expireAfterAccess) {
-    // Since Caffeine does not ensure that removalListener will be involved after expiration
-    // We use a scheduler with one thread to clean up expired clients.
-    this.filesetFSCleanScheduler =
-        new ScheduledThreadPoolExecutor(1, newDaemonThreadFactory("gvfs-fileset-cache-cleaner"));
-    Caffeine<Object, Object> cacheBuilder =
-        Caffeine.newBuilder()
-            .maximumSize(maxCapacity)
-            .scheduler(Scheduler.forScheduledExecutorService(filesetFSCleanScheduler))
-            .removalListener(
-                (key, value, cause) -> {
-                  FileSystem fs = (FileSystem) value;
-                  if (fs != null) {
-                    try {
-                      fs.close();
-                    } catch (IOException e) {
-                      Logger.error("Cannot close the file system for fileset: {}", key, e);
-                    }
-                  }
-                });
-    if (expireAfterAccess > 0) {
-      cacheBuilder.expireAfterAccess(expireAfterAccess, TimeUnit.MILLISECONDS);
-    }
-    this.filesetFSCache = cacheBuilder.build();
-  }
-
   private void initializeCatalogCache() {
     // Since Caffeine does not ensure that removalListener will be involved after expiration
     // We use a scheduler with one thread to clean up expired clients.
     this.catalogCleanScheduler =
-        new ScheduledThreadPoolExecutor(1, newDaemonThreadFactory("gvfs-catalog-cache-cleaner"));
+        new ScheduledThreadPoolExecutor(
+            1,
+            new ThreadFactoryBuilder()
+                .setDaemon(true)
+                .setNameFormat("gvfs-catalog-cache-cleaner-%d")
+                .build());
     this.catalogCache =
         Caffeine.newBuilder()
             .maximumSize(100)
             .scheduler(Scheduler.forScheduledExecutorService(catalogCleanScheduler))
             .build();
-  }
-
-  private ThreadFactory newDaemonThreadFactory(String name) {
-    return new ThreadFactoryBuilder().setDaemon(true).setNameFormat(name + "-%d").build();
   }
 
   private void initializeClient(Configuration configuration) {
@@ -299,6 +242,11 @@ public class GravitinoVirtualFileSystem extends FileSystem {
               "Unsupported authentication type: %s for %s.",
               authType, GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_AUTH_TYPE_KEY));
     }
+  }
+
+  @VisibleForTesting
+  InternalFileSystemManager getFileSystemManager() {
+    return fileSystemManager;
   }
 
   private static String getLocalAddress() {
@@ -460,27 +408,11 @@ public class GravitinoVirtualFileSystem extends FileSystem {
         filesetCatalog != null, String.format("Loaded fileset catalog: %s is null.", catalogIdent));
 
     FilesetContext context = filesetCatalog.getFilesetContext(identifier, requestCtx);
-
     FileSystem[] fileSystems = new FileSystem[context.actualPaths().length];
     for (int index = 0; index < context.actualPaths().length; index++) {
       String actualPath = context.actualPaths()[index];
       URI uri = new Path(actualPath).toUri();
-      String storageHostPath =
-          actualPath.startsWith(GravitinoVirtualFileSystemConfiguration.LOCAL_SCHEME_WITH_SLASH)
-              ? GravitinoVirtualFileSystemConfiguration.LOCAL_SCHEME_WITH_SLASH
-              : uri.getScheme() + "://" + uri.getHost();
-      FileSystem fileSystem =
-          filesetFSCache.get(
-              storageHostPath,
-              str -> {
-                try {
-                  return FileSystem.newInstance(uri, getConf());
-                } catch (IOException ioe) {
-                  throw new GravitinoRuntimeException(
-                      "Exception occurs when create new FileSystem for actual uri: %s, msg: %s",
-                      uri, ioe);
-                }
-              });
+      FileSystem fileSystem = fileSystemManager.getFileSystem(uri, getConf());
       fileSystems[index] = fileSystem;
     }
     return new FilesetContextPair(context, fileSystems);
@@ -772,17 +704,6 @@ public class GravitinoVirtualFileSystem extends FileSystem {
 
   @Override
   public synchronized void close() throws IOException {
-    // close all actual FileSystems
-    for (FileSystem fileSystem : filesetFSCache.asMap().values()) {
-      try {
-        fileSystem.close();
-      } catch (IOException e) {
-        // ignore
-      }
-    }
-    filesetFSCache.invalidateAll();
-    catalogCache.invalidateAll();
-
     // close the client
     try {
       if (client != null) {
@@ -791,8 +712,12 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     } catch (Exception e) {
       // ignore
     }
+
+    catalogCache.invalidateAll();
     catalogCleanScheduler.shutdownNow();
-    filesetFSCleanScheduler.shutdownNow();
+
+    fileSystemManager.close();
+
     super.close();
   }
 

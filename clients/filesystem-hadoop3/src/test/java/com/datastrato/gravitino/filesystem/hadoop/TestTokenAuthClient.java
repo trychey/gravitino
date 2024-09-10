@@ -22,6 +22,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.Method;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockserver.matchers.Times;
 import org.mockserver.model.Header;
@@ -39,6 +40,12 @@ public class TestTokenAuthClient extends TestGvfsBase {
         GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_AUTH_TYPE_KEY,
         GravitinoVirtualFileSystemConfiguration.TOKEN_AUTH_TYPE);
     conf.set(GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_AUTH_TOKEN_KEY, TOKEN);
+  }
+
+  @BeforeEach
+  public void init() {
+    super.init();
+    GravitinoMockServerBase.mockSecretDTO("test", -1);
   }
 
   @Test
