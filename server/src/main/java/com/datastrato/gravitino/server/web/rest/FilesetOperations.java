@@ -234,6 +234,7 @@ public class FilesetOperations {
                     .withIp(request.getIp())
                     .withSourceEngineType(request.getSourceEngineType())
                     .withAppId(request.getAppId())
+                    .withExtraInfo(request.getExtraInfo())
                     .build();
             FilesetContext context =
                 TreeLockUtils.doWithTreeLock(

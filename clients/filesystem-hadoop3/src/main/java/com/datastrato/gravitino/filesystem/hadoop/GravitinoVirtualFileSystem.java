@@ -26,6 +26,7 @@ import com.datastrato.gravitino.shaded.org.apache.commons.lang3.StringUtils;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Scheduler;
+import com.google.common.collect.Maps;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.Inet4Address;
@@ -72,8 +73,10 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   private String localAddress;
   private String appId;
   private SourceEngineType sourceType;
+  private Map<String, String> extraInfo = ImmutableMap.of();
   private static final ClientType clientType = ClientType.HADOOP_GVFS;
   private static boolean isFsGravitinoFilesetWritePrimaryOnly = false;
+  private static boolean isCloudMLEnv = false;
 
   // The pattern is used to match gvfs path. The scheme prefix (gvfs://fileset) is optional.
   // The following path can be match:
@@ -100,6 +103,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
 
     initializeClient(configuration);
     initializeCatalogCache();
+    isCloudMLEnv = isCloudMLEnv();
 
     this.fileSystemManager = new InternalFileSystemManager(configuration);
     this.workingDirectory = new Path(name);
@@ -108,6 +112,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     this.localAddress = getLocalAddress();
     this.appId = getAppId();
     this.sourceType = getSourceType();
+    this.extraInfo = getExtraInfo();
 
     isFsGravitinoFilesetWritePrimaryOnly =
         configuration.getBoolean(
@@ -272,13 +277,18 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   }
 
   private static String getAppId() {
-    // get APP_ID for spark / flink app
+    // get APP_ID for spark / flink / cloudml
     try {
       String appIdVar = System.getenv("APP_ID");
       if (StringUtils.isNotBlank(appIdVar)) {
         return appIdVar;
       }
-      // TODO need add cloudml app id
+      if (isCloudMLEnv) {
+        appIdVar = System.getenv("CLOUDML_JOB_ID");
+        if (StringUtils.isNotBlank(appIdVar)) {
+          return appIdVar;
+        }
+      }
     } catch (Exception e) {
       Logger.warn("Cannot get the app id: ", e);
     }
@@ -299,11 +309,42 @@ public class GravitinoVirtualFileSystem extends FileSystem {
       if (StringUtils.isNotBlank(flinkClasspathVar)) {
         return SourceEngineType.FLINK;
       }
-      // TODO need add cloudml source type
+
+      if (isCloudMLEnv) {
+        return SourceEngineType.CLOUDML;
+      }
     } catch (Exception e) {
       Logger.warn("Cannot get the source type: ", e);
     }
     return SourceEngineType.UNKNOWN;
+  }
+
+  private static boolean isCloudMLEnv() {
+    try {
+      String cloudmlJobId = System.getenv("CLOUDML_JOB_ID");
+      if (StringUtils.isNotBlank(cloudmlJobId)) {
+        return true;
+      }
+    } catch (Exception e) {
+      Logger.warn("Cannot get the cloudml env: ", e);
+    }
+    return false;
+  }
+
+  private static Map<String, String> getExtraInfo() {
+    Map<String, String> extraInfo = Maps.newHashMap();
+    if (isCloudMLEnv) {
+      extraInfo.computeIfAbsent("CLOUDML_OWNER_NAME", k -> System.getenv("OWNER_NAME"));
+      extraInfo.computeIfAbsent("CLOUDML_EXP_JOBNAME", k -> System.getenv("EXP_JOBNAME"));
+      extraInfo.computeIfAbsent("CLOUDML_USER", k -> System.getenv("CLOUDML_USER"));
+      extraInfo.computeIfAbsent("CLOUDML_XIAOMI_DEV_IMAGE", k -> System.getenv("XIAOMI_DEV_IMAGE"));
+      extraInfo.computeIfAbsent(
+          "CLOUDML_KRB_ACCOUNT", k -> System.getenv("XIAOMI_HDFS_KRB_ACCOUNT"));
+      extraInfo.computeIfAbsent(
+          "CLOUDML_XIAOMI_BUILD_IMAGE", k -> System.getenv("XIAOMI_BUILD_IMAGE"));
+      extraInfo.computeIfAbsent("CLOUDML_CLUSTER_NAME", k -> System.getenv("CLUSTER_NAME"));
+    }
+    return extraInfo;
   }
 
   private void checkAuthConfig(String authType, String configKey, String configValue) {
@@ -398,6 +439,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
             .withIp(this.localAddress)
             .withSourceEngineType(this.sourceType)
             .withAppId(this.appId)
+            .withExtraInfo(this.extraInfo)
             .build();
     NameIdentifier catalogIdent =
         NameIdentifier.ofCatalog(metalakeName, identifier.namespace().level(1));

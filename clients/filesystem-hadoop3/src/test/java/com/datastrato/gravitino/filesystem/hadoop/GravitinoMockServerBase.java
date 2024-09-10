@@ -228,6 +228,7 @@ public abstract class GravitinoMockServerBase {
         .ip(getClientIp())
         .sourceEngineType(SourceEngineType.UNKNOWN)
         .appId("unknown")
+        .extraInfo(Collections.emptyMap())
         .build();
   }
 

@@ -73,6 +73,7 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
     protocol = PROTOCOL_NAME
     _identifier_pattern = re.compile("^fileset/([^/]+)/([^/]+)/([^/]+)(?:/[^/]+)*/?$")
     _hadoop_classpath = None
+    _is_cloudml_env = os.environ.get("CLOUDML_JOB_ID") is not None
 
     def __init__(
         self,
@@ -153,6 +154,7 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
         self._source_engine_type = self._get_source_engine_type()
         self._local_address = self._get_local_address()
         self._app_id = self._get_app_id()
+        self._extra_info = self._get_extra_info()
 
         super().__init__(**kwargs)
 
@@ -741,7 +743,8 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
         spark_dist_classpath = os.environ.get("SPARK_DIST_CLASSPATH")
         if spark_dist_classpath is not None:
             return SourceEngineType.PYSPARK
-        # TODO: need report the source type for cloudml
+        if GravitinoVirtualFileSystem._is_cloudml_env is True:
+            return SourceEngineType.CLOUDML
         return SourceEngineType.UNKNOWN
 
     @staticmethod
@@ -749,8 +752,45 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
         app_id = os.environ.get("APP_ID")
         if app_id is not None:
             return app_id
-        # TODO: need report the cloudml id
+
+        cloudml_job_id = os.environ.get("CLOUDML_JOB_ID")
+        if cloudml_job_id is not None:
+            return cloudml_job_id
         return "unknown"
+
+    @staticmethod
+    def _get_extra_info():
+        extra_info = {}
+        if GravitinoVirtualFileSystem._is_cloudml_env is True:
+            cloudml_owner_name = os.environ.get("CLOUDML_OWNER_NAME")
+            if cloudml_owner_name is not None:
+                extra_info["CLOUDML_OWNER_NAME"] = cloudml_owner_name
+
+            cloudml_job_name = os.environ.get("CLOUDML_EXP_JOBNAME")
+            if cloudml_job_name is not None:
+                extra_info["CLOUDML_JOB_NAME"] = cloudml_job_name
+
+            cloudml_user = os.environ.get("CLOUDML_USER")
+            if cloudml_user is not None:
+                extra_info["CLOUDML_USER"] = cloudml_user
+
+            cloudml_dev_image = os.environ.get("XIAOMI_DEV_IMAGE")
+            if cloudml_dev_image is not None:
+                extra_info["CLOUDML_XIAOMI_DEV_IMAGE"] = cloudml_dev_image
+
+            cloudml_krb_account = os.environ.get("XIAOMI_HDFS_KRB_ACCOUNT")
+            if cloudml_krb_account is not None:
+                extra_info["CLOUDML_KRB_ACCOUNT"] = cloudml_krb_account
+
+            cloudml_xiaomi_build_image = os.environ.get("XIAOMI_BUILD_IMAGE")
+            if cloudml_xiaomi_build_image is not None:
+                extra_info["CLOUDML_XIAOMI_BUILD_IMAGE"] = cloudml_xiaomi_build_image
+
+            cluster_name = os.environ.get("CLUSTER_NAME")
+            if cluster_name is not None:
+                extra_info["CLOUDML_CLUSTER_NAME"] = cluster_name
+
+        return extra_info
 
     def _init_hadoop_classpath(self):
         hadoop_home = os.environ.get("HADOOP_HOME")
