@@ -586,6 +586,10 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     String[] srcActualPaths = srcPair.getContext().actualPaths();
     String[] dstActualPaths = dstPair.getContext().actualPaths();
 
+    if (isFsGravitinoFilesetWritePrimaryOnly) {
+      return srcFileSystems[0].rename(new Path(srcActualPaths[0]), new Path(dstActualPaths[0]));
+    }
+
     List<Integer> validateActualPathIndexes =
         validateActualPaths(srcFileSystems, srcActualPaths, dstActualPaths);
     if (validateActualPathIndexes.isEmpty()) {
@@ -661,6 +665,9 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     FilesetContextPair pair = getFilesetContext(path, FilesetDataOperation.MKDIRS);
     FileSystem[] fileSystems = pair.getFileSystems();
     String[] actualPaths = pair.getContext().actualPaths();
+    if (isFsGravitinoFilesetWritePrimaryOnly) {
+      return fileSystems[0].mkdirs(new Path(actualPaths[0]), permission);
+    }
     for (int i = 0; i < actualPaths.length; i++) {
       if (fileSystems[i].exists(new Path(actualPaths[i]))) {
         return true;

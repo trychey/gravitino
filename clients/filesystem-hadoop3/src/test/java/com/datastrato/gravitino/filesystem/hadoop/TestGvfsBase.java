@@ -1563,6 +1563,86 @@ public class TestGvfsBase extends GravitinoMockServerBase {
     }
   }
 
+  @Test
+  public void testMkdirsWithDoubleWrite() throws IOException {
+    String filesetName = "testMkdirs_with_double_write";
+    Path managedFilesetPath =
+        FileSystemTestUtils.createFilesetPath(catalogName, schemaName, filesetName, true);
+
+    Path primaryPath;
+    Path backupPath;
+    primaryPath = FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetName);
+    backupPath =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetName + "_bak");
+    Map<String, String> props =
+        ImmutableMap.of(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, backupPath.toString());
+
+    String contextPath =
+        String.format(
+            "/api/metalakes/%s/catalogs/%s/schemas/%s/filesets/%s/context",
+            metalakeName, catalogName, schemaName, filesetName);
+
+    Configuration newConf = new Configuration(conf);
+    newConf.setBoolean(
+        GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_FILESET_WRITE_PRIMARY_ONLY, true);
+
+    try (FileSystem gravitinoFileSystem = managedFilesetPath.getFileSystem(newConf);
+        FileSystem primaryFs = primaryPath.getFileSystem(newConf);
+        FileSystem backupFs = backupPath.getFileSystem(newConf)) {
+
+      FileSystemTestUtils.mkdirs(primaryPath, primaryFs);
+      FileSystemTestUtils.mkdirs(backupPath, backupFs);
+      assertTrue(primaryFs.exists(primaryPath));
+      assertTrue(backupFs.exists(backupPath));
+
+      FilesetDTO managedFileset =
+          mockFilesetDTO(
+              metalakeName,
+              catalogName,
+              schemaName,
+              filesetName,
+              Fileset.Type.MANAGED,
+              primaryPath.toString(),
+              props);
+      FilesetContextDTO mockContextDTO =
+          FilesetContextDTO.builder()
+              .fileset(managedFileset)
+              .actualPaths(new String[] {primaryPath + "/test_mkdirs", backupPath + "/test_mkdirs"})
+              .build();
+      FilesetContextResponse contextResponse = new FilesetContextResponse(mockContextDTO);
+      try {
+        buildMockResource(
+            Method.POST,
+            contextPath,
+            mockGetContextRequest(FilesetDataOperation.MKDIRS, "/test_mkdirs"),
+            contextResponse,
+            SC_OK);
+      } catch (JsonProcessingException e) {
+        throw new RuntimeException(e);
+      }
+
+      Path primaryDirPath = new Path(primaryPath + "/test_mkdirs");
+      Path backupDirPath = new Path(backupPath + "/test_mkdirs");
+      assertFalse(primaryFs.exists(primaryDirPath));
+      assertFalse(backupFs.exists(backupDirPath));
+
+      Path subDirPath = new Path(managedFilesetPath + "/test_mkdirs");
+      FileSystemTestUtils.mkdirs(subDirPath, gravitinoFileSystem);
+      assertTrue(primaryFs.exists(primaryDirPath));
+      assertFalse(backupFs.exists(backupDirPath));
+
+      // support make a new dir in primary location when enable
+      // fs.gravitino.fileset.write.primaryOnly.
+      primaryFs.delete(primaryDirPath, true);
+      assertFalse(primaryFs.exists(primaryDirPath));
+      backupFs.mkdirs(backupDirPath);
+      assertTrue(backupFs.exists(backupDirPath));
+      assertTrue(gravitinoFileSystem.mkdirs(subDirPath));
+      assertTrue(primaryFs.exists(primaryDirPath));
+      assertTrue(backupFs.exists(backupDirPath));
+    }
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   public void testRenameWithMultipleLocs(boolean isTestPrimaryLocation) throws IOException {
@@ -1692,6 +1772,121 @@ public class TestGvfsBase extends GravitinoMockServerBase {
             IllegalArgumentException.class,
             () -> gravitinoFileSystem.rename(srcFilesetRenamePath, dstFilesetRenamePath));
       }
+    }
+  }
+
+  @Test
+  public void testRenameWithDoubleWrite() throws IOException {
+    String filesetName = "testRename_with_double_write";
+    Path managedFilesetPath =
+        FileSystemTestUtils.createFilesetPath(catalogName, schemaName, filesetName, true);
+
+    Path primaryPath;
+    Path backupPath;
+    primaryPath = FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetName);
+    backupPath =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetName + "_bak");
+    Map<String, String> props =
+        ImmutableMap.of(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, backupPath.toString());
+
+    String contextPath =
+        String.format(
+            "/api/metalakes/%s/catalogs/%s/schemas/%s/filesets/%s/context",
+            metalakeName, catalogName, schemaName, filesetName);
+
+    Configuration newConf = new Configuration(conf);
+    newConf.setBoolean(
+        GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_FILESET_WRITE_PRIMARY_ONLY, true);
+
+    try (FileSystem gravitinoFileSystem = managedFilesetPath.getFileSystem(newConf);
+        FileSystem primaryFs = primaryPath.getFileSystem(newConf);
+        FileSystem backupFs = backupPath.getFileSystem(newConf)) {
+
+      FileSystemTestUtils.mkdirs(primaryPath, primaryFs);
+      FileSystemTestUtils.mkdirs(backupPath, backupFs);
+      assertTrue(primaryFs.exists(primaryPath));
+      assertTrue(backupFs.exists(backupPath));
+
+      // test managed fileset rename
+      FilesetDTO managedFileset =
+          mockFilesetDTO(
+              metalakeName,
+              catalogName,
+              schemaName,
+              filesetName,
+              Fileset.Type.MANAGED,
+              primaryPath.toString(),
+              props);
+      FilesetContextDTO mockContextDTO1 =
+          FilesetContextDTO.builder()
+              .fileset(managedFileset)
+              .actualPaths(new String[] {primaryPath + "/rename_src", backupPath + "/rename_src"})
+              .build();
+      FilesetContextResponse contextResponse1 = new FilesetContextResponse(mockContextDTO1);
+      try {
+        buildMockResource(
+            Method.POST,
+            contextPath,
+            mockGetContextRequest(FilesetDataOperation.RENAME, "/rename_src"),
+            contextResponse1,
+            SC_OK);
+      } catch (JsonProcessingException e) {
+        throw new RuntimeException(e);
+      }
+
+      FilesetContextDTO mockContextDTO2 =
+          FilesetContextDTO.builder()
+              .fileset(managedFileset)
+              .actualPaths(new String[] {primaryPath + "/rename_dst1", backupPath + "/rename_dst1"})
+              .build();
+      FilesetContextResponse contextResponse2 = new FilesetContextResponse(mockContextDTO2);
+      try {
+        buildMockResource(
+            Method.POST,
+            contextPath,
+            mockGetContextRequest(FilesetDataOperation.RENAME, "/rename_dst1"),
+            contextResponse2,
+            SC_OK);
+      } catch (JsonProcessingException e) {
+        throw new RuntimeException(e);
+      }
+
+      Path primarySrcPath = new Path(primaryPath + "/rename_src");
+      Path primaryDstPath = new Path(primaryPath + "/rename_dst1");
+      Path backupSrcPath = new Path(backupPath + "/rename_src");
+      Path backupDstPath = new Path(backupPath + "/rename_dst1");
+      Path srcFilesetRenamePath = new Path(managedFilesetPath + "/rename_src");
+      Path dstFilesetRenamePath = new Path(managedFilesetPath + "/rename_dst1");
+
+      primaryFs.mkdirs(primarySrcPath);
+      assertTrue(primaryFs.getFileStatus(primarySrcPath).isDirectory());
+      assertFalse(primaryFs.exists(primaryDstPath));
+      assertFalse(backupFs.exists(backupSrcPath));
+      assertFalse(backupFs.exists(backupDstPath));
+      assertTrue(gravitinoFileSystem.rename(srcFilesetRenamePath, dstFilesetRenamePath));
+      assertFalse(primaryFs.exists(primarySrcPath));
+      assertTrue(primaryFs.exists(primaryDstPath));
+
+      // only support rename the path in primary location when enable
+      // fs.gravitino.fileset.write.primaryOnly.
+      primaryFs.delete(primarySrcPath, true);
+      primaryFs.delete(primaryDstPath, true);
+      backupFs.mkdirs(backupSrcPath);
+      assertFalse(primaryFs.exists(primarySrcPath));
+      assertFalse(primaryFs.exists(primaryDstPath));
+      assertTrue(backupFs.getFileStatus(backupSrcPath).isDirectory());
+      assertFalse(backupFs.exists(backupDstPath));
+      assertThrowsExactly(
+          FileNotFoundException.class,
+          () -> gravitinoFileSystem.rename(srcFilesetRenamePath, dstFilesetRenamePath));
+      primaryFs.mkdirs(primarySrcPath);
+      assertTrue(primaryFs.exists(primarySrcPath));
+      assertFalse(primaryFs.exists(primaryDstPath));
+      assertTrue(gravitinoFileSystem.rename(srcFilesetRenamePath, dstFilesetRenamePath));
+      assertFalse(primaryFs.exists(primarySrcPath));
+      assertTrue(primaryFs.exists(primaryDstPath));
+      assertTrue(backupFs.exists(backupSrcPath));
+      assertFalse(backupFs.exists(backupDstPath));
     }
   }
 }
