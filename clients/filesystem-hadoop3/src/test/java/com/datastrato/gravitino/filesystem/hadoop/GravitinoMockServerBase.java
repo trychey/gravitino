@@ -221,6 +221,11 @@ public abstract class GravitinoMockServerBase {
 
   protected static GetFilesetContextRequest mockGetContextRequest(
       FilesetDataOperation operation, String subPath) {
+    Map<String, String> extraInfo = Maps.newHashMap();
+    Version.VersionInfo versionInfo = Version.getCurrentVersion();
+    extraInfo.put("CLIENT_VERSION", versionInfo.version);
+    extraInfo.put("CLIENT_COMPILE_DATE", versionInfo.compileDate);
+    extraInfo.put("CLIENT_GIT_COMMIT", versionInfo.gitCommit);
     return GetFilesetContextRequest.builder()
         .operation(operation)
         .subPath(subPath)
@@ -228,7 +233,7 @@ public abstract class GravitinoMockServerBase {
         .ip(getClientIp())
         .sourceEngineType(SourceEngineType.UNKNOWN)
         .appId("unknown")
-        .extraInfo(Collections.emptyMap())
+        .extraInfo(extraInfo)
         .build();
   }
 

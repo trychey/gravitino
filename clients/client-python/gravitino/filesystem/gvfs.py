@@ -154,6 +154,7 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
         self._source_engine_type = self._get_source_engine_type()
         self._local_address = self._get_local_address()
         self._app_id = self._get_app_id()
+        self._client_version = self._client.get_client_version()
         self._extra_info = self._get_extra_info()
 
         super().__init__(**kwargs)
@@ -605,6 +606,7 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
             source_engine_type=self._source_engine_type,
             ip=self._local_address,
             app_id=self._app_id,
+            extra_info=self._extra_info,
         )
         context: FilesetContext = (
             fileset_catalog.as_fileset_catalog().get_fileset_context(identifier, ctx)
@@ -758,8 +760,7 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
             return cloudml_job_id
         return "unknown"
 
-    @staticmethod
-    def _get_extra_info():
+    def _get_extra_info(self):
         extra_info = {}
         if GravitinoVirtualFileSystem._is_cloudml_env is True:
             cloudml_owner_name = os.environ.get("CLOUDML_OWNER_NAME")
@@ -789,7 +790,9 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
             cluster_name = os.environ.get("CLUSTER_NAME")
             if cluster_name is not None:
                 extra_info["CLOUDML_CLUSTER_NAME"] = cluster_name
-
+        extra_info["CLIENT_VERSION"] = self._client_version.version()
+        extra_info["CLIENT_COMPILE_DATE"] = self._client_version.compile_date()
+        extra_info["CLIENT_GIT_COMMIT"] = self._client_version.git_commit()
         return extra_info
 
     def _init_hadoop_classpath(self):

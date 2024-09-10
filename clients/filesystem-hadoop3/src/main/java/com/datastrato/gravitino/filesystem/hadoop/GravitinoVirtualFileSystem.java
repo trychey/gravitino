@@ -5,6 +5,7 @@
 package com.datastrato.gravitino.filesystem.hadoop;
 
 import com.datastrato.gravitino.NameIdentifier;
+import com.datastrato.gravitino.Version;
 import com.datastrato.gravitino.auth.AuthConstants;
 import com.datastrato.gravitino.client.DefaultOAuth2TokenProvider;
 import com.datastrato.gravitino.client.GravitinoClient;
@@ -75,6 +76,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   private SourceEngineType sourceType;
   private Map<String, String> extraInfo = ImmutableMap.of();
   private static final ClientType clientType = ClientType.HADOOP_GVFS;
+  private static final Version.VersionInfo clientVersion = Version.getCurrentVersion();
   private static boolean isFsGravitinoFilesetWritePrimaryOnly = false;
   private static boolean isCloudMLEnv = false;
 
@@ -344,6 +346,9 @@ public class GravitinoVirtualFileSystem extends FileSystem {
           "CLOUDML_XIAOMI_BUILD_IMAGE", k -> System.getenv("XIAOMI_BUILD_IMAGE"));
       extraInfo.computeIfAbsent("CLOUDML_CLUSTER_NAME", k -> System.getenv("CLUSTER_NAME"));
     }
+    extraInfo.computeIfAbsent("CLIENT_VERSION", k -> clientVersion.version);
+    extraInfo.computeIfAbsent("CLIENT_COMPILE_DATE", k -> clientVersion.compileDate);
+    extraInfo.computeIfAbsent("CLIENT_GIT_COMMIT", k -> clientVersion.gitCommit);
     return extraInfo;
   }
 
