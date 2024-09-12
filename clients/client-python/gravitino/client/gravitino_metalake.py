@@ -6,6 +6,7 @@ This software is licensed under the Apache License version 2.
 import logging
 from typing import List, Dict
 
+from gravitino.api.secret import Secret
 from gravitino.api.catalog import Catalog
 from gravitino.api.catalog_change import CatalogChange
 from gravitino.dto.dto_converters import DTOConverters
@@ -16,6 +17,7 @@ from gravitino.dto.responses.catalog_list_response import CatalogListResponse
 from gravitino.dto.responses.catalog_response import CatalogResponse
 from gravitino.dto.responses.drop_response import DropResponse
 from gravitino.dto.responses.entity_list_response import EntityListResponse
+from gravitino.dto.responses.secret_response import SecretResponse
 from gravitino.name_identifier import NameIdentifier
 from gravitino.namespace import Namespace
 from gravitino.utils import HTTPClient
@@ -211,3 +213,19 @@ class GravitinoMetalake(MetalakeDTO):
         except Exception:
             logger.warning("Failed to drop catalog %s", ident)
             return False
+
+    def get_secret(self, secret_type: str) -> Secret:
+        """Get the secret in the metalake.
+
+        Args:
+            The type of the secret.
+
+        Returns:
+            The corresponding secret.
+        """
+        url = f"api/metalakes/{self._name}/secrets"
+        params = {"type": secret_type}
+        response = self.rest_client.get(endpoint=url, params=params)
+        secret_resp = SecretResponse.from_json(response.body, infer_missing=True)
+
+        return secret_resp.secret()

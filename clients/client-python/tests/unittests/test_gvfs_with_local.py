@@ -7,6 +7,7 @@ import random
 import string
 import time
 import unittest
+
 import mock_base
 import pandas
 import pyarrow as pa
@@ -19,7 +20,9 @@ from gravitino import NameIdentifier
 from gravitino.dto.audit_dto import AuditDTO
 from gravitino.dto.fileset_context_dto import FilesetContextDTO
 from gravitino.dto.fileset_dto import FilesetDTO
-from gravitino.filesystem.gvfs import FilesetContext, StorageType, FilesetContextPair
+from gravitino.filesystem.gvfs import FilesetContextPair
+from gravitino.filesystem.gvfs_config import GVFSConfig
+from gravitino.filesystem.storage_type import StorageType
 from gravitino.exceptions.gravitino_runtime_exception import GravitinoRuntimeException
 from fsspec.implementations.local import LocalFileSystem
 
@@ -36,6 +39,7 @@ class TestLocalFilesystem(unittest.TestCase):
     _fileset_dir: str = (
         f"{_local_base_dir_path}/{generate_unique_random_string(10)}/fileset_catalog/tmp"
     )
+    _options = {}
 
     def setUp(self) -> None:
         local_fs = LocalFileSystem()
@@ -46,32 +50,36 @@ class TestLocalFilesystem(unittest.TestCase):
         local_fs = LocalFileSystem()
         if local_fs.exists(self._local_base_dir_path):
             local_fs.rm(self._local_base_dir_path, recursive=True)
+        self._options = {}
 
     def test_cache(self, *mock_methods):
-        fileset_storage_location = f"{self._fileset_dir}/test_cache"
-        fileset_virtual_location = "fileset/fileset_catalog/tmp/test_cache"
-        actual_paths = [fileset_storage_location]
-        with patch(
-            "gravitino.catalog.fileset_catalog.FilesetCatalog.get_fileset_context",
-            return_value=mock_base.mock_get_fileset_context(
-                "test_cache", f"{self._fileset_dir}/test_cache", actual_paths
-            ),
-        ) as mock_fileset:
-            local_fs = LocalFileSystem()
+        if self._options.get(GVFSConfig.AUTH_TYPE) != GVFSConfig.TOKEN_AUTH_TYPE:
+            fileset_storage_location = f"{self._fileset_dir}/test_cache"
+            fileset_virtual_location = "fileset/fileset_catalog/tmp/test_cache"
+            actual_paths = [fileset_storage_location]
+            with patch(
+                "gravitino.catalog.fileset_catalog.FilesetCatalog.get_fileset_context",
+                return_value=mock_base.mock_get_fileset_context(
+                    "test_cache", f"{self._fileset_dir}/test_cache", actual_paths
+                ),
+            ) as mock_fileset:
+                local_fs = LocalFileSystem()
+                local_fs.mkdir(fileset_storage_location)
+                self.assertTrue(local_fs.exists(fileset_storage_location))
 
-            local_fs.mkdir(fileset_storage_location)
-            self.assertTrue(local_fs.exists(fileset_storage_location))
-
-            fs = gvfs.GravitinoVirtualFileSystem(
-                server_uri="http://localhost:9090",
-                metalake_name="metalake_demo",
-                cache_size=1,
-                cache_expired_time=1,
-            )
-            self.assertTrue(fs.exists(fileset_virtual_location))
-            # wait 2 seconds
-            time.sleep(2)
-            self.assertIsNone(fs._cache.get("file:/"))
+                extra_options = self._options.copy()
+                extra_options[GVFSConfig.CACHE_SIZE] = 1
+                extra_options[GVFSConfig.CACHE_EXPIRED_TIME] = 1
+                fs = gvfs.GravitinoVirtualFileSystem(
+                    server_uri="http://localhost:9090",
+                    metalake_name="metalake_demo",
+                    options=extra_options,
+                    skip_instance_cache=True,
+                )
+                self.assertTrue(fs.exists(fileset_virtual_location))
+                # wait 2 seconds
+                time.sleep(2)
+                self.assertIsNone(fs._filesystem_manager._cache.get(StorageType.LOCAL))
 
     def test_ls(self, *mock_methods):
         fileset_storage_location = f"{self._fileset_dir}/test_ls"
@@ -93,7 +101,10 @@ class TestLocalFilesystem(unittest.TestCase):
             self.assertTrue(local_fs.exists(sub_file_path))
 
             fs = gvfs.GravitinoVirtualFileSystem(
-                server_uri="http://localhost:9090", metalake_name="metalake_demo"
+                server_uri="http://localhost:9090",
+                metalake_name="metalake_demo",
+                options=self._options,
+                skip_instance_cache=True,
             )
             self.assertTrue(fs.exists(fileset_virtual_location))
 
@@ -134,7 +145,10 @@ class TestLocalFilesystem(unittest.TestCase):
         local_fs.touch(sub_file_path)
         self.assertTrue(local_fs.exists(sub_file_path))
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
         with patch(
             "gravitino.catalog.fileset_catalog.FilesetCatalog.get_fileset_context",
@@ -179,7 +193,10 @@ class TestLocalFilesystem(unittest.TestCase):
         local_fs.touch(sub_file_path)
         self.assertTrue(local_fs.exists(sub_file_path))
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
         with patch(
             "gravitino.catalog.fileset_catalog.FilesetCatalog.get_fileset_context",
@@ -222,7 +239,10 @@ class TestLocalFilesystem(unittest.TestCase):
             f.write(b"test_file_1")
 
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
 
         with patch(
@@ -276,7 +296,10 @@ class TestLocalFilesystem(unittest.TestCase):
         self.assertTrue(local_fs.exists(another_dir_path))
 
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
         with patch(
             "gravitino.catalog.fileset_catalog.FilesetCatalog.get_fileset_context",
@@ -360,7 +383,10 @@ class TestLocalFilesystem(unittest.TestCase):
         self.assertTrue(local_fs.exists(sub_dir_path))
 
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
 
         context1 = mock_base.mock_get_fileset_context(
@@ -421,7 +447,10 @@ class TestLocalFilesystem(unittest.TestCase):
         self.assertTrue(local_fs.exists(sub_dir_path))
 
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
 
         context1 = mock_base.mock_get_fileset_context(
@@ -478,7 +507,10 @@ class TestLocalFilesystem(unittest.TestCase):
         self.assertTrue(local_fs.exists(sub_dir_path))
 
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
         context1 = mock_base.mock_get_fileset_context(
             "test_rmdir", f"{self._fileset_dir}/test_rmdir", actual_paths
@@ -534,7 +566,10 @@ class TestLocalFilesystem(unittest.TestCase):
         self.assertTrue(local_fs.exists(sub_dir_path))
 
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
 
         context1 = mock_base.mock_get_fileset_context(
@@ -592,7 +627,10 @@ class TestLocalFilesystem(unittest.TestCase):
         self.assertTrue(local_fs.exists(sub_dir_path))
 
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
 
         context1 = mock_base.mock_get_fileset_context(
@@ -651,7 +689,10 @@ class TestLocalFilesystem(unittest.TestCase):
         self.assertTrue(local_fs.exists(sub_dir_path))
 
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
 
         context1 = mock_base.mock_get_fileset_context(
@@ -696,7 +737,10 @@ class TestLocalFilesystem(unittest.TestCase):
         self.assertTrue(local_fs.exists(sub_dir_path))
 
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
 
         context1 = mock_base.mock_get_fileset_context(
@@ -734,7 +778,10 @@ class TestLocalFilesystem(unittest.TestCase):
         self.assertTrue(local_fs.exists(sub_dir_path))
 
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
         context1 = mock_base.mock_get_fileset_context(
             "test_modified", f"{self._fileset_dir}/test_modified", actual_paths
@@ -775,7 +822,10 @@ class TestLocalFilesystem(unittest.TestCase):
         self.assertTrue(local_fs.exists(sub_dir_path))
 
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
         context1 = mock_base.mock_get_fileset_context(
             "test_cat_file", f"{self._fileset_dir}/test_cat_file", actual_paths
@@ -836,7 +886,10 @@ class TestLocalFilesystem(unittest.TestCase):
         self.assertTrue(local_fs.exists(sub_dir_path))
 
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
         context1 = mock_base.mock_get_fileset_context(
             "test_get_file", f"{self._fileset_dir}/test_get_file", actual_paths
@@ -914,7 +967,10 @@ class TestLocalFilesystem(unittest.TestCase):
         )
 
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
         # test actual path not start with storage location
         actual_path = "/not_start_with_storage/ttt"
@@ -966,7 +1022,10 @@ class TestLocalFilesystem(unittest.TestCase):
         )
 
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
         # test actual path not start with storage location
         actual_path = "/not_start_with_storage/ttt"
@@ -1019,7 +1078,10 @@ class TestLocalFilesystem(unittest.TestCase):
         )
 
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
         # test actual path not start with storage location
         actual_path = "/not_start_with_storage/ttt"
@@ -1071,7 +1133,10 @@ class TestLocalFilesystem(unittest.TestCase):
         )
 
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
         # test actual path not start with storage location
         actual_path = "/not_start_with_storage/ttt"
@@ -1101,7 +1166,10 @@ class TestLocalFilesystem(unittest.TestCase):
 
     def test_extract_identifier(self, *mock_methods):
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:9090", metalake_name="metalake_demo"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
         with self.assertRaises(GravitinoRuntimeException):
             fs._extract_identifier(path=None)
@@ -1126,7 +1194,10 @@ class TestLocalFilesystem(unittest.TestCase):
 
         data = pandas.DataFrame({"Name": ["A", "B", "C", "D"], "ID": [20, 21, 19, 18]})
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:8090", metalake_name="test_metalake"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
 
         actual_paths = [fileset_storage_location + "/test.parquet"]
@@ -1187,7 +1258,10 @@ class TestLocalFilesystem(unittest.TestCase):
 
         data = pandas.DataFrame({"Name": ["A", "B", "C", "D"], "ID": [20, 21, 19, 18]})
         fs = gvfs.GravitinoVirtualFileSystem(
-            server_uri="http://localhost:8090", metalake_name="test_metalake"
+            server_uri="http://localhost:9090",
+            metalake_name="metalake_demo",
+            options=self._options,
+            skip_instance_cache=True,
         )
         actual_paths = [fileset_storage_location + "/test.parquet"]
         context1 = mock_base.mock_get_fileset_context(

@@ -92,3 +92,6 @@ class GravitinoClient(GravitinoClientBase):
 
     def drop_catalog(self, ident: NameIdentifier):
         return self.get_metalake().drop_catalog(ident)
+
+    def get_secret(self, secret_type: str):
+        return self.get_metalake().get_secret(secret_type)

@@ -7,19 +7,14 @@ This software is licensed under the Apache License version 2.
 
 import os
 import socket
-import subprocess
-from enum import Enum
 from pathlib import PurePosixPath
 from typing import Dict, Tuple, List
 import re
 import fsspec
 
-from cachetools import TTLCache, LRUCache
+from cachetools import LRUCache
 from fsspec import AbstractFileSystem
-from fsspec.implementations.local import LocalFileSystem
-from fsspec.implementations.arrow import ArrowFSWrapper
 from fsspec.utils import infer_storage_options
-from pyarrow.fs import HadoopFileSystem
 from readerwriterlock import rwlock
 
 from gravitino.api.base_fileset_data_operation_ctx import BaseFilesetDataOperationCtx
@@ -33,15 +28,11 @@ from gravitino.catalog.fileset_catalog import FilesetCatalog
 from gravitino.client.gravitino_client import GravitinoClient
 from gravitino.exceptions.gravitino_runtime_exception import GravitinoRuntimeException
 from gravitino.filesystem.gvfs_config import GVFSConfig
+from gravitino.filesystem.internal_filesystem_manager import InternalFileSystemManager
+from gravitino.filesystem.storage_type import StorageType
 from gravitino.name_identifier import NameIdentifier
 
 PROTOCOL_NAME = "gvfs"
-
-
-class StorageType(Enum):
-    HDFS = "hdfs"
-    LOCAL = "file"
-    LAVAFS = "lavafs"
 
 
 class FilesetContextPair:
@@ -72,7 +63,6 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
     # Override the parent variable
     protocol = PROTOCOL_NAME
     _identifier_pattern = re.compile("^fileset/([^/]+)/([^/]+)/([^/]+)(?:/[^/]+)*/?$")
-    _hadoop_classpath = None
     _is_cloudml_env = os.environ.get("CLOUDML_JOB_ID") is not None
 
     def __init__(
@@ -128,25 +118,9 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
             raise GravitinoRuntimeException(
                 f"Authentication type {auth_type} is not supported."
             )
-        cache_size = (
-            GVFSConfig.DEFAULT_CACHE_SIZE
-            if options is None
-            else options.get(GVFSConfig.CACHE_SIZE, GVFSConfig.DEFAULT_CACHE_SIZE)
+        self._filesystem_manager = InternalFileSystemManager(
+            self._server_uri, self._metalake, options
         )
-        cache_expired_time = (
-            GVFSConfig.DEFAULT_CACHE_EXPIRED_TIME
-            if options is None
-            else options.get(
-                GVFSConfig.CACHE_EXPIRED_TIME, GVFSConfig.DEFAULT_CACHE_EXPIRED_TIME
-            )
-        )
-        assert cache_expired_time != 0, "Cache expired time cannot be 0."
-        assert cache_size > 0, "Cache size cannot be less than or equal to 0."
-        if cache_expired_time < 0:
-            self._cache = LRUCache(maxsize=cache_size)
-        else:
-            self._cache = TTLCache(maxsize=cache_size, ttl=cache_expired_time)
-        self._cache_lock = rwlock.RWLockFair()
 
         self._catalog_cache = LRUCache(maxsize=100)
         self._catalog_cache_lock = rwlock.RWLockFair()
@@ -613,7 +587,8 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
         )
 
         filesystems: List[AbstractFileSystem] = [
-            self._get_filesystem(actual_path) for actual_path in context.actual_paths()
+            self._filesystem_manager.get_filesystem(actual_path)
+            for actual_path in context.actual_paths()
         ]
         return FilesetContextPair(context, filesystems)
 
@@ -686,22 +661,6 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
         raise GravitinoRuntimeException(
             f"Storage type doesn't support now. Path:{path}"
         )
-
-    @staticmethod
-    def _parse_storage_host_path(path: str):
-        if path.startswith(f"{StorageType.LOCAL.value}:/"):
-            return f"{StorageType.LOCAL}:/"
-        if path.startswith(f"{StorageType.HDFS.value}://"):
-            match = re.match(r"hdfs://([^/]+)", path)
-            if not match:
-                raise GravitinoRuntimeException(f"Invalid HDFS path: {path}")
-            return match.group(1)
-        if path.startswith(f"{StorageType.LAVAFS.value}://"):
-            match = re.match(r"lavafs://([^/]+)", path)
-            if not match:
-                raise GravitinoRuntimeException(f"Invalid LAVAFS path: {path}")
-            return match.group(1)
-        raise GravitinoRuntimeException(f"Unsupported storage path: {path}")
 
     @staticmethod
     def _strip_storage_protocol(storage_type: StorageType, path: str):
@@ -795,66 +754,6 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
         extra_info["CLIENT_GIT_COMMIT"] = self._client_version.git_commit()
         return extra_info
 
-    def _init_hadoop_classpath(self):
-        hadoop_home = os.environ.get("HADOOP_HOME")
-        hadoop_conf_dir = os.environ.get("HADOOP_CONF_DIR")
-        if (
-            hadoop_home is not None
-            and len(hadoop_home) > 0
-            and hadoop_conf_dir is not None
-            and len(hadoop_conf_dir) > 0
-        ):
-            hadoop_shell = f"{hadoop_home}/bin/hadoop"
-            if not os.path.exists(hadoop_shell):
-                raise GravitinoRuntimeException(
-                    f"Hadoop shell:{hadoop_shell} doesn't exist."
-                )
-            try:
-                result = subprocess.run(
-                    [hadoop_shell, "classpath", "--glob"],
-                    capture_output=True,
-                    text=True,
-                    # we set check=True to raise exception if the command failed.
-                    check=True,
-                )
-                classpath_str = str(result.stdout)
-                origin_classpath = os.environ.get("CLASSPATH")
-                # compatible with lavafs in Notebook and PySpark in the cluster
-                spark_classpath = os.environ.get("SPARK_DIST_CLASSPATH")
-                potential_lavafs_jar_files = []
-                current_dir = os.getcwd()
-                if spark_classpath is not None:
-                    file_list = os.listdir(current_dir)
-                    pattern = re.compile(r"^lavafs.*\.jar$")
-                    potential_lavafs_jar_files = [
-                        file
-                        for file in file_list
-                        if pattern.match(file)
-                        and os.path.isfile(os.path.join(current_dir, file))
-                    ]
-                new_classpath = hadoop_conf_dir + ":" + classpath_str
-                if (
-                    potential_lavafs_jar_files is not None
-                    and len(potential_lavafs_jar_files) > 0
-                ):
-                    for lava_jar in potential_lavafs_jar_files:
-                        new_classpath = (
-                            new_classpath + ":" + os.path.join(current_dir, lava_jar)
-                        )
-                if origin_classpath is None or len(origin_classpath) == 0:
-                    os.environ["CLASSPATH"] = new_classpath
-                else:
-                    os.environ["CLASSPATH"] = origin_classpath + ":" + new_classpath
-                self._hadoop_classpath = classpath_str
-            except subprocess.CalledProcessError as e:
-                raise GravitinoRuntimeException(
-                    f"Command failed with return code {e.returncode}, stdout:{e.stdout}, stderr:{e.stderr}"
-                ) from e
-        else:
-            raise GravitinoRuntimeException(
-                "Failed to get hadoop classpath, please check if hadoop env is configured correctly."
-            )
-
     def _get_fileset_catalog(self, catalog_ident: NameIdentifier):
         read_lock = self._catalog_cache_lock.gen_rlock()
         try:
@@ -878,47 +777,6 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
             catalog = self._client.load_catalog(catalog_ident)
             self._catalog_cache[catalog_ident] = catalog
             return catalog
-        finally:
-            write_lock.release()
-
-    def _get_filesystem(self, actual_path: str):
-        storage_type = self._recognize_storage_type(actual_path)
-        storage_host_path = self._parse_storage_host_path(actual_path)
-        read_lock = self._cache_lock.gen_rlock()
-        try:
-            read_lock.acquire()
-            cache_value: Tuple[str, AbstractFileSystem] = self._cache.get(
-                storage_host_path
-            )
-            if cache_value is not None:
-                return cache_value
-        finally:
-            read_lock.release()
-
-        write_lock = self._cache_lock.gen_wlock()
-        try:
-            write_lock.acquire()
-            cache_value: Tuple[str, AbstractFileSystem] = self._cache.get(
-                storage_host_path
-            )
-            if cache_value is not None:
-                return cache_value
-            if storage_type == StorageType.HDFS:
-                if self._hadoop_classpath is None:
-                    self._init_hadoop_classpath()
-                fs = ArrowFSWrapper(HadoopFileSystem.from_uri(actual_path))
-            elif storage_type == StorageType.LAVAFS:
-                if self._hadoop_classpath is None:
-                    self._init_hadoop_classpath()
-                fs = ArrowFSWrapper(HadoopFileSystem.from_uri(actual_path))
-            elif storage_type == StorageType.LOCAL:
-                fs = LocalFileSystem()
-            else:
-                raise GravitinoRuntimeException(
-                    f"Storage path: `{storage_host_path}` doesn't support now."
-                )
-            self._cache[storage_host_path] = fs
-            return fs
         finally:
             write_lock.release()
 

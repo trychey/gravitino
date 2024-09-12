@@ -3,6 +3,7 @@ Copyright 2024 Datastrato Pvt Ltd.
 This software is licensed under the Apache License version 2.
 """
 
+import base64
 from typing import List
 
 from gravitino import GravitinoMetalake, Catalog, Fileset
@@ -15,6 +16,7 @@ from gravitino.dto.metalake_dto import MetalakeDTO
 from unittest.mock import patch, Mock
 
 from gravitino.dto.responses.fileset_context_response import FilesetContextResponse
+from gravitino.dto.secret_dto import SecretDTO
 from gravitino.utils import HTTPClient
 
 
@@ -71,6 +73,32 @@ def mock_load_fileset(name: str, location: str):
     return fileset
 
 
+def mock_get_secret(expire_time: int = None):
+    audit_dto = AuditDTO(
+        _creator="test",
+        _create_time="2022-01-01T00:00:00Z",
+        _last_modifier="test",
+        _last_modified_time="2024-04-05T10:10:35.218Z",
+    )
+    if expire_time is None:
+        secret = SecretDTO(
+            _name="test",
+            _value=base64.b64encode(b"test value").decode("utf-8"),
+            _type="kerberos",
+            _properties={"expireTime": "-1"},
+            _audit=audit_dto,
+        )
+    else:
+        secret = SecretDTO(
+            _name="test",
+            _value=base64.b64encode(b"test value").decode("utf-8"),
+            _type="kerberos",
+            _properties={"expireTime": str(expire_time)},
+            _audit=audit_dto,
+        )
+    return secret
+
+
 def mock_get_fileset_context(name: str, location: str, actual_paths: List[str]):
     fileset = mock_load_fileset(name, location)
     context = FilesetContextDTO(fileset, actual_paths)
@@ -114,6 +142,10 @@ def mock_data(cls):
     @patch(
         "gravitino.client.gravitino_client_base.GravitinoClientBase.check_version",
         return_value=True,
+    )
+    @patch(
+        "gravitino.client.gravitino_metalake.GravitinoMetalake.get_secret",
+        return_value=mock_get_secret(),
     )
     class Wrapper(cls):
         pass
