@@ -22,6 +22,7 @@ from gravitino.dto.fileset_context_dto import FilesetContextDTO
 from gravitino.dto.fileset_dto import FilesetDTO
 from gravitino.filesystem.gvfs import FilesetContextPair
 from gravitino.filesystem.gvfs_config import GVFSConfig
+from gravitino.filesystem.internal_filesystem_manager import InternalFileSystemManager
 from gravitino.filesystem.storage_type import StorageType
 from gravitino.exceptions.gravitino_runtime_exception import GravitinoRuntimeException
 from fsspec.implementations.local import LocalFileSystem
@@ -1289,3 +1290,21 @@ class TestLocalFilesystem(unittest.TestCase):
                 fileset_virtual_location + "/test.parquet", filesystem=fs
             )
             self.assertTrue(arrow_tb_3.equals(arrow_tb_2))
+
+    def test_load_conf(self, *mock_methods):
+        fileset_properties = {
+            "gravitino.bypass.key1": "value1",
+            "gravitino.bypass.key2": "value2",
+            "key3": "value3",
+        }
+
+        catalog_properties = {
+            "gravitino.bypass.key1": "value2",
+            "gravitino.bypass.key3": "value3",
+            "key4": "value4",
+        }
+
+        conf = InternalFileSystemManager._load_conf(
+            fileset_properties, catalog_properties
+        )
+        self.assertTrue("key1=value1&key3=value3&key2=value2" == conf)

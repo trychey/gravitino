@@ -17,10 +17,13 @@ class SimpleFileSystemContext(FileSystemContext):
     _filesystem: AbstractFileSystem
     _hadoop_env: HadoopEnvironment
 
-    def __init__(self, uri: str):
+    def __init__(self, uri: str, config: str):
         if uri.startswith("hdfs://") or uri.startswith("lavafs://"):
             self._hadoop_env = HadoopEnvironment()
-            self._filesystem = ArrowFSWrapper(HadoopFileSystem.from_uri(uri))
+            hdfs_uri = uri
+            if config is not None:
+                hdfs_uri = uri + "?" + config
+            self._filesystem = ArrowFSWrapper(HadoopFileSystem.from_uri(hdfs_uri))
         elif uri.startswith("file:/"):
             self._filesystem = LocalFileSystem()
         else:

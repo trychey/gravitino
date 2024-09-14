@@ -587,7 +587,12 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
         )
 
         filesystems: List[AbstractFileSystem] = [
-            self._filesystem_manager.get_filesystem(actual_path)
+            self._filesystem_manager.get_filesystem(
+                actual_path,
+                sub_path,
+                context.fileset().properties(),
+                fileset_catalog.properties(),
+            )
             for actual_path in context.actual_paths()
         ]
         return FilesetContextPair(context, filesystems)

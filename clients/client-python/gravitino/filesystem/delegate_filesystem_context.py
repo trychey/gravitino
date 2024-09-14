@@ -45,7 +45,7 @@ class DelegateFileSystemContext(FileSystemContext):
     _local_credential_path: str
     _hadoop_env: HadoopEnvironment
 
-    def __init__(self, secret: Secret, uri: str):
+    def __init__(self, secret: Secret, uri: str, config: str):
         if secret.type() != "kerberos":
             raise UnsupportedOperationException(
                 f"Unsupported secret type: {secret.type()}"
@@ -71,6 +71,8 @@ class DelegateFileSystemContext(FileSystemContext):
             # init the hadoop env through python module import
             self._hadoop_env = HadoopEnvironment()
             concat_uri = f"{uri}?kerb_ticket={self._local_credential_path}"
+            if config is not None:
+                concat_uri = concat_uri + "&" + config
             self._filesystem = ArrowFSWrapper(HadoopFileSystem.from_uri(concat_uri))
         elif uri.startswith("file:/"):
             self._filesystem = LocalFileSystem()

@@ -228,10 +228,12 @@ public class InternalFileSystemManager implements AutoCloseable {
     return internalContextCache;
   }
 
-  public FileSystem getFileSystem(URI uri, Configuration configuration) {
+  public FileSystem getFileSystem(URI uri, String subPath, Configuration configuration) {
+    String path = uri.toString();
     FileSystemContext context =
         internalContextCache.get(
-            uri.getScheme(), str -> createInternalFileSystem(uri, configuration));
+            path.substring(0, path.length() - subPath.length()),
+            str -> createInternalFileSystem(uri, configuration));
     if (context == null) {
       throw new GravitinoRuntimeException("FileSystem context not found for uri: %s", uri);
     }

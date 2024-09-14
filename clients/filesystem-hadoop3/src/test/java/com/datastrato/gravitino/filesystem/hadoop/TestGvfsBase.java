@@ -42,6 +42,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hc.core5.http.Method;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -98,13 +99,14 @@ public class TestGvfsBase extends GravitinoMockServerBase {
     String filesetName = "testFSCache";
     Path managedFilesetPath =
         FileSystemTestUtils.createFilesetPath(catalogName, schemaName, filesetName, true);
-    Path localPath = FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetName);
+    Path localStorageLocation =
+        FileSystemTestUtils.createLocalDirPrefix(catalogName, schemaName, filesetName);
     String contextPath =
         String.format(
             "/api/metalakes/%s/catalogs/%s/schemas/%s/filesets/%s/context",
             metalakeName, catalogName, schemaName, filesetName);
     try (FileSystem gravitinoFileSystem = managedFilesetPath.getFileSystem(conf);
-        FileSystem localFileSystem = localPath.getFileSystem(conf)) {
+        FileSystem localFileSystem = localStorageLocation.getFileSystem(conf)) {
 
       Configuration conf1 = localFileSystem.getConf();
       assertEquals(
@@ -137,32 +139,33 @@ public class TestGvfsBase extends GravitinoMockServerBase {
               schemaName,
               filesetName,
               Fileset.Type.MANAGED,
-              localPath.toString(),
+              localStorageLocation.toString(),
               ImmutableMap.of());
+
       FilesetContextDTO mockContextDTO =
           FilesetContextDTO.builder()
               .fileset(managedFileset)
-              .actualPaths(new String[] {localPath.toString()})
+              .actualPaths(new String[] {localStorageLocation + "/dir"})
               .build();
       FilesetContextResponse contextResponse = new FilesetContextResponse(mockContextDTO);
       try {
         buildMockResource(
             Method.POST,
             contextPath,
-            mockGetContextRequest(FilesetDataOperation.MKDIRS, ""),
+            mockGetContextRequest(FilesetDataOperation.MKDIRS, "/dir"),
             contextResponse,
             SC_OK);
       } catch (JsonProcessingException e) {
         throw new RuntimeException(e);
       }
 
-      FileSystemTestUtils.mkdirs(managedFilesetPath, gravitinoFileSystem);
+      FileSystemTestUtils.mkdirs(new Path(managedFilesetPath + "/dir"), gravitinoFileSystem);
       FileSystem proxyLocalFs =
           Objects.requireNonNull(
                   ((GravitinoVirtualFileSystem) gravitinoFileSystem)
                       .getFileSystemManager()
                       .getInternalContextCache()
-                      .getIfPresent(GravitinoVirtualFileSystemConfiguration.LOCAL_SCHEME))
+                      .getIfPresent(localStorageLocation.toString()))
               .getFileSystem();
 
       String anotherFilesetName = "test_new_fs";
@@ -1887,6 +1890,29 @@ public class TestGvfsBase extends GravitinoMockServerBase {
       assertTrue(primaryFs.exists(primaryDstPath));
       assertTrue(backupFs.exists(backupSrcPath));
       assertFalse(backupFs.exists(backupDstPath));
+    }
+  }
+
+  @Test
+  public void testLoadConfig() throws IOException {
+    Configuration configuration = new Configuration(conf);
+    configuration.set("key1", "value1");
+    Map<String, String> catalogProperties =
+        ImmutableMap.of(
+            "gravitino.bypass.key1", "value2",
+            "gravitino.bypass.key2", "value2",
+            "key4", "value4");
+    Map<String, String> filesetProperties =
+        ImmutableMap.of(
+            "gravitino.bypass.key2", "value3",
+            "gravitino.bypass.key3", "value3",
+            "key5", "value5");
+    try (GravitinoVirtualFileSystem gvfs = new GravitinoVirtualFileSystem()) {
+      gvfs.initialize(URI.create("gvfs://fileset/test"), configuration);
+      Configuration res = gvfs.loadConfig(catalogProperties, filesetProperties);
+      Assertions.assertEquals("value2", res.get("key1"));
+      Assertions.assertEquals("value3", res.get("key2"));
+      Assertions.assertEquals("value3", res.get("key3"));
     }
   }
 }

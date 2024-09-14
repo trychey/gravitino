@@ -23,6 +23,7 @@ from gravitino.filesystem.storage_type import StorageType
 
 SECRET_EXPIRE_TIME_PROP = "expireTime"
 KERBEROS_SECRET_TYPE = "kerberos"
+GRAVITINO_BYPASS = "gravitino.bypass."
 
 
 def cache_ttu_strategy(_key, context, now):
@@ -140,12 +141,35 @@ class InternalFileSystemManager:
             return StorageType.LOCAL
         raise GravitinoRuntimeException(f"Storage type doesn't support now. Path:{uri}")
 
-    def get_filesystem(self, uri: str) -> AbstractFileSystem:
+    @staticmethod
+    def _load_conf(
+        fileset_properties: Dict[str, str], catalog_properties: Dict[str, str]
+    ) -> str:
+        props = {}
+        props.update(catalog_properties)
+        props.update(fileset_properties)
+        conf = "&".join(
+            [
+                f"{k[len(GRAVITINO_BYPASS):]}={v}"
+                for k, v in props.items()
+                if k.startswith(GRAVITINO_BYPASS)
+            ]
+        )
+        return conf
+
+    def get_filesystem(
+        self,
+        uri: str,
+        sub_path: str,
+        fileset_properties: Dict[str, str],
+        catalog_properties: Dict[str, str],
+    ) -> AbstractFileSystem:
         storage_type = self._recognize_storage_type(uri)
+        storage_location = uri.rstrip(sub_path)
         read_lock = self._cache_lock.gen_rlock()
         try:
             read_lock.acquire()
-            context: FileSystemContext = self._cache.get(storage_type)
+            context: FileSystemContext = self._cache.get(storage_location)
             if context is not None:
                 return context.get_filesystem()
         finally:
@@ -154,14 +178,18 @@ class InternalFileSystemManager:
         write_lock = self._cache_lock.gen_wlock()
         try:
             write_lock.acquire()
-            context: FileSystemContext = self._cache.get(storage_type)
+            context: FileSystemContext = self._cache.get(storage_location)
             if context is not None:
                 return context.get_filesystem()
+
+            conf = self._load_conf(fileset_properties, catalog_properties)
             if self._auth_type == GVFSConfig.TOKEN_AUTH_TYPE:
                 secret: Secret = self._gravitino_client.get_secret(KERBEROS_SECRET_TYPE)
-                context: FileSystemContext = DelegateFileSystemContext(secret, uri)
+                context: FileSystemContext = DelegateFileSystemContext(
+                    secret, uri, conf
+                )
             else:
-                context: FileSystemContext = SimpleFileSystemContext(uri)
+                context: FileSystemContext = SimpleFileSystemContext(uri, conf)
             self._cache[storage_type] = context
             return context.get_filesystem()
         finally:

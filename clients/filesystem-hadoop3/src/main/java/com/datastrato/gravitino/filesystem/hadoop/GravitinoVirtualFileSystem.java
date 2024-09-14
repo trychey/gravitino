@@ -4,6 +4,7 @@
  */
 package com.datastrato.gravitino.filesystem.hadoop;
 
+import com.datastrato.gravitino.Catalog;
 import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.Version;
 import com.datastrato.gravitino.auth.AuthConstants;
@@ -68,7 +69,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   private URI uri;
   private GravitinoClient client;
   private String metalakeName;
-  private Cache<NameIdentifier, FilesetCatalog> catalogCache;
+  private Cache<NameIdentifier, Catalog> catalogCache;
   private ScheduledThreadPoolExecutor catalogCleanScheduler;
   private InternalFileSystemManager fileSystemManager;
   private String localAddress;
@@ -86,6 +87,11 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   //     /fileset_catalog/fileset_schema/fileset1/sub_dir/
   private static final Pattern IDENTIFIER_PATTERN =
       Pattern.compile("^(?:gvfs://fileset)?/([^/]+)/([^/]+)/([^/]+)(?:/[^/]+)*/?$");
+
+  // The prefix is used to match catalog bypass configuration. These configuration from
+  // catalog properties and fileset properties will be trim and pass to the
+  // hadoop configuration.
+  private static final String CATALOG_BYPASS_PREFIX = "gravitino.bypass.";
 
   @Override
   public void initialize(URI name, Configuration configuration) throws IOException {
@@ -419,23 +425,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   private FilesetContextPair getFilesetContext(Path virtualPath, FilesetDataOperation operation) {
     NameIdentifier identifier = extractIdentifier(virtualPath.toUri());
     String virtualPathString = virtualPath.toString();
-    String subPath =
-        virtualPathString.startsWith(GravitinoVirtualFileSystemConfiguration.GVFS_FILESET_PREFIX)
-            ? virtualPathString.substring(
-                String.format(
-                        "%s/%s/%s/%s",
-                        GravitinoVirtualFileSystemConfiguration.GVFS_FILESET_PREFIX,
-                        identifier.namespace().level(1),
-                        identifier.namespace().level(2),
-                        identifier.name())
-                    .length())
-            : virtualPathString.substring(
-                String.format(
-                        "/%s/%s/%s",
-                        identifier.namespace().level(1),
-                        identifier.namespace().level(2),
-                        identifier.name())
-                    .length());
+    String subPath = getSubPath(identifier, virtualPathString);
     BaseFilesetDataOperationCtx requestCtx =
         BaseFilesetDataOperationCtx.builder()
             .withOperation(operation)
@@ -448,21 +438,42 @@ public class GravitinoVirtualFileSystem extends FileSystem {
             .build();
     NameIdentifier catalogIdent =
         NameIdentifier.ofCatalog(metalakeName, identifier.namespace().level(1));
-    FilesetCatalog filesetCatalog =
-        catalogCache.get(
-            catalogIdent, ident -> client.loadCatalog(catalogIdent).asFilesetCatalog());
+    Map<String, String> properties = Maps.newHashMap();
+    Catalog catalog = catalogCache.get(catalogIdent, ident -> client.loadCatalog(ident));
     Preconditions.checkArgument(
-        filesetCatalog != null, String.format("Loaded fileset catalog: %s is null.", catalogIdent));
-
+        catalog != null, String.format("Loaded fileset catalog: %s is null.", catalogIdent));
+    properties.putAll(catalog.properties());
+    FilesetCatalog filesetCatalog = catalog.asFilesetCatalog();
     FilesetContext context = filesetCatalog.getFilesetContext(identifier, requestCtx);
     FileSystem[] fileSystems = new FileSystem[context.actualPaths().length];
     for (int index = 0; index < context.actualPaths().length; index++) {
       String actualPath = context.actualPaths()[index];
       URI uri = new Path(actualPath).toUri();
-      FileSystem fileSystem = fileSystemManager.getFileSystem(uri, getConf());
+      FileSystem fileSystem =
+          fileSystemManager.getFileSystem(
+              uri, subPath, loadConfig(properties, context.fileset().properties()));
       fileSystems[index] = fileSystem;
     }
     return new FilesetContextPair(context, fileSystems);
+  }
+
+  private String getSubPath(NameIdentifier identifier, String virtualPath) {
+    return virtualPath.startsWith(GravitinoVirtualFileSystemConfiguration.GVFS_FILESET_PREFIX)
+        ? virtualPath.substring(
+            String.format(
+                    "%s/%s/%s/%s",
+                    GravitinoVirtualFileSystemConfiguration.GVFS_FILESET_PREFIX,
+                    identifier.namespace().level(1),
+                    identifier.namespace().level(2),
+                    identifier.name())
+                .length())
+        : virtualPath.substring(
+            String.format(
+                    "/%s/%s/%s",
+                    identifier.namespace().level(1),
+                    identifier.namespace().level(2),
+                    identifier.name())
+                .length());
   }
 
   @Override
@@ -773,6 +784,23 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     fileSystemManager.close();
 
     super.close();
+  }
+
+  @VisibleForTesting
+  Configuration loadConfig(
+      Map<String, String> catalogProperties, Map<String, String> filesetProperties) {
+    Configuration configuration = new Configuration(getConf());
+    Map<String, String> properties = Maps.newHashMap();
+    properties.putAll(catalogProperties);
+    properties.putAll(filesetProperties);
+    properties.entrySet().stream()
+        .filter(e -> e.getKey().startsWith(CATALOG_BYPASS_PREFIX))
+        .forEach(
+            e -> {
+              configuration.set(e.getKey().replaceFirst(CATALOG_BYPASS_PREFIX, ""), e.getValue());
+            });
+
+    return configuration;
   }
 
   private List<Integer> validateActualPaths(FileSystem[] fileSystems, String[] actualPaths)
