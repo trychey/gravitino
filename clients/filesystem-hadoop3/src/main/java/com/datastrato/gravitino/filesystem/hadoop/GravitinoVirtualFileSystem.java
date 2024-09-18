@@ -390,18 +390,24 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     return fileStatus;
   }
 
-  private String getStorageLocation(Fileset fileset, int index) {
+  @VisibleForTesting
+  static String getStorageLocation(Fileset fileset, int index) {
     Preconditions.checkArgument(index >= 0, "Index cannot be negative.");
     Map<String, String> properties = fileset.properties();
     if (index == 0) {
-      return fileset.storageLocation();
+      return fileset.storageLocation().endsWith("/")
+          ? fileset.storageLocation().substring(0, fileset.storageLocation().length() - 1)
+          : fileset.storageLocation();
     } else {
       String backupStorageLocation =
           properties.get(FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + index);
       Preconditions.checkArgument(
           StringUtils.isNotBlank(backupStorageLocation),
           "Backup storage location cannot be null or empty.");
-      return backupStorageLocation;
+
+      return backupStorageLocation.endsWith("/")
+          ? backupStorageLocation.substring(0, backupStorageLocation.length() - 1)
+          : backupStorageLocation;
     }
   }
 

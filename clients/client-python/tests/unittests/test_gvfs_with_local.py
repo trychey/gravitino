@@ -1165,6 +1165,43 @@ class TestLocalFilesystem(unittest.TestCase):
             "fileset/test_catalog/test_schema/test_f1/actual_path", virtual_path
         )
 
+        # test actual path end with "/"
+        audit_dto = AuditDTO(
+            _creator="test",
+            _create_time="2022-01-01T00:00:00Z",
+            _last_modifier="test",
+            _last_modified_time="2024-04-05T10:10:35.218Z",
+        )
+        local_fileset: FilesetDTO = FilesetDTO(
+            _name="test_f1",
+            _comment="",
+            _type=FilesetDTO.Type.MANAGED,
+            _storage_location="file:/tmp/fileset/test_f1/",
+            _audit=audit_dto,
+            _properties={},
+        )
+        mock_local_context: FilesetContextDTO = FilesetContextDTO(
+            _fileset=local_fileset,
+            _actual_paths=[local_fileset.storage_location() + "actual_path/test.txt"],
+        )
+        mock_local_pair: FilesetContextPair = FilesetContextPair(
+            mock_local_context, [LocalFileSystem()]
+        )
+
+        actual_path = "/tmp/fileset/test_f1/actual_path/test.txt"
+        virtual_path = fs._convert_actual_path(
+            actual_path,
+            mock_local_pair,
+            StorageType.LOCAL,
+            NameIdentifier.of_fileset(
+                "metalake_demo", "test_catalog", "test_schema", local_fileset.name()
+            ),
+        )
+        self.assertEqual(
+            "fileset/test_catalog/test_schema/test_f1/actual_path/test.txt",
+            virtual_path,
+        )
+
     def test_extract_identifier(self, *mock_methods):
         fs = gvfs.GravitinoVirtualFileSystem(
             server_uri="http://localhost:9090",

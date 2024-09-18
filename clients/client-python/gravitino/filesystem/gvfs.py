@@ -526,6 +526,8 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
                 f"Path {path} does not start with valid prefix {actual_prefix}."
             )
         virtual_location = self._get_virtual_location(ident)
+        if actual_prefix.endswith("/"):
+            actual_prefix = actual_prefix[:-1]
         return f"{path.replace(actual_prefix, virtual_location)}"
 
     def _convert_actual_info(

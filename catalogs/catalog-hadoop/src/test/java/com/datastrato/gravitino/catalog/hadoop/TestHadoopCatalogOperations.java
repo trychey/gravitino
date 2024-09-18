@@ -1487,6 +1487,59 @@ public class TestHadoopCatalogOperations {
             context1.actualPaths()[0]);
       }
     }
+
+    String filesetName1 =
+        String.format(
+            "fileset_get_ctx_%s_prefix_%s",
+            pattern.name(), UUID.randomUUID().toString().replace("-", ""));
+    String filesetLocation1 =
+        TEST_ROOT_PATH + "/" + catalogName + "/" + schemaName + "/" + filesetName1 + "/";
+    Fileset fileset1 =
+        createFileset(
+            filesetName1,
+            schemaName,
+            comment,
+            Fileset.Type.MANAGED,
+            null,
+            filesetLocation1,
+            properties);
+
+    try (HadoopCatalogOperations ops = new HadoopCatalogOperations(store)) {
+      ops.initialize(Maps.newHashMap(), null);
+      NameIdentifier filesetIdent = NameIdentifier.of("m1", "c1", schemaName, filesetName1);
+      // test operation valid
+      BaseFilesetDataOperationCtx ctx =
+          BaseFilesetDataOperationCtx.builder()
+              .withSubPath(subPath)
+              .withOperation(operation)
+              .withClientType(ClientType.HADOOP_GVFS)
+              .withIp("127.0.0.1")
+              .withSourceEngineType(SourceEngineType.UNKNOWN)
+              .withAppId("application_1_1")
+              .build();
+      FilesetContext context1 = ops.getFilesetContext(filesetIdent, ctx);
+
+      Assertions.assertEquals(filesetName1, context1.fileset().name());
+      Assertions.assertEquals(Fileset.Type.MANAGED, context1.fileset().type());
+      Assertions.assertEquals("comment1024", context1.fileset().comment());
+      Assertions.assertEquals(fileset1.storageLocation(), context1.fileset().storageLocation());
+      if (StringUtils.isBlank(subPath)) {
+        Assertions.assertEquals(context1.fileset().storageLocation(), context1.actualPaths()[0]);
+      } else {
+        String storageLocation =
+            context1.fileset().storageLocation().endsWith("/")
+                ? context1
+                    .fileset()
+                    .storageLocation()
+                    .substring(0, context1.fileset().storageLocation().length() - 1)
+                : context1.fileset().storageLocation();
+        Assertions.assertEquals(
+            subPath.startsWith("/")
+                ? String.format("%s%s", storageLocation, subPath)
+                : String.format("%s/%s", storageLocation, subPath),
+            context1.actualPaths()[0]);
+      }
+    }
   }
 
   @ParameterizedTest

@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.when;
 import static org.mockserver.model.HttpRequest.request;
 
 import com.datastrato.gravitino.NameIdentifier;
@@ -31,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,6 +51,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.Mockito;
 
 public class TestGvfsBase extends GravitinoMockServerBase {
   protected static final String GVFS_IMPL_CLASS = GravitinoVirtualFileSystem.class.getName();
@@ -1914,5 +1917,21 @@ public class TestGvfsBase extends GravitinoMockServerBase {
       Assertions.assertEquals("value3", res.get("key2"));
       Assertions.assertEquals("value3", res.get("key3"));
     }
+  }
+
+  @Test
+  public void testGetStorageLocation() {
+    Fileset fileset1 = Mockito.mock(Fileset.class);
+    when(fileset1.storageLocation()).thenReturn("hdfs://cluster/test-with-slash/");
+    Map<String, String> mockProperties1 = new HashMap<>();
+    mockProperties1.put(
+        FilesetProperties.BACKUP_STORAGE_LOCATION_KEY + 1, "lavafs://cluster/test-without-slash");
+    when(fileset1.properties()).thenReturn(mockProperties1);
+
+    String location1 = GravitinoVirtualFileSystem.getStorageLocation(fileset1, 0);
+    Assertions.assertEquals("hdfs://cluster/test-with-slash", location1);
+
+    String location2 = GravitinoVirtualFileSystem.getStorageLocation(fileset1, 1);
+    Assertions.assertEquals("lavafs://cluster/test-without-slash", location2);
   }
 }

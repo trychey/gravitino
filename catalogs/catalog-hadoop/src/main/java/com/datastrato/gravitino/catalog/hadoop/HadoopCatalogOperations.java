@@ -452,7 +452,14 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
     } else {
       actualPaths =
           getStorageLocations(fileset).stream()
-              .map(location -> location + subPath)
+              .map(
+                  location -> {
+                    String storageLocation =
+                        location.endsWith(SLASH)
+                            ? location.substring(0, fileset.storageLocation().length() - 1)
+                            : location;
+                    return String.format("%s%s", storageLocation, subPath);
+                  })
               .collect(Collectors.toList());
     }
     return HadoopFilesetContext.builder()
