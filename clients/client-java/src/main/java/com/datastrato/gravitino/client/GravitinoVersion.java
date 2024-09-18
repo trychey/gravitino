@@ -29,7 +29,7 @@ public class GravitinoVersion extends VersionDTO implements Comparable {
   int[] getVersionNumber() {
     Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)(-\\w+){0,1}");
     Pattern mdhPattern =
-        Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)-mdh-\\d+\\.\\d+\\.\\d+-SNAPSHOT");
+        Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)-mdh-\\d+\\.\\d+\\.\\d+(-SNAPSHOT)?$");
     String versionString = version();
     Matcher mdhMatcher = mdhPattern.matcher(versionString);
     if (mdhMatcher.matches()) {
