@@ -18,8 +18,9 @@
  */
 package com.datastrato.gravitino.catalog.lakehouse.paimon.integration.test;
 
-import static com.datastrato.gravitino.catalog.lakehouse.paimon.GravitinoPaimonTable.PRIMARY_KEY_IDENTIFIER;
+import static com.datastrato.gravitino.catalog.lakehouse.paimon.GravitinoPaimonTable.PAIMON_PRIMARY_KEY_INDEX_NAME;
 import static com.datastrato.gravitino.rel.expressions.transforms.Transforms.identity;
+import static com.datastrato.gravitino.rel.indexes.Indexes.primary;
 
 import com.datastrato.gravitino.Catalog;
 import com.datastrato.gravitino.NameIdentifier;
@@ -48,6 +49,7 @@ import com.datastrato.gravitino.rel.expressions.distributions.Distributions;
 import com.datastrato.gravitino.rel.expressions.sorts.SortOrder;
 import com.datastrato.gravitino.rel.expressions.transforms.Transform;
 import com.datastrato.gravitino.rel.expressions.transforms.Transforms;
+import com.datastrato.gravitino.rel.indexes.Index;
 import com.datastrato.gravitino.rel.types.Types;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
@@ -429,7 +431,9 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
     newColumns.add(col5);
     columns = newColumns.toArray(new Column[0]);
 
-    NameIdentifier tableIdentifier = tableName;
+    NameIdentifier tableIdentifier =
+        NameIdentifier.of(
+            metalakeName.name(), catalogName.name(), schemaName.name(), tableName.name());
     Distribution distribution = Distributions.NONE;
 
     Transform[] partitioning =
@@ -437,8 +441,14 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
     String[] partitionKeys = new String[] {PAIMON_COL_NAME1, PAIMON_COL_NAME3};
 
     String[] primaryKeys = new String[] {PAIMON_COL_NAME5};
+    Index[] indexes =
+        Collections.singletonList(
+                primary(
+                    PAIMON_PRIMARY_KEY_INDEX_NAME,
+                    new String[][] {new String[] {PAIMON_COL_NAME5}}))
+            .toArray(new Index[0]);
+
     Map<String, String> properties = createProperties();
-    properties.put(PRIMARY_KEY_IDENTIFIER, String.join(",", primaryKeys));
 
     SortOrder[] sortOrders = new SortOrder[0];
     TableCatalog tableCatalog = catalog.asTableCatalog();
@@ -450,17 +460,18 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
             properties,
             partitioning,
             distribution,
-            sortOrders);
+            sortOrders,
+            indexes);
     Assertions.assertEquals(createdTable.name(), tableName.name());
-    Map<String, String> resultProp = createdTable.properties();
-    for (Map.Entry<String, String> entry : properties.entrySet()) {
-      Assertions.assertTrue(resultProp.containsKey(entry.getKey()));
-      Assertions.assertEquals(entry.getValue(), resultProp.get(entry.getKey()));
-    }
     Assertions.assertEquals(createdTable.comment(), table_comment);
     Assertions.assertArrayEquals(partitioning, createdTable.partitioning());
+    Assertions.assertEquals(indexes.length, createdTable.index().length);
+    for (int i = 0; i < indexes.length; i++) {
+      Assertions.assertEquals(indexes[i].name(), createdTable.index()[i].name());
+      Assertions.assertEquals(indexes[i].type(), createdTable.index()[i].type());
+      Assertions.assertArrayEquals(indexes[i].fieldNames(), createdTable.index()[i].fieldNames());
+    }
     Assertions.assertEquals(createdTable.columns().length, columns.length);
-
     for (int i = 0; i < columns.length; i++) {
       Assertions.assertEquals(DTOConverters.toDTO(columns[i]), createdTable.columns()[i]);
     }
@@ -468,11 +479,6 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
     Table loadTable = tableCatalog.loadTable(tableIdentifier);
     Assertions.assertEquals(tableName.name(), loadTable.name());
     Assertions.assertEquals(table_comment, loadTable.comment());
-    resultProp = loadTable.properties();
-    for (Map.Entry<String, String> entry : properties.entrySet()) {
-      Assertions.assertTrue(resultProp.containsKey(entry.getKey()));
-      Assertions.assertEquals(entry.getValue(), resultProp.get(entry.getKey()));
-    }
     Assertions.assertArrayEquals(partitioning, loadTable.partitioning());
     String[] loadedPartitionKeys =
         Arrays.stream(loadTable.partitioning())
@@ -488,6 +494,12 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
                 })
             .toArray(String[]::new);
     Assertions.assertArrayEquals(partitionKeys, loadedPartitionKeys);
+    Assertions.assertEquals(indexes.length, loadTable.index().length);
+    for (int i = 0; i < indexes.length; i++) {
+      Assertions.assertEquals(indexes[i].name(), loadTable.index()[i].name());
+      Assertions.assertEquals(indexes[i].type(), loadTable.index()[i].type());
+      Assertions.assertArrayEquals(indexes[i].fieldNames(), loadTable.index()[i].fieldNames());
+    }
     Assertions.assertEquals(loadTable.columns().length, columns.length);
     for (int i = 0; i < columns.length; i++) {
       Assertions.assertEquals(DTOConverters.toDTO(columns[i]), loadTable.columns()[i]);
@@ -499,9 +511,6 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
     Assertions.assertEquals(tableName.name(), table.name());
     Assertions.assertTrue(table.comment().isPresent());
     Assertions.assertEquals(table_comment, table.comment().get());
-    // `primary-key` will be removed in Paimon table, and it will store at partitionKeys of
-    // TableSchema.
-    Assertions.assertFalse(table.options().containsKey(PRIMARY_KEY_IDENTIFIER));
     Assertions.assertArrayEquals(partitionKeys, table.partitionKeys().toArray(new String[0]));
     Assertions.assertArrayEquals(primaryKeys, table.primaryKeys().toArray(new String[0]));
     Assertions.assertInstanceOf(FileStoreTable.class, table);

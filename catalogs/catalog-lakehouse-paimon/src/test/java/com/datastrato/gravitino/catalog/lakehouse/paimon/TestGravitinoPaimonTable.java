@@ -5,10 +5,11 @@
 package com.datastrato.gravitino.catalog.lakehouse.paimon;
 
 import static com.datastrato.gravitino.catalog.lakehouse.paimon.GravitinoPaimonColumn.fromPaimonColumn;
-import static com.datastrato.gravitino.catalog.lakehouse.paimon.GravitinoPaimonTable.PRIMARY_KEY_IDENTIFIER;
+import static com.datastrato.gravitino.catalog.lakehouse.paimon.GravitinoPaimonTable.PAIMON_PRIMARY_KEY_INDEX_NAME;
 import static com.datastrato.gravitino.catalog.lakehouse.paimon.utils.TableOpsUtils.checkColumnCapability;
 import static com.datastrato.gravitino.rel.Column.DEFAULT_VALUE_NOT_SET;
 import static com.datastrato.gravitino.rel.expressions.transforms.Transforms.identity;
+import static com.datastrato.gravitino.rel.indexes.Indexes.primary;
 
 import com.datastrato.gravitino.NameIdentifier;
 import com.datastrato.gravitino.Namespace;
@@ -25,6 +26,7 @@ import com.datastrato.gravitino.rel.expressions.NamedReference;
 import com.datastrato.gravitino.rel.expressions.distributions.Distributions;
 import com.datastrato.gravitino.rel.expressions.sorts.SortOrder;
 import com.datastrato.gravitino.rel.expressions.transforms.Transform;
+import com.datastrato.gravitino.rel.indexes.Index;
 import com.datastrato.gravitino.rel.types.Types;
 import com.google.common.collect.Maps;
 import java.io.File;
@@ -270,32 +272,21 @@ public class TestGravitinoPaimonTable {
     String paimonTableName = "test_paimon_primary_key_table";
     NameIdentifier tableIdentifier = NameIdentifier.of(paimonSchema.name(), paimonTableName);
     Map<String, String> properties = Maps.newHashMap();
-    properties.put("key1", "val1");
-    properties.put("key2", "val2");
 
     GravitinoPaimonColumn col1 =
-        fromPaimonColumn(new DataField(0, "col_1", DataTypes.INT().nullable(), PAIMON_COMMENT));
+        fromPaimonColumn(new DataField(0, "col_1", DataTypes.INT().notNull(), PAIMON_COMMENT));
     GravitinoPaimonColumn col2 =
-        fromPaimonColumn(new DataField(1, "col_2", DataTypes.DATE().notNull(), PAIMON_COMMENT));
-    RowType rowTypeInside =
-        RowType.builder()
-            .field("integer_field_inside", DataTypes.INT().notNull())
-            .field("string_field_inside", DataTypes.STRING().notNull())
-            .build();
-    RowType rowType =
-        RowType.builder()
-            .field("integer_field", DataTypes.INT().notNull())
-            .field("string_field", DataTypes.STRING().notNull(), "string field")
-            .field("struct_field", rowTypeInside.nullable(), "struct field")
-            .build();
+        fromPaimonColumn(new DataField(1, "col_2", DataTypes.STRING().notNull(), PAIMON_COMMENT));
     GravitinoPaimonColumn col3 =
-        fromPaimonColumn(new DataField(2, "col_3", rowType.notNull(), PAIMON_COMMENT));
+        fromPaimonColumn(new DataField(2, "col_3", DataTypes.STRING().nullable(), PAIMON_COMMENT));
     Column[] columns = new Column[] {col1, col2, col3};
 
     Transform[] transforms = new Transform[] {identity("col_1")};
     String[] partitionKeys = new String[] {"col_1"};
-    String[] primaryKeys = new String[] {"col_2"};
-    properties.put(PRIMARY_KEY_IDENTIFIER, String.join(",", primaryKeys));
+    Index[] indexes =
+        Collections.singletonList(
+                primary(PAIMON_PRIMARY_KEY_INDEX_NAME, new String[][] {new String[] {"col_2"}}))
+            .toArray(new Index[0]);
 
     Table table =
         paimonCatalogOperations.createTable(
@@ -305,26 +296,21 @@ public class TestGravitinoPaimonTable {
             properties,
             transforms,
             Distributions.NONE,
-            new SortOrder[0]);
+            new SortOrder[0],
+            indexes);
 
     Assertions.assertEquals(tableIdentifier.name(), table.name());
     Assertions.assertEquals(PAIMON_COMMENT, table.comment());
-    Map<String, String> resultProp = table.properties();
-    for (Map.Entry<String, String> entry : properties.entrySet()) {
-      Assertions.assertTrue(resultProp.containsKey(entry.getKey()));
-      Assertions.assertEquals(entry.getValue(), resultProp.get(entry.getKey()));
-    }
+    Assertions.assertEquals(properties, table.properties());
     Assertions.assertArrayEquals(transforms, table.partitioning());
+    Assertions.assertEquals(indexes.length, table.index().length);
+    for (int i = 0; i < indexes.length; i++) {
+      Assertions.assertEquals(indexes[i].name(), table.index()[i].name());
+      Assertions.assertEquals(indexes[i].type(), table.index()[i].type());
+      Assertions.assertEquals(indexes[i].fieldNames(), table.index()[i].fieldNames());
+    }
 
     Table loadedTable = paimonCatalogOperations.loadTable(tableIdentifier);
-    resultProp = loadedTable.properties();
-    for (Map.Entry<String, String> entry : properties.entrySet()) {
-      Assertions.assertTrue(resultProp.containsKey(entry.getKey()));
-      Assertions.assertEquals(entry.getValue(), resultProp.get(entry.getKey()));
-    }
-    Assertions.assertTrue(loadedTable.columns()[0].nullable());
-    Assertions.assertFalse(loadedTable.columns()[1].nullable());
-    Assertions.assertFalse(loadedTable.columns()[2].nullable());
     Assertions.assertArrayEquals(transforms, loadedTable.partitioning());
     String[] loadedPartitionKeys =
         Arrays.stream(loadedTable.partitioning())
@@ -340,10 +326,12 @@ public class TestGravitinoPaimonTable {
                 })
             .toArray(String[]::new);
     Assertions.assertArrayEquals(partitionKeys, loadedPartitionKeys);
-
-    Assertions.assertTrue(paimonCatalogOperations.tableExists(tableIdentifier));
-    NameIdentifier[] tableIdents = paimonCatalogOperations.listTables(tableIdentifier.namespace());
-    Assertions.assertTrue(Arrays.asList(tableIdents).contains(tableIdentifier));
+    Assertions.assertEquals(indexes.length, loadedTable.index().length);
+    for (int i = 0; i < indexes.length; i++) {
+      Assertions.assertEquals(indexes[i].name(), loadedTable.index()[i].name());
+      Assertions.assertEquals(indexes[i].type(), loadedTable.index()[i].type());
+      Assertions.assertArrayEquals(indexes[i].fieldNames(), loadedTable.index()[i].fieldNames());
+    }
   }
 
   @Test
@@ -534,12 +522,16 @@ public class TestGravitinoPaimonTable {
     Column[] columns = createColumns();
     NameIdentifier identifier = NameIdentifier.of("test_schema", "test_primary_key_table");
     Map<String, String> properties = Maps.newHashMap();
-    properties.put("key1", "val1");
 
     Transform[] partitions = new Transform[] {identity(columns[0].name())};
     List<String> partitionKeys = Collections.singletonList(columns[0].name());
     List<String> primaryKeys = Collections.singletonList(columns[2].name());
-    properties.put(PRIMARY_KEY_IDENTIFIER, String.join(",", primaryKeys));
+    Index[] indexes =
+        Collections.singletonList(
+                primary(
+                    PAIMON_PRIMARY_KEY_INDEX_NAME,
+                    new String[][] {new String[] {columns[2].name()}}))
+            .toArray(new Index[0]);
 
     GravitinoPaimonTable gravitinoPaimonTable =
         GravitinoPaimonTable.builder()
@@ -563,18 +555,12 @@ public class TestGravitinoPaimonTable {
             .withPartitioning(partitions)
             .withComment("test_table_comment")
             .withProperties(properties)
+            .withIndexes(indexes)
             .build();
     Schema paimonTableSchema = gravitinoPaimonTable.toPaimonTableSchema();
     Assertions.assertArrayEquals(
         partitionKeys.toArray(new String[0]),
         paimonTableSchema.partitionKeys().toArray(new String[0]));
-    Assertions.assertEquals(gravitinoPaimonTable.comment(), gravitinoPaimonTable.comment());
-    Assertions.assertTrue(gravitinoPaimonTable.properties().containsKey(PRIMARY_KEY_IDENTIFIER));
-    // `primary-key` will be removed in Paimon table, and it will store at partitionKeys of
-    // TableSchema.
-    Assertions.assertFalse(paimonTableSchema.options().containsKey(PRIMARY_KEY_IDENTIFIER));
-    Assertions.assertArrayEquals(
-        primaryKeys.toArray(new String[0]), paimonTableSchema.primaryKeys().toArray(new String[0]));
     Assertions.assertEquals(
         gravitinoPaimonTable.columns().length, paimonTableSchema.fields().size());
     Assertions.assertEquals(3, paimonTableSchema.fields().size());
@@ -588,6 +574,8 @@ public class TestGravitinoPaimonTable {
     Assertions.assertEquals(new DateType().nullable(), paimonTableSchema.fields().get(1).type());
     Assertions.assertEquals(
         new VarCharType(Integer.MAX_VALUE).notNull(), paimonTableSchema.fields().get(2).type());
+    Assertions.assertArrayEquals(
+        primaryKeys.toArray(new String[0]), paimonTableSchema.primaryKeys().toArray(new String[0]));
   }
 
   private static String genRandomName() {

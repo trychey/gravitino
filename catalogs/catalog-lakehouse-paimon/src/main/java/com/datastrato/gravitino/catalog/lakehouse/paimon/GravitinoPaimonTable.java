@@ -7,11 +7,14 @@ package com.datastrato.gravitino.catalog.lakehouse.paimon;
 import static com.datastrato.gravitino.catalog.lakehouse.paimon.PaimonTablePropertiesMetadata.COMMENT;
 import static com.datastrato.gravitino.dto.rel.partitioning.Partitioning.EMPTY_PARTITIONING;
 import static com.datastrato.gravitino.meta.AuditInfo.EMPTY;
+import static com.datastrato.gravitino.rel.indexes.Indexes.primary;
 
 import com.datastrato.gravitino.connector.BaseTable;
 import com.datastrato.gravitino.connector.TableOperations;
+import com.datastrato.gravitino.rel.expressions.NamedReference;
 import com.datastrato.gravitino.rel.expressions.transforms.Transform;
 import com.datastrato.gravitino.rel.expressions.transforms.Transforms;
+import com.datastrato.gravitino.rel.indexes.Index;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import java.util.Arrays;
@@ -31,7 +34,7 @@ import org.apache.paimon.types.DataField;
 @Getter
 public class GravitinoPaimonTable extends BaseTable {
 
-  public static final String PRIMARY_KEY_IDENTIFIER = "primary-key";
+  public static final String PAIMON_PRIMARY_KEY_INDEX_NAME = "PAIMON_PRIMARY_KEY_INDEX";
 
   private GravitinoPaimonTable() {}
 
@@ -56,14 +59,10 @@ public class GravitinoPaimonTable extends BaseTable {
     }
 
     Map<String, String> normalizedProperties = new HashMap<>(properties);
-    normalizedProperties.remove(PRIMARY_KEY_IDENTIFIER);
     normalizedProperties.remove(COMMENT);
 
-    List<String> partitionKeys =
-        Arrays.stream(partitioning)
-            .map(partition -> partition.references()[0].toString())
-            .collect(Collectors.toList());
-    List<String> primaryKeys = getPrimaryKeys(properties);
+    List<String> partitionKeys = getPartitionKeys(partitioning);
+    List<String> primaryKeys = getPrimaryKeysFromIndexes(indexes);
 
     validate(primaryKeys, partitionKeys);
 
@@ -82,13 +81,6 @@ public class GravitinoPaimonTable extends BaseTable {
    * @return A new {@link GravitinoPaimonTable} instance.
    */
   public static GravitinoPaimonTable fromPaimonTable(Table table) {
-
-    HashMap<String, String> normalizedProperties = new HashMap<>(table.options());
-    if (!table.primaryKeys().isEmpty()) {
-      String primaryKeys = String.join(",", table.primaryKeys());
-      normalizedProperties.put(PRIMARY_KEY_IDENTIFIER, primaryKeys);
-    }
-
     return builder()
         .withName(table.name())
         .withColumns(
@@ -96,7 +88,8 @@ public class GravitinoPaimonTable extends BaseTable {
                 .toArray(new GravitinoPaimonColumn[0]))
         .withPartitioning(toGravitinoPartitioning(table.partitionKeys()))
         .withComment(table.comment().orElse(null))
-        .withProperties(normalizedProperties)
+        .withProperties(table.options())
+        .withIndexes(constructIndexesFromPrimaryKeys(table))
         .withAuditInfo(EMPTY)
         .build();
   }
@@ -105,11 +98,59 @@ public class GravitinoPaimonTable extends BaseTable {
     return partitionKeys.stream().map(Transforms::identity).toArray(Transform[]::new);
   }
 
-  private static List<String> getPrimaryKeys(Map<String, String> properties) {
-    String pkAsString = properties.get(PRIMARY_KEY_IDENTIFIER);
-    return pkAsString == null
-        ? Collections.emptyList()
-        : Arrays.stream(pkAsString.split(",")).map(String::trim).collect(Collectors.toList());
+  private static List<String> getPartitionKeys(Transform[] partitioning) {
+    if (partitioning == null) {
+      return Collections.emptyList();
+    }
+
+    return Arrays.stream(partitioning)
+        .map(
+            partition -> {
+              NamedReference[] references = partition.references();
+              Preconditions.checkArgument(
+                  references.length == 1, "Partitioning column must be single-column, like 'a'.");
+              return references[0].toString();
+            })
+        .collect(Collectors.toList());
+  }
+
+  private List<String> getPrimaryKeysFromIndexes(Index[] indexes) {
+    if (indexes == null || indexes.length == 0) {
+      return Collections.emptyList();
+    }
+
+    Preconditions.checkArgument(
+        indexes.length == 1, "Paimon only supports no more than one Index.");
+
+    Index primaryKeyIndex = indexes[0];
+    Arrays.stream(primaryKeyIndex.fieldNames())
+        .forEach(
+            filedName ->
+                Preconditions.checkArgument(
+                    filedName != null && filedName.length == 1,
+                    "The primary key columns should not be nested."));
+
+    return Arrays.stream(primaryKeyIndex.fieldNames())
+        .map(fieldName -> fieldName[0])
+        .collect(Collectors.toList());
+  }
+
+  private static Index[] constructIndexesFromPrimaryKeys(Table table) {
+    Index[] indexes = new Index[0];
+    if (table.primaryKeys() != null && !table.primaryKeys().isEmpty()) {
+      String[][] filedNames = constructIndexFiledNames(table.primaryKeys());
+      indexes =
+          Collections.singletonList(primary(PAIMON_PRIMARY_KEY_INDEX_NAME, filedNames))
+              .toArray(new Index[0]);
+    }
+    return indexes;
+  }
+
+  private static String[][] constructIndexFiledNames(List<String> primaryKeys) {
+    return primaryKeys.stream()
+        .map(pk -> new String[] {pk})
+        .collect(Collectors.toList())
+        .toArray(new String[0][0]);
   }
 
   private static void validate(List<String> primaryKeys, List<String> partitionKeys) {
@@ -147,6 +188,7 @@ public class GravitinoPaimonTable extends BaseTable {
       paimonTable.columns = columns;
       paimonTable.partitioning = partitioning;
       paimonTable.properties = properties == null ? Maps.newHashMap() : Maps.newHashMap(properties);
+      paimonTable.indexes = indexes;
       paimonTable.auditInfo = auditInfo;
       return paimonTable;
     }
