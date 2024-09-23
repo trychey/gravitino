@@ -5,8 +5,10 @@
 package com.datastrato.gravitino.catalog.lakehouse.paimon.ops;
 
 import static com.datastrato.gravitino.catalog.lakehouse.paimon.utils.CatalogUtils.loadCatalogBackend;
+import static com.datastrato.gravitino.catalog.lakehouse.paimon.utils.TableOpsUtils.buildSchemaChanges;
 
 import com.datastrato.gravitino.catalog.lakehouse.paimon.PaimonConfig;
+import com.datastrato.gravitino.rel.TableChange;
 import com.google.common.base.Preconditions;
 import java.util.List;
 import java.util.Map;
@@ -73,6 +75,17 @@ public class PaimonCatalogOps implements AutoCloseable {
 
   public void dropTable(String tableName) throws TableNotExistException {
     catalog.dropTable(tableIdentifier(tableName), false);
+  }
+
+  public void alterTable(String tableName, TableChange... changes)
+      throws Catalog.ColumnAlreadyExistException, TableNotExistException,
+          Catalog.ColumnNotExistException {
+    catalog.alterTable(tableIdentifier(tableName), buildSchemaChanges(changes), false);
+  }
+
+  public void renameTable(String fromTableName, String toTableName)
+      throws TableNotExistException, Catalog.TableAlreadyExistException {
+    catalog.renameTable(tableIdentifier(fromTableName), tableIdentifier(toTableName), false);
   }
 
   private Identifier tableIdentifier(String tableName) {
