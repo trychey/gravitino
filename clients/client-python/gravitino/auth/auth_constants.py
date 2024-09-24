@@ -10,3 +10,5 @@ class AuthConstants:
     AUTHORIZATION_BASIC_HEADER: str = "Basic "
 
     AUTHORIZATION_TOKEN_HEADER: str = "Token "
+
+    PROXY_USER: str = "X-Proxy-User"

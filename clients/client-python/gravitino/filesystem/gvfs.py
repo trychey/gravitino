@@ -22,6 +22,7 @@ from gravitino.api.client_type import ClientType
 from gravitino.api.fileset_context import FilesetContext
 from gravitino.api.fileset_data_operation import FilesetDataOperation
 from gravitino.api.source_engine_type import SourceEngineType
+from gravitino.auth.auth_constants import AuthConstants
 from gravitino.auth.simple_auth_provider import SimpleAuthProvider
 from gravitino.auth.token_auth_provider import TokenAuthProvider
 from gravitino.catalog.fileset_catalog import FilesetCatalog
@@ -72,39 +73,49 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
         options: Dict = None,
         **kwargs,
     ):
-        if metalake_name is not None:
-            self._metalake = metalake_name
-        else:
-            metalake = os.environ.get("GRAVITINO_METALAKE")
-            if metalake is None:
-                raise GravitinoRuntimeException(
-                    "No metalake name is provided. Please set the environment variable "
-                    + "'GRAVITINO_METALAKE' or provide it as a parameter."
-                )
-            self._metalake = metalake
-        if server_uri is not None:
-            self._server_uri = server_uri
-        else:
-            server_uri = os.environ.get("GRAVITINO_SERVER")
-            if server_uri is None:
-                raise GravitinoRuntimeException(
-                    "No server URI is provided. Please set the environment variable "
-                    + "'GRAVITINO_SERVER' or provide it as a parameter."
-                )
-            self._server_uri = server_uri
-        auth_type = (
+        metalake_name = os.environ.get("GRAVITINO_METALAKE") or metalake_name
+        if metalake_name is None:
+            raise GravitinoRuntimeException(
+                "No metalake name is provided. Please set the environment variable "
+                + "'GRAVITINO_METALAKE' or provide it as a parameter."
+            )
+        self._metalake = metalake_name
+
+        server_uri = os.environ.get("GRAVITINO_SERVER") or server_uri
+        if server_uri is None:
+            raise GravitinoRuntimeException(
+                "No server URI is provided. Please set the environment variable "
+                + "'GRAVITINO_SERVER' or provide it as a parameter."
+            )
+        self._server_uri = server_uri
+
+        auth_type = os.environ.get("GRAVITINO_CLIENT_AUTH_TYPE") or (
             GVFSConfig.DEFAULT_AUTH_TYPE
             if options is None
             else options.get(GVFSConfig.AUTH_TYPE, GVFSConfig.DEFAULT_AUTH_TYPE)
         )
         if auth_type == GVFSConfig.DEFAULT_AUTH_TYPE:
-            self._client = GravitinoClient(
-                uri=self._server_uri,
-                metalake_name=self._metalake,
-                auth_data_provider=SimpleAuthProvider(),
+            proxy_user = os.environ.get("GRAVITINO_PROXY_USER") or (
+                options.get(GVFSConfig.PROXY_USER) if options else None
             )
+            if proxy_user is not None:
+                with_headers = {AuthConstants.PROXY_USER: proxy_user}
+                self._client = GravitinoClient(
+                    uri=self._server_uri,
+                    metalake_name=self._metalake,
+                    auth_data_provider=SimpleAuthProvider(),
+                    request_headers=with_headers,
+                )
+            else:
+                self._client = GravitinoClient(
+                    uri=self._server_uri,
+                    metalake_name=self._metalake,
+                    auth_data_provider=SimpleAuthProvider(),
+                )
         elif auth_type == GVFSConfig.TOKEN_AUTH_TYPE:
-            token_value = options.get(GVFSConfig.TOKEN_VALUE, None)
+            token_value = os.environ.get("GRAVITINO_CLIENT_AUTH_TOKEN") or (
+                options.get(GVFSConfig.TOKEN_VALUE) if options else None
+            )
             assert (
                 token_value is not None
             ), "Token value is not provided when using token auth type."

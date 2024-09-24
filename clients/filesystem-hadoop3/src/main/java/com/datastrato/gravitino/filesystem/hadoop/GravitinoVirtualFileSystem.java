@@ -101,9 +101,14 @@ public class GravitinoVirtualFileSystem extends FileSystem {
               "Unsupported file system scheme: %s for %s.",
               name.getScheme(), GravitinoVirtualFileSystemConfiguration.GVFS_SCHEME));
     }
-
-    this.metalakeName =
-        configuration.get(GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_METALAKE_KEY);
+    String metalakeNameEnv = System.getenv("GRAVITINO_METALAKE");
+    if (StringUtils.isNotBlank(metalakeNameEnv)) {
+      this.metalakeName = metalakeNameEnv;
+    } else {
+      this.metalakeName =
+          configuration.get(
+              GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_METALAKE_KEY);
+    }
     Preconditions.checkArgument(
         StringUtils.isNotBlank(metalakeName),
         "'%s' is not set in the configuration",
@@ -151,17 +156,28 @@ public class GravitinoVirtualFileSystem extends FileSystem {
 
   private void initializeClient(Configuration configuration) {
     // initialize the Gravitino client
-    String serverUri =
-        configuration.get(GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_SERVER_URI_KEY);
+    String serverUriEnv = System.getenv("GRAVITINO_SERVER");
+    String serverUri;
+    if (StringUtils.isNotBlank(serverUriEnv)) {
+      serverUri = serverUriEnv;
+    } else {
+      serverUri =
+          configuration.get(GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_SERVER_URI_KEY);
+    }
     Preconditions.checkArgument(
         StringUtils.isNotBlank(serverUri),
         "'%s' is not set in the configuration",
         GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_SERVER_URI_KEY);
-
-    String authType =
-        configuration.get(
-            GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_AUTH_TYPE_KEY,
-            GravitinoVirtualFileSystemConfiguration.SIMPLE_AUTH_TYPE);
+    String authTypeEnv = System.getenv("GRAVITINO_CLIENT_AUTH_TYPE");
+    String authType;
+    if (StringUtils.isNotBlank(authTypeEnv)) {
+      authType = authTypeEnv;
+    } else {
+      authType =
+          configuration.get(
+              GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_AUTH_TYPE_KEY,
+              GravitinoVirtualFileSystemConfiguration.SIMPLE_AUTH_TYPE);
+    }
     String isIntegrationTesting =
         configuration.get(
             GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_TESTING,
@@ -172,16 +188,29 @@ public class GravitinoVirtualFileSystem extends FileSystem {
       this.client = builder.build();
     } else if (authType.equalsIgnoreCase(
         GravitinoVirtualFileSystemConfiguration.SIMPLE_AUTH_TYPE)) {
-      String superUser =
-          configuration.get(
-              GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_SIMPLE_SUPER_USER_KEY);
+      String superUserEnv = System.getenv("GRAVITINO_TOKEN");
+      String superUser;
+      if (StringUtils.isNotBlank(superUserEnv)) {
+        superUser = superUserEnv;
+      } else {
+        superUser =
+            configuration.get(
+                GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_SIMPLE_SUPER_USER_KEY);
+      }
       checkAuthConfig(
           GravitinoVirtualFileSystemConfiguration.SIMPLE_AUTH_TYPE,
           GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_SIMPLE_SUPER_USER_KEY,
           superUser);
-      String proxyUser =
-          configuration.get(
-              GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_SIMPLE_PROXY_USER_KEY);
+
+      String proxyUserEnv = System.getenv("GRAVITINO_PROXY_USER");
+      String proxyUser;
+      if (StringUtils.isNotBlank(proxyUserEnv)) {
+        proxyUser = proxyUserEnv;
+      } else {
+        proxyUser =
+            configuration.get(
+                GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_SIMPLE_PROXY_USER_KEY);
+      }
       GravitinoClientBase.Builder<GravitinoClient> builder =
           GravitinoClient.builder(serverUri).withMetalake(metalakeName).withSimpleAuth(superUser);
       if (StringUtils.isNotBlank(proxyUser)) {
@@ -236,9 +265,15 @@ public class GravitinoVirtualFileSystem extends FileSystem {
               .withOAuth(authDataProvider)
               .build();
     } else if (authType.equalsIgnoreCase(GravitinoVirtualFileSystemConfiguration.TOKEN_AUTH_TYPE)) {
-      String token =
-          configuration.get(
-              GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_AUTH_TOKEN_KEY);
+      String tokenEnv = System.getenv("GRAVITINO_CLIENT_AUTH_TOKEN");
+      String token;
+      if (StringUtils.isNotBlank(tokenEnv)) {
+        token = tokenEnv;
+      } else {
+        token =
+            configuration.get(
+                GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_AUTH_TOKEN_KEY);
+      }
       checkAuthConfig(
           GravitinoVirtualFileSystemConfiguration.TOKEN_AUTH_TYPE,
           GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_AUTH_TOKEN_KEY,

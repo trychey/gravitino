@@ -6,6 +6,7 @@ This software is licensed under the Apache License version 2.
 import logging
 import configparser
 import os.path
+from typing import Dict
 
 from gravitino.auth.auth_data_provider import AuthDataProvider
 from gravitino.client.gravitino_metalake import GravitinoMetalake
@@ -41,8 +42,11 @@ class GravitinoClientBase:
         uri: str,
         check_version: bool = True,
         auth_data_provider: AuthDataProvider = None,
+        request_headers: Dict[str, str] = None,
     ):
-        self._rest_client = HTTPClient(uri, auth_data_provider=auth_data_provider)
+        self._rest_client = HTTPClient(
+            uri, auth_data_provider=auth_data_provider, request_headers=request_headers
+        )
         if check_version:
             self.check_version()
 

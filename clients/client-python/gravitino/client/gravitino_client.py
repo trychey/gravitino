@@ -41,6 +41,7 @@ class GravitinoClient(GravitinoClientBase):
         metalake_name: str,
         check_version: bool = True,
         auth_data_provider: AuthDataProvider = None,
+        request_headers: Dict[str, str] = None,
     ):
         """Constructs a new GravitinoClient with the given URI, authenticator and AuthDataProvider.
 
@@ -48,11 +49,12 @@ class GravitinoClient(GravitinoClientBase):
             uri: The base URI for the Gravitino API.
             metalake_name: The specified metalake name.
             auth_data_provider: The provider of the data which is used for authentication.
+            request_headers: The extra request headers.
 
         Raises:
             NoSuchMetalakeException if the metalake with specified name does not exist.
         """
-        super().__init__(uri, check_version, auth_data_provider)
+        super().__init__(uri, check_version, auth_data_provider, request_headers)
         self._metalake = super().load_metalake(NameIdentifier.of(metalake_name))
 
     def get_metalake(self) -> GravitinoMetalake:

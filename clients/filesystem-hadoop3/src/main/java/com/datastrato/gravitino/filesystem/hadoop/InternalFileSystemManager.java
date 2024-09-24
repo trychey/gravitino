@@ -49,10 +49,15 @@ public class InternalFileSystemManager implements AutoCloseable {
   private Thread contextCloser;
 
   public InternalFileSystemManager(Configuration configuration) {
-    this.authType =
-        configuration.get(
-            GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_AUTH_TYPE_KEY,
-            GravitinoVirtualFileSystemConfiguration.SIMPLE_AUTH_TYPE);
+    String authTypeEnv = System.getenv("GRAVITINO_CLIENT_AUTH_TYPE");
+    if (StringUtils.isNotBlank(authTypeEnv)) {
+      this.authType = authTypeEnv;
+    } else {
+      this.authType =
+          configuration.get(
+              GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_AUTH_TYPE_KEY,
+              GravitinoVirtualFileSystemConfiguration.SIMPLE_AUTH_TYPE);
+    }
     if (authType.equals(GravitinoVirtualFileSystemConfiguration.TOKEN_AUTH_TYPE)) {
       initializeGravitinoClient(configuration);
     }
@@ -61,21 +66,42 @@ public class InternalFileSystemManager implements AutoCloseable {
   }
 
   private void initializeGravitinoClient(Configuration configuration) {
-    String serverUri =
-        configuration.get(GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_SERVER_URI_KEY);
+    String serverUriEnv = System.getenv("GRAVITINO_SERVER");
+    String serverUri;
+    if (StringUtils.isNotBlank(serverUriEnv)) {
+      serverUri = serverUriEnv;
+    } else {
+      serverUri =
+          configuration.get(GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_SERVER_URI_KEY);
+    }
     Preconditions.checkArgument(
         StringUtils.isNotBlank(serverUri),
         "'%s' is not set in the configuration",
         GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_SERVER_URI_KEY);
-    String metalakeName =
-        configuration.get(GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_METALAKE_KEY);
+
+    String metalakeNameEnv = System.getenv("GRAVITINO_METALAKE");
+    String metalakeName;
+    if (StringUtils.isNotBlank(metalakeNameEnv)) {
+      metalakeName = metalakeNameEnv;
+    } else {
+      metalakeName =
+          configuration.get(
+              GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_METALAKE_KEY);
+    }
     Preconditions.checkArgument(
         StringUtils.isNotBlank(metalakeName),
         "'%s' is not set in the configuration",
         GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_METALAKE_KEY);
-    String token =
-        configuration.get(
-            GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_AUTH_TOKEN_KEY);
+
+    String tokenEnv = System.getenv("GRAVITINO_CLIENT_AUTH_TOKEN");
+    String token;
+    if (StringUtils.isNotBlank(tokenEnv)) {
+      token = tokenEnv;
+    } else {
+      token =
+          configuration.get(
+              GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_AUTH_TOKEN_KEY);
+    }
     Preconditions.checkArgument(
         StringUtils.isNotBlank(token),
         "%s should not be null.",

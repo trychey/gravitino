@@ -16,3 +16,5 @@ class GVFSConfig:
     TOKEN_AUTH_TYPE = "token"
 
     TOKEN_VALUE = "token_value"
+
+    PROXY_USER = "proxy_user"
