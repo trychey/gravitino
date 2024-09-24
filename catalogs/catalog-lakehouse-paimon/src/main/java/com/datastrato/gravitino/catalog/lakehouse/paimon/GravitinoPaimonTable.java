@@ -5,6 +5,7 @@
 package com.datastrato.gravitino.catalog.lakehouse.paimon;
 
 import static com.datastrato.gravitino.catalog.lakehouse.paimon.PaimonTablePropertiesMetadata.COMMENT;
+import static com.datastrato.gravitino.catalog.lakehouse.paimon.PaimonTablePropertiesMetadata.TABLE_MODIFY_TIMESTAMP_MS;
 import static com.datastrato.gravitino.dto.rel.partitioning.Partitioning.EMPTY_PARTITIONING;
 import static com.datastrato.gravitino.meta.AuditInfo.EMPTY;
 import static com.datastrato.gravitino.rel.indexes.Indexes.primary;
@@ -26,6 +27,7 @@ import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.ToString;
 import org.apache.paimon.schema.Schema;
+import org.apache.paimon.table.FileStoreTable;
 import org.apache.paimon.table.Table;
 import org.apache.paimon.types.DataField;
 
@@ -81,6 +83,14 @@ public class GravitinoPaimonTable extends BaseTable {
    * @return A new {@link GravitinoPaimonTable} instance.
    */
   public static GravitinoPaimonTable fromPaimonTable(Table table) {
+    Map<String, String> properties = new HashMap<>(table.options());
+
+    if (table instanceof FileStoreTable) {
+      FileStoreTable fileStoreTable = (FileStoreTable) table;
+      properties.put(
+          TABLE_MODIFY_TIMESTAMP_MS, String.valueOf(fileStoreTable.schema().timeMillis()));
+    }
+
     return builder()
         .withName(table.name())
         .withColumns(
@@ -88,7 +98,7 @@ public class GravitinoPaimonTable extends BaseTable {
                 .toArray(new GravitinoPaimonColumn[0]))
         .withPartitioning(toGravitinoPartitioning(table.partitionKeys()))
         .withComment(table.comment().orElse(null))
-        .withProperties(table.options())
+        .withProperties(properties)
         .withIndexes(constructIndexesFromPrimaryKeys(table))
         .withAuditInfo(EMPTY)
         .build();

@@ -4,6 +4,8 @@
  */
 package com.datastrato.gravitino.catalog.lakehouse.paimon;
 
+import static com.datastrato.gravitino.connector.PropertyEntry.stringImmutablePropertyEntry;
+import static com.datastrato.gravitino.connector.PropertyEntry.stringOptionalPropertyEntry;
 import static com.datastrato.gravitino.connector.PropertyEntry.stringReservedPropertyEntry;
 
 import com.datastrato.gravitino.connector.BasePropertiesMetadata;
@@ -27,6 +29,8 @@ public class PaimonTablePropertiesMetadata extends BasePropertiesMetadata {
   public static final String ROWKIND_FIELD = "rowkind.field";
   public static final String PRIMARY_KEY = "primary-key";
   public static final String PARTITION = "partition";
+  public static final String TABLE_CREATE_TIMESTAMP_MS = "table.create.timestamp-ms";
+  public static final String TABLE_MODIFY_TIMESTAMP_MS = "table.modify.timestamp-ms";
 
   private static final Map<String, PropertyEntry<?>> PROPERTIES_METADATA;
 
@@ -34,13 +38,23 @@ public class PaimonTablePropertiesMetadata extends BasePropertiesMetadata {
     List<PropertyEntry<?>> propertyEntries =
         ImmutableList.of(
             stringReservedPropertyEntry(COMMENT, "The table comment", true),
-            stringReservedPropertyEntry(OWNER, "The table owner", false),
-            stringReservedPropertyEntry(BUCKET_KEY, "The table bucket key", false),
-            stringReservedPropertyEntry(MERGE_ENGINE, "The table merge engine", false),
-            stringReservedPropertyEntry(SEQUENCE_FIELD, "The table sequence field", false),
-            stringReservedPropertyEntry(ROWKIND_FIELD, "The table rowkind field", false),
-            stringReservedPropertyEntry(PRIMARY_KEY, "The table primary key", false),
-            stringReservedPropertyEntry(PARTITION, "The table partition", false));
+            stringOptionalPropertyEntry(OWNER, "The table owner", false, null, false),
+            stringImmutablePropertyEntry(
+                BUCKET_KEY, "The table bucket key", false, null, false, false),
+            stringImmutablePropertyEntry(
+                MERGE_ENGINE, "The table merge engine", false, null, false, false),
+            stringImmutablePropertyEntry(
+                SEQUENCE_FIELD, "The table sequence field", false, null, false, false),
+            stringImmutablePropertyEntry(
+                ROWKIND_FIELD, "The table rowkind field", false, null, false, false),
+            stringImmutablePropertyEntry(
+                PRIMARY_KEY, "The table primary key", false, null, false, false),
+            stringImmutablePropertyEntry(
+                PARTITION, "The table partition", false, null, false, false),
+            stringImmutablePropertyEntry(
+                TABLE_CREATE_TIMESTAMP_MS, "The table create timestamp", false, null, false, false),
+            stringReservedPropertyEntry(
+                TABLE_MODIFY_TIMESTAMP_MS, "The table modify timestamp", true));
     PROPERTIES_METADATA = Maps.uniqueIndex(propertyEntries, PropertyEntry::getName);
   }
 

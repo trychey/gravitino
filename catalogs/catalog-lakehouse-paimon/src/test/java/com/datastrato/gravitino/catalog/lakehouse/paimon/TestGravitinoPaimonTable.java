@@ -6,6 +6,7 @@ package com.datastrato.gravitino.catalog.lakehouse.paimon;
 
 import static com.datastrato.gravitino.catalog.lakehouse.paimon.GravitinoPaimonColumn.fromPaimonColumn;
 import static com.datastrato.gravitino.catalog.lakehouse.paimon.GravitinoPaimonTable.PAIMON_PRIMARY_KEY_INDEX_NAME;
+import static com.datastrato.gravitino.catalog.lakehouse.paimon.PaimonTablePropertiesMetadata.TABLE_MODIFY_TIMESTAMP_MS;
 import static com.datastrato.gravitino.catalog.lakehouse.paimon.utils.TableOpsUtils.checkColumnCapability;
 import static com.datastrato.gravitino.rel.Column.DEFAULT_VALUE_NOT_SET;
 import static com.datastrato.gravitino.rel.expressions.transforms.Transforms.identity;
@@ -380,15 +381,44 @@ public class TestGravitinoPaimonTable {
     CatalogEntity entity = createDefaultCatalogEntity();
     try (PaimonCatalogOperations ops = new PaimonCatalogOperations()) {
       ops.initialize(initBackendCatalogProperties(), entity.toCatalogInfo());
-      Map<String, String> map = Maps.newHashMap();
-      map.put(PaimonTablePropertiesMetadata.COMMENT, "test");
-      map.put(PaimonTablePropertiesMetadata.OWNER, "test");
-      map.put(PaimonTablePropertiesMetadata.BUCKET_KEY, "test");
-      map.put(PaimonTablePropertiesMetadata.MERGE_ENGINE, "test");
-      map.put(PaimonTablePropertiesMetadata.SEQUENCE_FIELD, "test");
-      map.put(PaimonTablePropertiesMetadata.ROWKIND_FIELD, "test");
-      map.put(PaimonTablePropertiesMetadata.PRIMARY_KEY, "test");
-      map.put(PaimonTablePropertiesMetadata.PARTITION, "test");
+      HashMap<String, String> properties1 =
+          new HashMap<String, String>() {
+            {
+              put(PaimonTablePropertiesMetadata.COMMENT, "test");
+            }
+          };
+      Assertions.assertThrows(
+          IllegalArgumentException.class,
+          () ->
+              PropertiesMetadataHelpers.validatePropertyForCreate(
+                  paimonCatalog.tablePropertiesMetadata(), properties1));
+      Assertions.assertThrows(
+          IllegalArgumentException.class,
+          () ->
+              PropertiesMetadataHelpers.validatePropertyForAlter(
+                  paimonCatalog.tablePropertiesMetadata(), properties1, Collections.emptyMap()));
+      Assertions.assertThrows(
+          IllegalArgumentException.class,
+          () ->
+              PropertiesMetadataHelpers.validatePropertyForAlter(
+                  paimonCatalog.tablePropertiesMetadata(), Collections.emptyMap(), properties1));
+
+      HashMap<String, String> properties2 =
+          new HashMap<String, String>() {
+            {
+              put(PaimonTablePropertiesMetadata.OWNER, "test");
+            }
+          };
+      Assertions.assertDoesNotThrow(
+          () ->
+              PropertiesMetadataHelpers.validatePropertyForCreate(
+                  paimonCatalog.tablePropertiesMetadata(), properties2));
+      Assertions.assertDoesNotThrow(
+          () ->
+              PropertiesMetadataHelpers.validatePropertyForAlter(
+                  paimonCatalog.tablePropertiesMetadata(), properties2, properties2));
+
+      Map<String, String> map = getStringImmutableProperties();
       for (Map.Entry<String, String> entry : map.entrySet()) {
         HashMap<String, String> properties =
             new HashMap<String, String>() {
@@ -397,9 +427,26 @@ public class TestGravitinoPaimonTable {
               }
             };
         PropertiesMetadata metadata = paimonCatalog.tablePropertiesMetadata();
-        Assertions.assertThrows(
-            IllegalArgumentException.class,
+        Assertions.assertDoesNotThrow(
             () -> PropertiesMetadataHelpers.validatePropertyForCreate(metadata, properties));
+      }
+
+      for (Map.Entry<String, String> entry : map.entrySet()) {
+        HashMap<String, String> properties =
+            new HashMap<String, String>() {
+              {
+                put(entry.getKey(), entry.getValue());
+              }
+            };
+        PropertiesMetadata metadata = paimonCatalog.tablePropertiesMetadata();
+        Assertions.assertDoesNotThrow(
+            () ->
+                PropertiesMetadataHelpers.validatePropertyForAlter(
+                    metadata, properties, Collections.emptyMap()));
+        Assertions.assertDoesNotThrow(
+            () ->
+                PropertiesMetadataHelpers.validatePropertyForAlter(
+                    metadata, Collections.emptyMap(), properties));
       }
 
       map = Maps.newHashMap();
@@ -412,10 +459,14 @@ public class TestGravitinoPaimonTable {
                 put(entry.getKey(), entry.getValue());
               }
             };
-        PropertiesMetadata metadata = paimonCatalog.tablePropertiesMetadata();
+        PropertiesMetadata metadata = ops.tablePropertiesMetadata();
         Assertions.assertDoesNotThrow(
             () -> {
               PropertiesMetadataHelpers.validatePropertyForCreate(metadata, properties);
+            });
+        Assertions.assertDoesNotThrow(
+            () -> {
+              PropertiesMetadataHelpers.validatePropertyForAlter(metadata, properties, properties);
             });
       }
     }
@@ -524,6 +575,55 @@ public class TestGravitinoPaimonTable {
   }
 
   @Test
+  public void testGravitinoPaimonTableModifyTime() {
+    String paimonTableName = "test_paimon_table_modify_time";
+    NameIdentifier tableIdentifier = NameIdentifier.of(paimonSchema.name(), paimonTableName);
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("key1", "val1");
+    properties.put("key2", "val2");
+
+    GravitinoPaimonColumn col1 =
+        fromPaimonColumn(new DataField(0, "col_1", DataTypes.INT().nullable(), PAIMON_COMMENT));
+    GravitinoPaimonColumn col2 =
+        fromPaimonColumn(new DataField(1, "col_2", DataTypes.DATE().notNull(), PAIMON_COMMENT));
+    RowType rowTypeInside =
+        RowType.builder()
+            .field("integer_field_inside", DataTypes.INT().notNull())
+            .field("string_field_inside", DataTypes.STRING().notNull())
+            .build();
+    RowType rowType =
+        RowType.builder()
+            .field("integer_field", DataTypes.INT().notNull())
+            .field("string_field", DataTypes.STRING().notNull(), "string field")
+            .field("struct_field", rowTypeInside.nullable(), "struct field")
+            .build();
+    GravitinoPaimonColumn col3 =
+        fromPaimonColumn(new DataField(2, "col_3", rowType.notNull(), PAIMON_COMMENT));
+
+    Column[] columns = new Column[] {col1, col2, col3};
+    Table table =
+        paimonCatalogOperations.createTable(
+            tableIdentifier,
+            columns,
+            PAIMON_COMMENT,
+            properties,
+            new Transform[0],
+            Distributions.NONE,
+            new SortOrder[0]);
+
+    Assertions.assertEquals(tableIdentifier.name(), table.name());
+    Assertions.assertEquals(PAIMON_COMMENT, table.comment());
+    Assertions.assertEquals("val1", table.properties().get("key1"));
+    Assertions.assertEquals("val2", table.properties().get("key2"));
+
+    Table loadedTable = paimonCatalogOperations.loadTable(tableIdentifier);
+
+    Assertions.assertEquals("val1", loadedTable.properties().get("key1"));
+    Assertions.assertEquals("val2", loadedTable.properties().get("key2"));
+    Assertions.assertTrue(loadedTable.properties().containsKey(TABLE_MODIFY_TIMESTAMP_MS));
+  }
+
+  @Test
   public void testGravitinoToPaimonTableWithPrimaryKey() {
     Column[] columns = createColumns();
     NameIdentifier identifier = NameIdentifier.of("test_schema", "test_primary_key_table");
@@ -621,5 +721,21 @@ public class TestGravitinoPaimonTable {
         Column.of(
             "col3", Types.StringType.get(), "col_3_comment", false, false, DEFAULT_VALUE_NOT_SET);
     return new Column[] {col1, col2, col3};
+  }
+
+  private static Map<String, String> getStringImmutableProperties() {
+    Map<String, String> map = Maps.newHashMap();
+    map.put(PaimonTablePropertiesMetadata.BUCKET_KEY, "test");
+    map.put(PaimonTablePropertiesMetadata.MERGE_ENGINE, "test");
+    map.put(PaimonTablePropertiesMetadata.SEQUENCE_FIELD, "test");
+    map.put(PaimonTablePropertiesMetadata.ROWKIND_FIELD, "test");
+    map.put(PaimonTablePropertiesMetadata.PRIMARY_KEY, "test");
+    map.put(PaimonTablePropertiesMetadata.PARTITION, "test");
+    map.put(PaimonTablePropertiesMetadata.TABLE_CREATE_TIMESTAMP_MS, "test");
+
+    map = Maps.newHashMap();
+    map.put("key1", "val1");
+    map.put("key2", "val2");
+    return map;
   }
 }
