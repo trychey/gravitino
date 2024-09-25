@@ -19,6 +19,7 @@ import com.datastrato.gravitino.file.FilesetCatalog;
 import com.datastrato.gravitino.file.FilesetContext;
 import com.datastrato.gravitino.file.FilesetDataOperation;
 import com.datastrato.gravitino.file.SourceEngineType;
+import com.datastrato.gravitino.filesystem.hadoop.context.FileSystemContext;
 import com.datastrato.gravitino.properties.FilesetProperties;
 import com.datastrato.gravitino.shaded.com.google.common.annotations.VisibleForTesting;
 import com.datastrato.gravitino.shaded.com.google.common.base.Preconditions;
@@ -43,6 +44,7 @@ import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.commons.compress.utils.Lists;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -69,6 +71,7 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   private URI uri;
   private GravitinoClient client;
   private String metalakeName;
+  private String authType;
   private Cache<NameIdentifier, Catalog> catalogCache;
   private ScheduledThreadPoolExecutor catalogCleanScheduler;
   private InternalFileSystemManager fileSystemManager;
@@ -169,11 +172,10 @@ public class GravitinoVirtualFileSystem extends FileSystem {
         "'%s' is not set in the configuration",
         GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_SERVER_URI_KEY);
     String authTypeEnv = System.getenv("GRAVITINO_CLIENT_AUTH_TYPE");
-    String authType;
     if (StringUtils.isNotBlank(authTypeEnv)) {
-      authType = authTypeEnv;
+      this.authType = authTypeEnv;
     } else {
-      authType =
+      this.authType =
           configuration.get(
               GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_CLIENT_AUTH_TYPE_KEY,
               GravitinoVirtualFileSystemConfiguration.SIMPLE_AUTH_TYPE);
@@ -730,8 +732,25 @@ public class GravitinoVirtualFileSystem extends FileSystem {
   }
 
   @Override
-  public Token<?>[] addDelegationTokens(String renewer, Credentials credentials)
-      throws IOException {
+  public Token<?>[] addDelegationTokens(String renewer, Credentials credentials) {
+    // only support simple auth type,
+    // the token auth type will use the credential vending mechanism
+    if (authType.equalsIgnoreCase(GravitinoVirtualFileSystemConfiguration.SIMPLE_AUTH_TYPE)) {
+      List<Token<?>> tokenList = Lists.newArrayList();
+      for (FileSystemContext context :
+          fileSystemManager.getInternalContextCache().asMap().values()) {
+        try {
+          tokenList.addAll(
+              Arrays.asList(context.getFileSystem().addDelegationTokens(renewer, credentials)));
+        } catch (IOException e) {
+          Logger.warn(
+              "Failed to add delegation tokens for filesystem: {}",
+              context.getFileSystem().getUri(),
+              e);
+        }
+      }
+      return tokenList.stream().distinct().toArray(Token[]::new);
+    }
     return null;
   }
 
