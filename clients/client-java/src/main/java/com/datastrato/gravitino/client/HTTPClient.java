@@ -36,6 +36,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
@@ -56,6 +57,7 @@ import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.http.message.BasicHeader;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.net.URIBuilder;
+import org.apache.hc.core5.util.TimeValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -112,7 +114,10 @@ public class HTTPClient implements RESTClient {
     this.uri = uri;
     this.mapper = objectMapper;
 
-    HttpClientBuilder clientBuilder = HttpClients.custom();
+    HttpClientBuilder clientBuilder =
+        HttpClients.custom()
+            .evictExpiredConnections()
+            .evictIdleConnections(TimeValue.of(10, TimeUnit.SECONDS));
 
     if (baseHeaders != null) {
       clientBuilder.setDefaultHeaders(
