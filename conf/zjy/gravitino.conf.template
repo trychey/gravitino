@@ -16,9 +16,9 @@ gravitino.server.webserver.minThreads = 24
 # The max thread size of the built-in web server
 gravitino.server.webserver.maxThreads = 200
 # The stop timeout of the built-in web server
-gravitino.server.webserver.stopTimeout = 30000
+gravitino.server.webserver.stopTimeout = 60000
 # The timeout of idle connections
-gravitino.server.webserver.idleTimeout = 30000
+gravitino.server.webserver.idleTimeout = 60000
 # The executor thread pool work queue size of the built-in web server
 gravitino.server.webserver.threadPoolWorkQueueSize = 500
 # The request header size of the built-in web server

@@ -30,31 +30,40 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import org.apache.hc.client5.http.HttpRequestRetryStrategy;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.utils.DateUtils;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpRequest;
+import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.Method;
+import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.impl.EnglishReasonPhraseCatalog;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.http.message.BasicHeader;
+import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.net.URIBuilder;
 import org.apache.hc.core5.util.TimeValue;
@@ -117,7 +126,8 @@ public class HTTPClient implements RESTClient {
     HttpClientBuilder clientBuilder =
         HttpClients.custom()
             .evictExpiredConnections()
-            .evictIdleConnections(TimeValue.of(10, TimeUnit.SECONDS));
+            .evictIdleConnections(TimeValue.of(10, TimeUnit.SECONDS))
+            .setRetryStrategy(new CustomRetryStrategy());
 
     if (baseHeaders != null) {
       clientBuilder.setDefaultHeaders(
@@ -133,6 +143,61 @@ public class HTTPClient implements RESTClient {
       handlerStatus = HandlerStatus.Finished;
     }
     this.beforeConnectHandler = beforeConnectHandler;
+  }
+
+  private static class CustomRetryStrategy implements HttpRequestRetryStrategy {
+    private static final int MAX_RETRY_TIMES = 5;
+    private static final int NO_RESP_MAX_RETRY_TIMES = 10;
+    private static final TimeValue RETRY_INTERVAL = TimeValue.ofSeconds(2);
+    private static final Set<Integer> RETRIABLE_CODES =
+        Sets.newHashSet(HttpStatus.SC_TOO_MANY_REQUESTS, HttpStatus.SC_SERVICE_UNAVAILABLE);
+
+    private CustomRetryStrategy() {}
+
+    @Override
+    public boolean retryRequest(
+        HttpRequest request, IOException exception, int execCount, HttpContext context) {
+      if (exception instanceof NoHttpResponseException) {
+        LOG.warn(
+            "NoHttpResponseException occurs, will retry request, current retry count: {}, max retry count:{}.",
+            execCount,
+            NO_RESP_MAX_RETRY_TIMES,
+            exception);
+        return execCount <= NO_RESP_MAX_RETRY_TIMES;
+      }
+      return execCount <= MAX_RETRY_TIMES;
+    }
+
+    @Override
+    public boolean retryRequest(HttpResponse response, int execCount, HttpContext context) {
+      return execCount <= MAX_RETRY_TIMES && RETRIABLE_CODES.contains(response.getCode());
+    }
+
+    @Override
+    public TimeValue getRetryInterval(HttpResponse response, int execCount, HttpContext context) {
+      Preconditions.checkNotNull(response, "Response must not be null");
+
+      final Header header = response.getFirstHeader(HttpHeaders.RETRY_AFTER);
+      TimeValue retryAfter = null;
+      if (header != null) {
+        final String value = header.getValue();
+        try {
+          retryAfter = TimeValue.ofSeconds(Long.parseLong(value));
+        } catch (final NumberFormatException ignore) {
+          final Instant retryAfterDate = DateUtils.parseStandardDate(value);
+          if (retryAfterDate != null) {
+            retryAfter =
+                TimeValue.ofMilliseconds(
+                    retryAfterDate.toEpochMilli() - System.currentTimeMillis());
+          }
+        }
+
+        if (TimeValue.isPositive(retryAfter)) {
+          return retryAfter;
+        }
+      }
+      return RETRY_INTERVAL;
+    }
   }
 
   /**
