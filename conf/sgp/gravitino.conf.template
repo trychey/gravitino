@@ -97,7 +97,7 @@ gravitino.server.cache.redis.password = GDDFfYM2DyJpSL8asfXOEM6XCYY2m6TzTjxxPjq3
 
 gravitino.server.cache.asyncProcessor.impl = rocketmq
 gravitino.server.cache.asyncProcessor.rocketmq.topic = gravitino_cache_async_process_topic
-gravitino.server.cache.asyncProcessor.rocketmq.ak = GCCiFM4rI100hQdUf1+t16CH9ymvdBY7ZrerbSK/bGimDRgSVhiElmLvSpaT1coskQCAE4MDGBBabZGFRHtCiKIZtWWF+KWwGBRY0PgC686nvr9jC87qPfFXX6iHnAA=
-gravitino.server.cache.asyncProcessor.rocketmq.sk = GDCoOZrl6aEcRl9QcVXfGAecLelQp0s76fddznyI9I/AmvlM+qIDU3+dQ4cWIG32OTIYEidxFDxjU0GctN+WIfEEzA4HAxgQtBLZqGaVSCKboet21mdvlxgUOJrpG5Byj61fAM1/SIfuCJcjgN8A
-gravitino.server.cache.asyncProcessor.rocketmq.address = staging-cnbj2-rocketmq.namesrv.api.xiaomi.net:9876
+gravitino.server.cache.asyncProcessor.rocketmq.ak = GCBtiljV9/n+eMIZlNPXQ4H9ZQlGJe/YEqCCMhFw0QAABRgSzPDA3Lb+QD64IQae2sy+vrADGBAM5284P+pEFpKwWG693aO6GBRVZ+9WPKbmHdh35GO1Sb5bAVzj0AA=
+gravitino.server.cache.asyncProcessor.rocketmq.sk = GDBsfQ751k/ne/HO7vkXgO2N+a1QdAzFjtKr3yVQ4veZeryU9GJgHSgevsz+Rx6gnIgYEszwwNy2/kA+uCEGntrMvr6wAxgQ1wagyafyRxiqPQ1bTEdw8xgUTOp5GPSqlAlA3jBaHxgovJTfC4YA
+gravitino.server.cache.asyncProcessor.rocketmq.address = alsgp0-rocketmq.namesrv.api.xiaomi.net:9876
 gravitino.server.cache.asyncProcessor.rocketmq.group = gravitino_cache_async_processor
