@@ -21,9 +21,11 @@ public class NameIdentifier {
 
   private static final Splitter DOT = Splitter.on('.');
 
-  private final Namespace namespace;
+  private Namespace namespace;
 
-  private final String name;
+  private String name;
+
+  private NameIdentifier() {}
 
   /**
    * Create the {@link NameIdentifier} with the given levels of names.

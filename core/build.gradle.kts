@@ -20,6 +20,7 @@ dependencies {
   implementation(libs.commons.io)
   implementation(libs.commons.lang3)
   implementation(libs.guava)
+  implementation(libs.jedis)
   implementation(libs.keycenter)
   implementation(libs.mybatis)
   implementation(libs.protobuf.java.util) {

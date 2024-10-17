@@ -64,6 +64,27 @@ public interface Configs {
 
   long CLEAN_INTERVAL_IN_SECS = 60L;
 
+  String SERVER_CACHE_ENABLE_KEY = "gravitino.server.cache.enable";
+
+  String REDIS_CACHE_KEY = "redis";
+  String SERVER_CACHE_IMPL_KEY = "gravitino.server.cache.impl";
+
+  String SERVER_REDIS_CACHE_HOST_KEY = "gravitino.server.cache.redis.host";
+  String SERVER_REDIS_CACHE_PORT_KEY = "gravitino.server.cache.redis.port";
+  String SERVER_REDIS_CACHE_PASSWORD_KEY = "gravitino.server.cache.redis.password";
+
+  String SERVER_CACHE_ASYNC_PROCESSOR_IMPL_KEY = "gravitino.server.cache.asyncProcessor.impl";
+  String ROCKETMQ_KEY = "rocketmq";
+
+  String ROCKETMQ_ASYNC_PROCESSOR_TOPIC_KEY =
+      "gravitino.server.cache.asyncProcessor.rocketmq.topic";
+  String ROCKETMQ_ASYNC_PROCESSOR_AK_KEY = "gravitino.server.cache.asyncProcessor.rocketmq.ak";
+  String ROCKETMQ_ASYNC_PROCESSOR_SK_KEY = "gravitino.server.cache.asyncProcessor.rocketmq.sk";
+  String ROCKETMQ_ASYNC_PROCESSOR_ADDRESS_KEY =
+      "gravitino.server.cache.asyncProcessor.rocketmq.address";
+  String ROCKETMQ_ASYNC_PROCESSOR_GROUP_KEY =
+      "gravitino.server.cache.asyncProcessor.rocketmq.group";
+
   ConfigEntry<String> ENTITY_STORE =
       new ConfigBuilder(ENTITY_STORE_KEY)
           .doc("Which storage implementation to use")
@@ -296,4 +317,81 @@ public interface Configs {
           .version(ConfigConstants.VERSION_0_5_1)
           .intConf()
           .createWithDefault(DEFAULT_METRICS_TIME_SLIDING_WINDOW_SECONDS);
+
+  ConfigEntry<Boolean> SERVER_CACHE_ENABLE =
+      new ConfigBuilder(SERVER_CACHE_ENABLE_KEY)
+          .doc("Whether enable the server cache")
+          .version(ConfigConstants.VERSION_0_5_0)
+          .booleanConf()
+          .createWithDefault(false);
+
+  ConfigEntry<String> SERVER_CACHE_IMPL =
+      new ConfigBuilder(SERVER_CACHE_IMPL_KEY)
+          .doc("Which cache impl to use")
+          .version(ConfigConstants.VERSION_0_5_0)
+          .stringConf()
+          .createWithDefault(REDIS_CACHE_KEY);
+
+  ConfigEntry<String> SERVER_REDIS_CACHE_HOST =
+      new ConfigBuilder(SERVER_REDIS_CACHE_HOST_KEY)
+          .doc("The host of the redis server")
+          .version(ConfigConstants.VERSION_0_5_0)
+          .stringConf()
+          .createWithDefault(null);;
+
+  ConfigEntry<String> SERVER_REDIS_CACHE_PORT =
+      new ConfigBuilder(SERVER_REDIS_CACHE_PORT_KEY)
+          .doc("The port of the redis server")
+          .version(ConfigConstants.VERSION_0_5_0)
+          .stringConf()
+          .createWithDefault(null);
+
+  ConfigEntry<String> SERVER_REDIS_CACHE_PASSWORD =
+      new ConfigBuilder(SERVER_REDIS_CACHE_PASSWORD_KEY)
+          .doc("The password of the redis server")
+          .version(ConfigConstants.VERSION_0_5_0)
+          .stringConf()
+          .createWithDefault(null);
+
+  ConfigEntry<String> CACHE_ASYNC_PROCESSOR_IMPL =
+      new ConfigBuilder(SERVER_CACHE_ASYNC_PROCESSOR_IMPL_KEY)
+          .doc("Which cache async processor impl to use")
+          .version(ConfigConstants.VERSION_0_5_0)
+          .stringConf()
+          .createWithDefault(ROCKETMQ_KEY);
+
+  ConfigEntry<String> ROCKETMQ_ASYNC_PROCESSOR_TOPIC =
+      new ConfigBuilder(ROCKETMQ_ASYNC_PROCESSOR_TOPIC_KEY)
+          .doc("The topic of the rocketmq async processor")
+          .version(ConfigConstants.VERSION_0_5_0)
+          .stringConf()
+          .createWithDefault(null);
+
+  ConfigEntry<String> ROCKETMQ_ASYNC_PROCESSOR_AK =
+      new ConfigBuilder(ROCKETMQ_ASYNC_PROCESSOR_AK_KEY)
+          .doc("The ak of the rocketmq async processor")
+          .version(ConfigConstants.VERSION_0_5_0)
+          .stringConf()
+          .createWithDefault(null);
+
+  ConfigEntry<String> ROCKETMQ_ASYNC_PROCESSOR_SK =
+      new ConfigBuilder(ROCKETMQ_ASYNC_PROCESSOR_SK_KEY)
+          .doc("The sk of the rocketmq async processor")
+          .version(ConfigConstants.VERSION_0_5_0)
+          .stringConf()
+          .createWithDefault(null);
+
+  ConfigEntry<String> ROCKETMQ_ASYNC_PROCESSOR_ADDRESS =
+      new ConfigBuilder(ROCKETMQ_ASYNC_PROCESSOR_ADDRESS_KEY)
+          .doc("The topic of the rocketmq async processor")
+          .version(ConfigConstants.VERSION_0_5_0)
+          .stringConf()
+          .createWithDefault(null);
+
+  ConfigEntry<String> ROCKETMQ_ASYNC_PROCESSOR_GROUP =
+      new ConfigBuilder(ROCKETMQ_ASYNC_PROCESSOR_GROUP_KEY)
+          .doc("The topic of the rocketmq async processor")
+          .version(ConfigConstants.VERSION_0_5_0)
+          .stringConf()
+          .createWithDefault(null);
 }

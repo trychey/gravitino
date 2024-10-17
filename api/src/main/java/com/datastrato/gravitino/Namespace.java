@@ -5,6 +5,7 @@
 package com.datastrato.gravitino;
 
 import com.datastrato.gravitino.exceptions.IllegalNamespaceException;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.google.common.base.Joiner;
 import com.google.errorprone.annotations.FormatMethod;
 import com.google.errorprone.annotations.FormatString;
@@ -20,7 +21,9 @@ public class Namespace {
   private static final Namespace EMPTY = new Namespace(new String[0]);
   private static final Joiner DOT = Joiner.on('.');
 
-  private final String[] levels;
+  private String[] levels;
+
+  private Namespace() {}
 
   /**
    * Get an empty namespace.
@@ -233,6 +236,7 @@ public class Namespace {
    *
    * @return True if the namespace is empty, false otherwise.
    */
+  @JsonIgnore
   public boolean isEmpty() {
     return levels.length == 0;
   }

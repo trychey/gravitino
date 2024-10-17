@@ -11,6 +11,7 @@ plugins {
 dependencies {
   implementation(libs.commons.lang3)
   implementation(libs.guava)
+  implementation(libs.jackson.annotations)
   implementation(libs.slf4j.api)
 
   testImplementation(libs.junit.jupiter.api)

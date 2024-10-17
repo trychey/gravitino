@@ -47,6 +47,8 @@ public class RoleEntity implements Role, Entity, Auditable, HasIdentifier {
   private Namespace namespace;
   private SecurableObject securableObject;
 
+  private RoleEntity() {}
+
   /**
    * The name of the role.
    *

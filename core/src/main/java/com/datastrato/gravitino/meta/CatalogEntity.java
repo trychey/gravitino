@@ -55,6 +55,8 @@ public class CatalogEntity implements Entity, Auditable, HasIdentifier {
 
   private Namespace namespace;
 
+  private CatalogEntity() {}
+
   /**
    * A map of fields and their corresponding values.
    *

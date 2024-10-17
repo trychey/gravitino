@@ -87,3 +87,17 @@ gravitino.secret.kerberos.host = http://workspace-whitelist-proxy.dp.pt.xiaomi.c
 gravitino.secret.kerberos.user = yangliwei
 gravitino.secret.kerberos.password = GDAFuVlbCVdgE3sWtIaBPuVzAEHbpf6LqZjgr/qrAXQijsImu1KC3Vm9gAE7BZ7/0vwYEgkMeQhZXk29nd92dfk+mkxUARgQ1mlupYpmR8S2noZcdGEt8hgU0IWPUZSgKkN5pLvHEik8wYeL6DkA
 gravitino.secret.kerberos.format = s_workspace_%s_krb@XIAOMI.HADOOP
+
+# THE CONFIGURATION FOR Gravitino SERVER CACHE
+gravitino.server.cache.enable = true
+gravitino.server.cache.impl = redis
+gravitino.server.cache.redis.host = ares.ai.ai.cache.srv
+gravitino.server.cache.redis.port = 5123
+gravitino.server.cache.redis.password = GDBuqNsITqckysZw5NhP5dQ/kX9bgbamH2x5Y2WePajtYb9jujjTKlRiKrGba7FTrIQYEruGOzJykEeluQDPUgH2MZZcARgQddoMTdV0SMqc5+YYmgpIdxgUd7xFtfBeckREQngdLETQBHe82i4A
+
+gravitino.server.cache.asyncProcessor.impl = rocketmq
+gravitino.server.cache.asyncProcessor.rocketmq.topic = gravitino_cache_async_process_topic
+gravitino.server.cache.asyncProcessor.rocketmq.ak = GCBVqTBSDqJsDnWnTUfG0lPBxN2Lyxqc1gRV52/CToG95hgSFHjYp3pZQN6mNZn++F6J5NsBGBAzIcpbiPpH2pkLOpMYEnZ4GBSd9z4PQ/0EKaJPx2FvC8cvLK/3RgA=
+gravitino.server.cache.asyncProcessor.rocketmq.sk = GDDwZQ3i35lIVXd94IkCDPe9VDLTjCmZrlwqMug3CjF2ZW8DMdRb2eqklHVF3P//pOUYEsQqlXgshUWimJ4AC4KwgkdUARgQNeuEyufwTrC5EtcilkBzLhgUVTJi+PzSJd73MFKtqgVEpUIrWvMA
+gravitino.server.cache.asyncProcessor.rocketmq.address = cnbj1-rocketmq.namesrv.api.xiaomi.net:9876
+gravitino.server.cache.asyncProcessor.rocketmq.group = gravitino_cache_async_processor

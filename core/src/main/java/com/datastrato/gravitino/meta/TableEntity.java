@@ -31,6 +31,8 @@ public class TableEntity implements Entity, Auditable, HasIdentifier {
 
   private Namespace namespace;
 
+  private TableEntity() {}
+
   /**
    * Returns a map of the fields and their corresponding values for this table.
    *

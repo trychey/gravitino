@@ -8,6 +8,7 @@ import com.datastrato.gravitino.audit.AuditLogConfig;
 import com.datastrato.gravitino.audit.AuditLogManager;
 import com.datastrato.gravitino.authorization.AccessControlManager;
 import com.datastrato.gravitino.auxiliary.AuxiliaryServiceManager;
+import com.datastrato.gravitino.cache.ServerCacheManager;
 import com.datastrato.gravitino.catalog.CatalogDispatcher;
 import com.datastrato.gravitino.catalog.CatalogManager;
 import com.datastrato.gravitino.catalog.FilesetDispatcher;
@@ -80,6 +81,7 @@ public class GravitinoEnv {
   private EventListenerManager eventListenerManager;
 
   private SecretsManager secretsManager;
+  private boolean enableServerCache;
 
   private GravitinoEnv() {}
 
@@ -151,6 +153,15 @@ public class GravitinoEnv {
     this.config = config;
     this.metricsSystem = new MetricsSystem();
     metricsSystem.register(new JVMMetricsSource());
+
+    // Initialize the server cache manager
+    this.enableServerCache =
+        config.get(Configs.SERVER_CACHE_ENABLE) != null
+            ? config.get(Configs.SERVER_CACHE_ENABLE)
+            : false;
+    if (enableServerCache) {
+      ServerCacheManager.getInstance().initialize(config);
+    }
 
     // Initialize EntityStore
     this.entityStore = EntityStoreFactory.createEntityStore(config);
@@ -342,7 +353,13 @@ public class GravitinoEnv {
   /** Shutdown the Gravitino environment. */
   public void shutdown() {
     LOG.info("Shutting down Gravitino Environment...");
-
+    if (enableServerCache) {
+      try {
+        ServerCacheManager.getInstance().close();
+      } catch (Exception e) {
+        LOG.warn("Failed to close ServerCacheManager.", e);
+      }
+    }
     if (entityStore != null) {
       try {
         entityStore.close();
