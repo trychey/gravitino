@@ -30,7 +30,7 @@ public class TestFetchFileUtils {
   public void testDownloadFromHTTP() throws Exception {
     File destFile = new File("dest");
     FetchFileUtils.fetchFileFromUri(
-        "https://downloads.apache.org/hadoop/common/KEYS", destFile, 10, new Configuration());
+        "https://cnbj1-fds.api.xiaomi.net/gravitino/KEYS", destFile, 10, new Configuration());
     Assertions.assertTrue(destFile.exists());
     destFile.delete();
   }
