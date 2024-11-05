@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Maps;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import org.apache.gravitino.dto.rel.expressions.LiteralDTO;
@@ -31,6 +32,8 @@ import org.apache.gravitino.rel.Column;
 import org.apache.gravitino.rel.expressions.Expression;
 import org.apache.gravitino.rel.types.Type;
 import org.apache.gravitino.rel.types.Types;
+
+import java.util.Map;
 
 /** Represents a Column DTO (Data Transfer Object). */
 @EqualsAndHashCode
@@ -62,6 +65,9 @@ public class ColumnDTO implements Column {
   @JsonDeserialize(using = JsonUtils.ColumnDefaultValueDeserializer.class)
   private Expression defaultValue = Column.DEFAULT_VALUE_NOT_SET;
 
+  @JsonProperty("properties")
+  private Map<String, String> properties = Maps.newHashMap();
+
   private ColumnDTO() {}
 
   /**
@@ -80,13 +86,15 @@ public class ColumnDTO implements Column {
       String comment,
       boolean nullable,
       boolean autoIncrement,
-      Expression defaultValue) {
+      Expression defaultValue,
+      Map<String, String> properties) {
     this.name = name;
     this.dataType = dataType;
     this.comment = comment;
     this.nullable = nullable;
     this.autoIncrement = autoIncrement;
     this.defaultValue = defaultValue == null ? Column.DEFAULT_VALUE_NOT_SET : defaultValue;
+    this.properties = properties;
   }
 
   @Override
@@ -117,6 +125,11 @@ public class ColumnDTO implements Column {
   @Override
   public Expression defaultValue() {
     return defaultValue;
+  }
+
+  @Override
+  public Map<String, String> properties() {
+    return properties;
   }
 
   /**
@@ -152,6 +165,9 @@ public class ColumnDTO implements Column {
 
     /** The default value of the column. */
     protected Expression defaultValue;
+
+    /** The properties of the column. */
+    protected Map<String, String> properties;
 
     /** Constructs a new Builder. */
     public Builder() {}
@@ -223,6 +239,17 @@ public class ColumnDTO implements Column {
     }
 
     /**
+     * Sets the comment for the column.
+     *
+     * @param properties The properties of the column.
+     * @return The Builder instance.
+     */
+    public S withProperties(Map<String, String> properties) {
+      this.properties = properties;
+      return (S) this;
+    }
+
+    /**
      * Builds a Column DTO based on the provided builder parameters.
      *
      * @return A new ColumnDTO instance.
@@ -231,7 +258,7 @@ public class ColumnDTO implements Column {
     public ColumnDTO build() {
       Preconditions.checkNotNull(name, "Column name cannot be null");
       Preconditions.checkNotNull(dataType, "Column data type cannot be null");
-      return new ColumnDTO(name, dataType, comment, nullable, autoIncrement, defaultValue);
+      return new ColumnDTO(name, dataType, comment, nullable, autoIncrement, defaultValue, properties);
     }
   }
 

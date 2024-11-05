@@ -20,8 +20,11 @@ package org.apache.gravitino.rel;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+
 import java.util.Map;
 import java.util.Objects;
+
+import com.google.common.collect.ImmutableMap;
 import org.apache.gravitino.NameIdentifier;
 import org.apache.gravitino.annotation.Evolving;
 import org.apache.gravitino.rel.expressions.Expression;
@@ -72,6 +75,11 @@ public interface Column {
   Expression defaultValue();
 
   /**
+   * @return The properties of this column.
+   */
+  Map<String, String> properties();
+
+  /**
    * Create a {@link Column} instance.
    *
    * @param name The name of the column.
@@ -82,7 +90,7 @@ public interface Column {
    * @return A {@link Column} instance.
    */
   static ColumnImpl of(String name, Type dataType, String comment, Expression defaultValue) {
-    return of(name, dataType, comment, true, false, defaultValue);
+    return of(name, dataType, comment, true, false, defaultValue, ImmutableMap.of());
   }
 
   /**
@@ -94,7 +102,7 @@ public interface Column {
    * @return A {@link Column} instance.
    */
   static ColumnImpl of(String name, Type dataType, String comment) {
-    return of(name, dataType, comment, true, false, DEFAULT_VALUE_NOT_SET);
+    return of(name, dataType, comment, true, false, DEFAULT_VALUE_NOT_SET, ImmutableMap.of());
   }
 
   /**
@@ -105,7 +113,7 @@ public interface Column {
    * @return A {@link Column} instance.
    */
   static ColumnImpl of(String name, Type dataType) {
-    return of(name, dataType, null, true, false, DEFAULT_VALUE_NOT_SET);
+    return of(name, dataType, null, true, false, DEFAULT_VALUE_NOT_SET, ImmutableMap.of());
   }
 
   /**
@@ -133,7 +141,39 @@ public interface Column {
         comment,
         nullable,
         autoIncrement,
-        defaultValue == null ? DEFAULT_VALUE_NOT_SET : defaultValue);
+        defaultValue == null ? DEFAULT_VALUE_NOT_SET : defaultValue,
+        ImmutableMap.of());
+  }
+
+  /**
+   * Create a {@link Column} instance.
+   *
+   * @param name The name of the column.
+   * @param dataType The data type of the column.
+   * @param comment The comment of the column.
+   * @param nullable True if the column may produce null values.
+   * @param autoIncrement True if the column is an auto-increment column.
+   * @param defaultValue The default value of the column. {@link Column#DEFAULT_VALUE_NOT_SET} if
+   *     null.
+   * @param properties The properties of the column.
+   * @return A {@link Column} instance.
+   */
+  static ColumnImpl of(
+          String name,
+          Type dataType,
+          String comment,
+          boolean nullable,
+          boolean autoIncrement,
+          Expression defaultValue,
+          Map<String, String> properties) {
+    return new ColumnImpl(
+            name,
+            dataType,
+            comment,
+            nullable,
+            autoIncrement,
+            defaultValue == null ? DEFAULT_VALUE_NOT_SET : defaultValue,
+            properties);
   }
 
   /** The implementation of {@link Column} for users to use API. */
@@ -144,6 +184,7 @@ public interface Column {
     private boolean nullable;
     private boolean autoIncrement;
     private Expression defaultValue;
+    private Map<String, String> properties;
 
     private ColumnImpl(
         String name,
@@ -151,15 +192,18 @@ public interface Column {
         String comment,
         boolean nullable,
         boolean autoIncrement,
-        Expression defaultValue) {
+        Expression defaultValue,
+        Map<String, String> properties) {
       Preconditions.checkArgument(!Strings.isNullOrEmpty(name), "Column name cannot be null");
       Preconditions.checkArgument(dataType != null, "Column data type cannot be null");
+      Preconditions.checkArgument(properties != null, "Column properties cannot be null");
       this.name = name;
       this.dataType = dataType;
       this.comment = comment;
       this.nullable = nullable;
       this.autoIncrement = autoIncrement;
       this.defaultValue = defaultValue;
+      this.properties = properties;
     }
 
     @Override
@@ -193,6 +237,11 @@ public interface Column {
     }
 
     @Override
+    public Map<String, String> properties() {
+      return properties;
+    }
+
+    @Override
     public boolean equals(Object o) {
       if (this == o) {
         return true;
@@ -206,12 +255,13 @@ public interface Column {
           && Objects.equals(name, column.name)
           && Objects.equals(dataType, column.dataType)
           && Objects.equals(comment, column.comment)
-          && Objects.equals(defaultValue, column.defaultValue);
+          && Objects.equals(defaultValue, column.defaultValue)
+          && Objects.equals(properties, column.properties);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(name, dataType, comment, nullable, autoIncrement, defaultValue);
+      return Objects.hash(name, dataType, comment, nullable, autoIncrement, defaultValue, properties);
     }
   }
 }

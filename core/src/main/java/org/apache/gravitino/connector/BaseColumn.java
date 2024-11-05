@@ -27,6 +27,8 @@ import org.apache.gravitino.rel.Column;
 import org.apache.gravitino.rel.expressions.Expression;
 import org.apache.gravitino.rel.types.Type;
 
+import java.util.Map;
+
 /** An abstract class representing a base column in a relational database. */
 @Evolving
 @ToString
@@ -44,6 +46,8 @@ public abstract class BaseColumn implements Column {
   protected boolean autoIncrement;
 
   protected Expression defaultValue;
+
+  protected Map<String, String> properties;
 
   /**
    * Returns the name of the column.
@@ -97,6 +101,14 @@ public abstract class BaseColumn implements Column {
   }
 
   /**
+   * @return The properties of this column.
+   */
+  @Override
+  public Map<String, String> properties() {
+    return properties;
+  }
+
+  /**
    * Builder interface for creating instances of {@link BaseColumn}.
    *
    * @param <SELF> The type of the builder.
@@ -116,6 +128,8 @@ public abstract class BaseColumn implements Column {
 
     SELF withDefaultValue(Expression defaultValue);
 
+    SELF withProperties(Map<String, String> properties);
+
     T build();
   }
 
@@ -134,6 +148,7 @@ public abstract class BaseColumn implements Column {
     protected boolean nullable = true;
     protected boolean autoIncrement = false;
     protected Expression defaultValue;
+    protected Map<String, String> properties;
 
     /**
      * Sets the name of the column.
@@ -204,6 +219,18 @@ public abstract class BaseColumn implements Column {
     @Override
     public SELF withDefaultValue(Expression defaultValue) {
       this.defaultValue = defaultValue;
+      return self();
+    }
+
+    /**
+     * Sets the properties of the column.
+     *
+     * @param properties The properties of the column.
+     * @return The builder instance.
+     */
+    @Override
+    public SELF withProperties(Map<String, String> properties) {
+      this.properties = properties;
       return self();
     }
 
