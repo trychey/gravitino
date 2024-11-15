@@ -415,7 +415,7 @@
 
   <property>
     <name>hadoop.security.group.mapping</name>
-    <value>org.apache.hadoop.security.ConfigurationBasedGroupsMapping</value>
+    <value>org.apache.hadoop.yarn.server.resourcemanager.scheduler.fair.DummyGroupsMapping</value>
   </property>
 
   <property>

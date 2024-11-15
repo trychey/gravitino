@@ -14,7 +14,7 @@ dependencies {
   implementation(project(":api"))
   implementation(project(":core"))
   implementation(project(":common"))
-
+  implementation(libs.caffeine)
   implementation(libs.guava)
   implementation(libs.hadoop3.common) {
     exclude("com.sun.jersey")
@@ -35,6 +35,7 @@ dependencies {
       version = libs.versions.lavafs.get(),
       classifier = "shaded"
     )
+    implementation(libs.juicefs.hadoop.sdk)
   }
 
   implementation(libs.slf4j.api)

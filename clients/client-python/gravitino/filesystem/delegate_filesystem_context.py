@@ -67,11 +67,12 @@ class DelegateFileSystemContext(FileSystemContext):
             ) from e
 
         # init the fs with the local credential file
+        # TODO need support juicefs when we can get the ak/sk
         if uri.startswith("hdfs://") or uri.startswith("lavafs://"):
             # init the hadoop env through python module import
             self._hadoop_env = HadoopEnvironment()
             concat_uri = f"{uri}?kerb_ticket={self._local_credential_path}"
-            if config is not None:
+            if config is not None and len(config) > 0:
                 concat_uri = concat_uri + "&" + config
             self._filesystem = ArrowFSWrapper(HadoopFileSystem.from_uri(concat_uri))
         elif uri.startswith("file:/"):

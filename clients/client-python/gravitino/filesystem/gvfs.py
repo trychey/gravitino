@@ -284,7 +284,7 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
         )
         dst_actual_path = dst_context_pair.fileset_context().actual_paths()[0]
 
-        if storage_type in (StorageType.HDFS, StorageType.LAVAFS):
+        if storage_type in (StorageType.HDFS, StorageType.LAVAFS, StorageType.JUICEFS):
             src_context_pair.filesystems()[0].mv(
                 self._strip_storage_protocol(storage_type, src_actual_path),
                 self._strip_storage_protocol(storage_type, dst_actual_path),
@@ -517,7 +517,7 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
         :param ident: Fileset name identifier
         :return A virtual path
         """
-        if storage_type in (StorageType.HDFS, StorageType.LAVAFS):
+        if storage_type in (StorageType.HDFS, StorageType.LAVAFS, StorageType.JUICEFS):
             actual_prefix = infer_storage_options(
                 context_pair.fileset_context().fileset().storage_location()
             )["path"]
@@ -674,6 +674,8 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
             return StorageType.HDFS
         if path.startswith(f"{StorageType.LAVAFS.value}://"):
             return StorageType.LAVAFS
+        if path.startswith(f"{StorageType.JUICEFS.value}://"):
+            return StorageType.JUICEFS
         if path.startswith(f"{StorageType.LOCAL.value}:/"):
             return StorageType.LOCAL
         raise GravitinoRuntimeException(
@@ -695,6 +697,8 @@ class GravitinoVirtualFileSystem(fsspec.AbstractFileSystem):
         if storage_type == StorageType.HDFS:
             return path
         if storage_type == StorageType.LAVAFS:
+            return path
+        if storage_type == StorageType.JUICEFS:
             return path
         if storage_type == StorageType.LOCAL:
             return path[len(f"{StorageType.LOCAL.value}:") :]

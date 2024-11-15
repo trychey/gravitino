@@ -9,4 +9,5 @@ from enum import Enum
 class StorageType(Enum):
     HDFS = "hdfs"
     LAVAFS = "lavafs"
+    JUICEFS = "jfs"
     LOCAL = "file"

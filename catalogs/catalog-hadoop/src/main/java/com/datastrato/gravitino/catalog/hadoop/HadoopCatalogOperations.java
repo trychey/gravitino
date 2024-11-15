@@ -275,9 +275,9 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
     List<String> allStorageLocations = checkStorageLocationPattern(ident, storageLocation, props);
 
     if (type == Fileset.Type.MANAGED) {
-      checkAndCreateManagedStorageLocations(ident, allStorageLocations);
+      checkAndCreateManagedStorageLocations(ident, allStorageLocations, props);
     } else {
-      validateExternalStorageLocations(ident, storageLocation, allStorageLocations);
+      validateExternalStorageLocations(ident, storageLocation, allStorageLocations, props);
     }
 
     StringIdentifier stringId = StringIdentifier.fromProperties(props);
@@ -500,7 +500,8 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
     Path schemaPath = getSchemaPath(ident.name(), properties);
     if (schemaPath != null) {
       try {
-        FileSystem fs = schemaPath.getFileSystem(hadoopConf);
+        FileSystem fs =
+            FileSystemCache.getInstance().getFileSystem(schemaPath, hadoopConf, properties);
         if (!fs.exists(schemaPath)) {
           if (!fs.mkdirs(schemaPath)) {
             // Fail the operation when failed to create the schema path.
@@ -618,8 +619,8 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
       if (schemaPath == null) {
         return false;
       }
-
-      FileSystem fs = schemaPath.getFileSystem(hadoopConf);
+      FileSystem fs =
+          FileSystemCache.getInstance().getFileSystem(schemaPath, hadoopConf, properties);
       // Nothing to delete if the schema path does not exist.
       if (!fs.exists(schemaPath)) {
         return false;
@@ -965,10 +966,10 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
   }
 
   private void checkAndCreateManagedStorageLocations(
-      NameIdentifier ident, List<String> allStorageLocations) {
+      NameIdentifier ident, List<String> allStorageLocations, Map<String, String> properties) {
     try {
       checkValidManagedPaths(ident, allStorageLocations);
-      createManagedStorageLocations(ident, allStorageLocations);
+      createManagedStorageLocations(ident, allStorageLocations, properties);
     } catch (Exception e) {
       throw new RuntimeException(String.format("Failed to create managed fileset: %s.", ident), e);
     }
@@ -998,13 +999,22 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
       fs.modifyAclEntries(filesetPath, aclEntries);
     } catch (IOException ioe) {
       throw new RuntimeException("Failed to set permission for fileset " + filesetPath, ioe);
+    } catch (UnsupportedOperationException uoe) {
+      LOG.warn(
+          "The filesystem: {} doesn't support modifyAclEntries for path: {}",
+          fs.getClass(),
+          filesetPath,
+          uoe);
     }
   }
 
   private void validateExternalStorageLocations(
-      NameIdentifier ident, String primaryStorageLocation, List<String> allStorageLocations) {
+      NameIdentifier ident,
+      String primaryStorageLocation,
+      List<String> allStorageLocations,
+      Map<String, String> properties) {
     checkValidExternalPaths(ident, allStorageLocations);
-    checkExternalStorageLocations(ident, primaryStorageLocation, allStorageLocations);
+    checkExternalStorageLocations(ident, primaryStorageLocation, allStorageLocations, properties);
   }
 
   private boolean validateStorageLocationPattern(NameIdentifier ident, String storageLocation) {
@@ -1081,12 +1091,13 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
   }
 
   private void createManagedStorageLocations(
-      NameIdentifier ident, List<String> allStorageLocations) {
+      NameIdentifier ident, List<String> allStorageLocations, Map<String, String> properties) {
     allStorageLocations.forEach(
         location -> {
           Path locationPath = new Path(location);
           try {
-            FileSystem fs = locationPath.getFileSystem(hadoopConf);
+            FileSystem fs =
+                FileSystemCache.getInstance().getFileSystem(locationPath, hadoopConf, properties);
             if (!fs.exists(locationPath)) {
               if (!fs.mkdirs(locationPath)) {
                 throw new RuntimeException(
@@ -1109,7 +1120,10 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
   }
 
   private void checkExternalStorageLocations(
-      NameIdentifier ident, String primaryStorageLocation, List<String> allStorageLocations) {
+      NameIdentifier ident,
+      String primaryStorageLocation,
+      List<String> allStorageLocations,
+      Map<String, String> properties) {
 
     // Fetch an external fileset name the storage location is already mounted,
     // if it's find one, we throw an exception
@@ -1128,8 +1142,8 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
 
           try {
             Path locationPath = new Path(location);
-
-            FileSystem fs = locationPath.getFileSystem(hadoopConf);
+            FileSystem fs =
+                FileSystemCache.getInstance().getFileSystem(locationPath, hadoopConf, properties);
             // Throw an exception if the storage location is not exist for external filesets
             if (!fs.exists(locationPath)) {
               if (!primaryStorageLocation.equals(location)) {
@@ -1201,9 +1215,10 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
     }
 
     if (filesetEntity.filesetType() == Fileset.Type.MANAGED) {
-      checkAndCreateManagedStorageLocations(ident, allStorageLocations);
+      checkAndCreateManagedStorageLocations(ident, allStorageLocations, toCheckedProperties);
     } else {
-      validateExternalStorageLocations(ident, filesetEntity.storageLocation(), allStorageLocations);
+      validateExternalStorageLocations(
+          ident, filesetEntity.storageLocation(), allStorageLocations, toCheckedProperties);
     }
 
     props.put(backupStorageLocationKey, backupStorageLocationValue);
@@ -1233,7 +1248,8 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
     String backupStorageLocation = props.get(backupStorageLocationKey);
     try {
       Path backupStorageLocationPath = new Path(backupStorageLocation);
-      FileSystem fs = backupStorageLocationPath.getFileSystem(hadoopConf);
+      FileSystem fs =
+          FileSystemCache.getInstance().getFileSystem(backupStorageLocationPath, hadoopConf, props);
       if (!fs.exists(backupStorageLocationPath)) {
         LOG.warn(
             "The backup storage location of the key to be removed {} for Fileset {} does not exist.",
@@ -1281,7 +1297,8 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
     String backupStorageLocation = props.get(backupStorageLocationKey);
     try {
       Path backupStorageLocationPath = new Path(backupStorageLocation);
-      FileSystem fs = backupStorageLocationPath.getFileSystem(hadoopConf);
+      FileSystem fs =
+          FileSystemCache.getInstance().getFileSystem(backupStorageLocationPath, hadoopConf, props);
       if (!fs.exists(backupStorageLocationPath)) {
         LOG.warn(
             "The backup storage location of the key to be updated {} for Fileset {} does not exist.",
@@ -1314,10 +1331,10 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
     List<String> backupStorageLocations = Collections.singletonList(backupStorageLocationNewValue);
 
     if (filesetEntity.filesetType() == Fileset.Type.MANAGED) {
-      checkAndCreateManagedStorageLocations(ident, backupStorageLocations);
+      checkAndCreateManagedStorageLocations(ident, backupStorageLocations, props);
     } else {
       validateExternalStorageLocations(
-          ident, filesetEntity.storageLocation(), backupStorageLocations);
+          ident, filesetEntity.storageLocation(), backupStorageLocations, props);
     }
 
     props.put(
@@ -1347,7 +1364,9 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
 
     try {
       Path oldPrimaryStorageLocationPath = new Path(oldPrimaryStorageLocation);
-      FileSystem fs = oldPrimaryStorageLocationPath.getFileSystem(hadoopConf);
+      FileSystem fs =
+          FileSystemCache.getInstance()
+              .getFileSystem(oldPrimaryStorageLocationPath, hadoopConf, filesetEntity.properties());
       if (!fs.exists(oldPrimaryStorageLocationPath)) {
         LOG.warn(
             "The old primary storage location to be updated {} for Fileset {} does not exist.",
@@ -1370,10 +1389,11 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
     List<String> newPrimaryStorageLocations = Collections.singletonList(newPrimaryStorageLocation);
 
     if (filesetEntity.filesetType() == Fileset.Type.MANAGED) {
-      checkAndCreateManagedStorageLocations(ident, newPrimaryStorageLocations);
+      checkAndCreateManagedStorageLocations(
+          ident, newPrimaryStorageLocations, filesetEntity.properties());
     } else {
       validateExternalStorageLocations(
-          ident, newPrimaryStorageLocation, newPrimaryStorageLocations);
+          ident, newPrimaryStorageLocation, newPrimaryStorageLocations, filesetEntity.properties());
     }
     LOG.info(
         "Update the old primary storage location {} with new value {} for Fileset {} successfully.",
@@ -1454,7 +1474,9 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
         location -> {
           try {
             Path storageLocationPath = new Path(location);
-            FileSystem fs = storageLocationPath.getFileSystem(hadoopConf);
+            FileSystem fs =
+                FileSystemCache.getInstance()
+                    .getFileSystem(storageLocationPath, hadoopConf, filesetEntity.properties());
             if (fs.exists(storageLocationPath)) {
               fs.delete(storageLocationPath, true);
             } else {
@@ -1498,7 +1520,10 @@ public class HadoopCatalogOperations implements CatalogOperations, SupportsSchem
   private boolean checkMountsSingleFile(Fileset fileset) {
     try {
       Path locationPath = new Path(fileset.storageLocation());
-      return locationPath.getFileSystem(hadoopConf).getFileStatus(locationPath).isFile();
+      FileSystem fs =
+          FileSystemCache.getInstance()
+              .getFileSystem(locationPath, hadoopConf, fileset.properties());
+      return fs.getFileStatus(locationPath).isFile();
     } catch (FileNotFoundException e) {
       // We should always return false here, same with the logic in `FileSystem.isFile(Path f)`.
       return false;

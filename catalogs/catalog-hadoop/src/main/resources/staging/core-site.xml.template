@@ -137,13 +137,48 @@
   </property>
 
   <property>
+     <name>fs.jfs.impl</name>
+     <value>io.juicefs.JuiceFileSystem</value>
+  </property>
+
+  <property>
+     <name>fs.AbstractFileSystem.jfs.impl</name>
+     <value>io.juicefs.JuiceFS</value>
+  </property>
+
+  <property>
+     <name>juicefs.cache-size</name>
+     <value>0</value>
+  </property>
+
+  <property>
+     <name>juicefs.access-key</name>
+     <value>CAKYZA1HULNXUTCHJ7Y</value>
+  </property>
+
+  <property>
+     <name>juicefs.secret-key</name>
+     <value>x6IqZkf57CTd2N7sx4uXyu3pn23xWpbhBUnEihhI</value>
+  </property>
+
+  <property>
+     <name>fs.jfs.impl.disable.cache</name>
+     <value>true</value>
+  </property>
+
+  <property>
+     <name>hadoop.security.group.mapping</name>
+     <value>com.datastrato.gravitino.catalog.hadoop.DummyGroupsMapping</value>
+  </property>
+
+  <property>
     <name>gvfs.valid.managed-paths</name>
-    <value>^hdfs://tjwqstaging-hdd/user/h_data_platform/fileset/%s/%s/%s$,^lavafs://tjwqstaging-common/user/h_data_platform/fileset/%s/%s/%s$</value>
+    <value>^hdfs://tjwqstaging-hdd/user/h_data_platform/fileset/%s/%s/%s$,^lavafs://tjwqstaging-common/user/h_data_platform/fileset/%s/%s/%s$,^jfs://fileset-tj1-test-volume/fileset/%s/%s/%s$</value>
   </property>
 
   <property>
     <name>gvfs.valid.external-paths</name>
-    <value>^hdfs://tjwqstaging-hdd/.+,^lavafs://tjwqstaging-common/.+</value>
+    <value>^hdfs://tjwqstaging-hdd/.+,^lavafs://tjwqstaging-common/.+,^jfs://.+</value>
   </property>
 
 </configuration>

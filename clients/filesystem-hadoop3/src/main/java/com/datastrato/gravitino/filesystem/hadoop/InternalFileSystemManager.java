@@ -5,6 +5,7 @@
 package com.datastrato.gravitino.filesystem.hadoop;
 
 import static com.datastrato.gravitino.filesystem.hadoop.GravitinoVirtualFileSystemConfiguration.HDFS_SCHEME;
+import static com.datastrato.gravitino.filesystem.hadoop.GravitinoVirtualFileSystemConfiguration.JUICEFS_SCHEME;
 import static com.datastrato.gravitino.filesystem.hadoop.GravitinoVirtualFileSystemConfiguration.LAVAFS_SCHEME;
 import static com.datastrato.gravitino.filesystem.hadoop.GravitinoVirtualFileSystemConfiguration.LOCAL_SCHEME;
 
@@ -40,6 +41,7 @@ public class InternalFileSystemManager implements AutoCloseable {
   private static final Logger LOG = LoggerFactory.getLogger(InternalFileSystemManager.class);
   private static final String SECRET_EXPIRE_TIME_PROP = "expireTime";
   private static final String KERBEROS_SECRET_TYPE = "kerberos";
+  private static final String JUICEFS_MASTER_SERVER_KEY = "juicefs.master";
   private final String authType;
   private final DelayQueue<FileSystemContextCloseTask> delayCloseQueue = new DelayQueue<>();
 
@@ -255,11 +257,43 @@ public class InternalFileSystemManager implements AutoCloseable {
   }
 
   public FileSystem getFileSystem(URI uri, String subPath, Configuration configuration) {
+    String scheme = uri.getScheme();
+    if (StringUtils.isBlank(scheme)) {
+      URI defaultUri = FileSystem.getDefaultUri(configuration);
+      scheme = defaultUri.getScheme();
+    }
     String path = uri.toString();
-    FileSystemContext context =
-        internalContextCache.get(
-            path.substring(0, path.length() - subPath.length()),
-            str -> createInternalFileSystem(uri, configuration));
+    FileSystemContext context;
+    String cacheKey;
+    String pathPrefix = path.substring(0, path.length() - subPath.length());
+    switch (scheme) {
+      case HDFS_SCHEME:
+      case LAVAFS_SCHEME:
+      case LOCAL_SCHEME:
+        // this cache key is storage location like
+        // `hdfs://zjyprc-hadoop/user/h_data_platform/fileset/fileset_zjyprc_hadoop/tmp/test_fileset`
+        // or `hdfs://zjyprc-hadoop/user/ad/my_test`
+        context =
+            internalContextCache.get(
+                pathPrefix, str -> createInternalFileSystem(uri, configuration));
+        break;
+      case JUICEFS_SCHEME:
+        // juicefs's path is not contain the cluster info, so we need to get the master key from
+        // configuration
+        String masterKey = configuration.get(JUICEFS_MASTER_SERVER_KEY);
+        if (StringUtils.isBlank(masterKey)) {
+          throw new GravitinoRuntimeException("juicefs master key is not set for uri: %s", uri);
+        }
+        // this cache key is storage location like
+        // `jfs://test-volume/fileset/fileset_zjyprc_hadoop/tmp/test_fileset#ak-common`
+        // or `jfs://test-volume#ak-common`
+        cacheKey = String.format("%s#%s", pathPrefix, masterKey);
+        context =
+            internalContextCache.get(cacheKey, str -> createInternalFileSystem(uri, configuration));
+        break;
+      default:
+        throw new GravitinoRuntimeException("Unsupported scheme: %s for uri: %s", scheme, uri);
+    }
     if (context == null) {
       throw new GravitinoRuntimeException("FileSystem context not found for uri: %s", uri);
     }
@@ -275,6 +309,7 @@ public class InternalFileSystemManager implements AutoCloseable {
             "Exception occurs when create new FileSystem for actual uri: %s, msg: %s", uri, ioe);
       }
     }
+    // TODO need support juicefs when we can get the ak/sk
     switch (uri.getScheme()) {
       case HDFS_SCHEME:
       case LAVAFS_SCHEME:

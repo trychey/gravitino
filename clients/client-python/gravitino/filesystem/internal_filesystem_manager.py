@@ -24,6 +24,7 @@ from gravitino.filesystem.storage_type import StorageType
 SECRET_EXPIRE_TIME_PROP = "expireTime"
 KERBEROS_SECRET_TYPE = "kerberos"
 GRAVITINO_BYPASS = "gravitino.bypass."
+JUICEFS_MASTER_SERVER_KEY = "juicefs.master"
 
 
 def cache_ttu_strategy(_key, context, now):
@@ -137,6 +138,8 @@ class InternalFileSystemManager:
             return StorageType.HDFS
         if uri.startswith(StorageType.LAVAFS.value):
             return StorageType.LAVAFS
+        if uri.startswith(StorageType.JUICEFS.value):
+            return StorageType.JUICEFS
         if uri.startswith(StorageType.LOCAL.value):
             return StorageType.LOCAL
         raise GravitinoRuntimeException(f"Storage type doesn't support now. Path:{uri}")
@@ -166,10 +169,24 @@ class InternalFileSystemManager:
     ) -> AbstractFileSystem:
         storage_type = self._recognize_storage_type(uri)
         storage_location = uri.rstrip(sub_path)
+        # gen the cache key for different storage type
+        if storage_type in (StorageType.HDFS, StorageType.LAVAFS, StorageType.LOCAL):
+            cache_key = storage_location
+        elif storage_type == StorageType.JUICEFS:
+            master_key = fileset_properties.get(
+                f"{GRAVITINO_BYPASS}{JUICEFS_MASTER_SERVER_KEY}"
+            )
+            if master_key is None or len(master_key) == 0:
+                raise GravitinoRuntimeException(
+                    f"juicefs master key is not set for uri: {uri}"
+                )
+            cache_key = f"{storage_location}#{master_key}"
+        else:
+            raise GravitinoRuntimeException(f"unsupported storage type: {storage_type}")
         read_lock = self._cache_lock.gen_rlock()
         try:
             read_lock.acquire()
-            context: FileSystemContext = self._cache.get(storage_location)
+            context: FileSystemContext = self._cache.get(cache_key)
             if context is not None:
                 return context.get_filesystem()
         finally:
@@ -178,7 +195,7 @@ class InternalFileSystemManager:
         write_lock = self._cache_lock.gen_wlock()
         try:
             write_lock.acquire()
-            context: FileSystemContext = self._cache.get(storage_location)
+            context: FileSystemContext = self._cache.get(cache_key)
             if context is not None:
                 return context.get_filesystem()
 

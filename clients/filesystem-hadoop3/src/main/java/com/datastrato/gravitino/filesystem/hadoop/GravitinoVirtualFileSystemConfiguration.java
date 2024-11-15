@@ -11,6 +11,7 @@ class GravitinoVirtualFileSystemConfiguration {
   public static final String LOCAL_SCHEME = "file";
   public static final String HDFS_SCHEME = "hdfs";
   public static final String LAVAFS_SCHEME = "lavafs";
+  public static final String JUICEFS_SCHEME = "jfs";
 
   /** The configuration key for the Gravitino server URI. */
   public static final String FS_GRAVITINO_SERVER_URI_KEY = "fs.gravitino.server.uri";
