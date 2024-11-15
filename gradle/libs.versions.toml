@@ -133,6 +133,7 @@ iceberg-core = { group = "org.apache.iceberg", name = "iceberg-core", version.re
 iceberg-api = { group = "org.apache.iceberg", name = "iceberg-api", version.ref = "iceberg" }
 iceberg-hive-metastore = { group = "org.apache.iceberg", name = "iceberg-hive-metastore", version.ref = "iceberg" }
 paimon-core = { group = "org.apache.paimon", name = "paimon-core", version.ref = "paimon" }
+paimon-common = { group = "org.apache.paimon", name = "paimon-common", version.ref = "paimon" }
 paimon-format = { group = "org.apache.paimon", name = "paimon-format", version.ref = "paimon" }
 paimon-hive-catalog = { group = "org.apache.paimon", name = "paimon-hive-catalog", version.ref = "paimon" }
 trino-spi= { group = "io.trino", name = "trino-spi", version.ref = "trino" }
@@ -191,7 +192,7 @@ log4j = ["slf4j-api", "log4j-slf4j2-impl", "log4j-api", "log4j-core", "log4j-12-
 jetty = ["jetty-server", "jetty-servlet", "jetty-webapp", "jetty-servlets"]
 jersey = ["jersey-server", "jersey-container-servlet-core", "jersey-container-jetty-http", "jersey-media-json-jackson", "jersey-hk2"]
 iceberg = ["iceberg-core", "iceberg-api"]
-paimon = ["paimon-core", "paimon-format", "paimon-hive-catalog"]
+paimon = ["paimon-core", "paimon-common", "paimon-format", "paimon-hive-catalog"]
 jwt = ["jwt-api", "jwt-impl", "jwt-gson"]
 metrics = ["metrics-core", "metrics-jersey2", "metrics-jvm", "metrics-jmx", "metrics-servlets"]
 prometheus = ["prometheus-servlet", "prometheus-dropwizard", "prometheus-client"]
