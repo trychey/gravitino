@@ -87,7 +87,7 @@ public class TestGravitinoPaimonTable {
                 return NameIdentifier.of(
                     Namespace.of(levels[levels.length - 1]), nameIdentifier.name());
               })
-          .forEach(nameIdentifier -> paimonCatalogOperations.purgeTable(nameIdentifier));
+          .forEach(nameIdentifier -> paimonCatalogOperations.dropTable(nameIdentifier));
     }
     paimonCatalogOperations.dropSchema(schemaIdent, false);
     initPaimonSchema();
@@ -358,7 +358,7 @@ public class TestGravitinoPaimonTable {
         new SortOrder[0]);
 
     Assertions.assertTrue(paimonCatalogOperations.tableExists(tableIdentifier));
-    paimonCatalogOperations.purgeTable(tableIdentifier);
+    paimonCatalogOperations.dropTable(tableIdentifier);
     Assertions.assertFalse(paimonCatalogOperations.tableExists(tableIdentifier));
   }
 

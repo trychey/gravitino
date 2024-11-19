@@ -642,7 +642,7 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
     Assertions.assertEquals("table_1", tableIdentifiers.get(0));
     Assertions.assertEquals("table_2", tableIdentifiers.get(1));
 
-    Assertions.assertDoesNotThrow(() -> tableCatalog.purgeTable(table1));
+    Assertions.assertDoesNotThrow(() -> tableCatalog.dropTable(table1));
 
     nameIdentifiers =
         tableCatalog.listTables(
@@ -650,7 +650,7 @@ public abstract class CatalogPaimonBaseIT extends AbstractIT {
     Assertions.assertEquals(1, nameIdentifiers.length);
     Assertions.assertEquals("table_2", nameIdentifiers[0].name());
 
-    Assertions.assertDoesNotThrow(() -> tableCatalog.purgeTable(table2));
+    Assertions.assertDoesNotThrow(() -> tableCatalog.dropTable(table2));
     Namespace schemaNamespace =
         Namespace.of(metalakeName.name(), catalogName.name(), schemaName.name());
     nameIdentifiers = tableCatalog.listTables(schemaNamespace);

@@ -134,10 +134,10 @@ public class TestPaimonCatalogOps {
     assertEquals(OPTIONS.get(BUCKET.key()), table.options().get(BUCKET.key()));
 
     // drop table
-    Assertions.assertDoesNotThrow(() -> paimonCatalogOps.purgeTable(IDENTIFIER.toString()));
+    Assertions.assertDoesNotThrow(() -> paimonCatalogOps.dropTable(IDENTIFIER.toString()));
     Assertions.assertThrowsExactly(
         Catalog.TableNotExistException.class,
-        () -> paimonCatalogOps.purgeTable(IDENTIFIER.toString()));
+        () -> paimonCatalogOps.dropTable(IDENTIFIER.toString()));
 
     // list table again
     Assertions.assertEquals(
