@@ -514,6 +514,30 @@ public class TestTableOperations extends JerseyTest {
   }
 
   @Test
+  public void testUpdateTableCommentToNull() {
+    TableUpdateRequest.UpdateTableCommentRequest req =
+        new TableUpdateRequest.UpdateTableCommentRequest(null);
+    Column[] columns =
+        new Column[] {
+          mockColumn("col1", Types.StringType.get()), mockColumn("col2", Types.ByteType.get())
+        };
+    Table table = mockTable("table1", columns, null, ImmutableMap.of("k1", "v1"), new Transform[0]);
+    testAlterTableRequest(req, table);
+  }
+
+  @Test
+  public void testUpdateTableCommentToEmpty() {
+    TableUpdateRequest.UpdateTableCommentRequest req =
+        new TableUpdateRequest.UpdateTableCommentRequest("");
+    Column[] columns =
+        new Column[] {
+          mockColumn("col1", Types.StringType.get()), mockColumn("col2", Types.ByteType.get())
+        };
+    Table table = mockTable("table1", columns, "", ImmutableMap.of("k1", "v1"), new Transform[0]);
+    testAlterTableRequest(req, table);
+  }
+
+  @Test
   public void testSetTableProperty() {
     TableUpdateRequest.SetTablePropertyRequest req =
         new TableUpdateRequest.SetTablePropertyRequest("k2", "v2");
@@ -619,6 +643,32 @@ public class TestTableOperations extends JerseyTest {
     TableUpdateRequest.UpdateTableColumnCommentRequest req =
         new TableUpdateRequest.UpdateTableColumnCommentRequest(
             new String[] {"col1"}, "new comment");
+    Column[] columns =
+        new Column[] {
+          mockColumn("col1", Types.StringType.get()), mockColumn("col2", Types.ByteType.get())
+        };
+    Table table =
+        mockTable("table1", columns, "mock comment", ImmutableMap.of("k1", "v1"), new Transform[0]);
+    testAlterTableRequest(req, table);
+  }
+
+  @Test
+  public void testUpdateTableColumnCommentToNull() {
+    TableUpdateRequest.UpdateTableColumnCommentRequest req =
+        new TableUpdateRequest.UpdateTableColumnCommentRequest(new String[] {"col1"}, null);
+    Column[] columns =
+        new Column[] {
+          mockColumn("col1", Types.StringType.get()), mockColumn("col2", Types.ByteType.get())
+        };
+    Table table =
+        mockTable("table1", columns, "mock comment", ImmutableMap.of("k1", "v1"), new Transform[0]);
+    testAlterTableRequest(req, table);
+  }
+
+  @Test
+  public void testUpdateTableColumnCommentToEmpty() {
+    TableUpdateRequest.UpdateTableColumnCommentRequest req =
+        new TableUpdateRequest.UpdateTableColumnCommentRequest(new String[] {"col1"}, "");
     Column[] columns =
         new Column[] {
           mockColumn("col1", Types.StringType.get()), mockColumn("col2", Types.ByteType.get())

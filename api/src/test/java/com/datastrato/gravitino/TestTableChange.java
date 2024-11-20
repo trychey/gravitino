@@ -50,6 +50,15 @@ public class TestTableChange {
   }
 
   @Test
+  public void testUpdateCommentToNullOrEmpty() {
+    UpdateComment updateComment = (UpdateComment) TableChange.updateComment(null);
+    assertNull(updateComment.getNewComment());
+
+    updateComment = (UpdateComment) TableChange.updateComment("");
+    assertEquals("", updateComment.getNewComment());
+  }
+
+  @Test
   public void testSetProperty() {
     String property = "Jam";
     String value = "Marmalade";
@@ -166,6 +175,26 @@ public class TestTableChange {
   }
 
   @Test
+  public void testUpdateColumnCommentToNull() {
+    String[] fieldName = {"First Name"};
+    UpdateColumnComment updateColumnComment =
+        (UpdateColumnComment) TableChange.updateColumnComment(fieldName, null);
+
+    assertArrayEquals(fieldName, updateColumnComment.fieldName());
+    assertNull(updateColumnComment.getNewComment());
+  }
+
+  @Test
+  public void testUpdateColumnCommentToEmpty() {
+    String[] fieldName = {"First Name"};
+    UpdateColumnComment updateColumnComment =
+        (UpdateColumnComment) TableChange.updateColumnComment(fieldName, "");
+
+    assertArrayEquals(fieldName, updateColumnComment.fieldName());
+    assertEquals("", updateColumnComment.getNewComment());
+  }
+
+  @Test
   public void testUpdateNestedColumnComment() {
     String[] fieldName = {"Name", "Last Name"};
     String newComment = "Last or family name";
@@ -174,6 +203,26 @@ public class TestTableChange {
 
     assertArrayEquals(fieldName, updateColumnComment.fieldName());
     assertEquals(newComment, updateColumnComment.getNewComment());
+  }
+
+  @Test
+  public void testUpdateNestedColumnCommentToNull() {
+    String[] fieldName = {"Name", "Last Name"};
+    UpdateColumnComment updateColumnComment =
+        (UpdateColumnComment) TableChange.updateColumnComment(fieldName, null);
+
+    assertArrayEquals(fieldName, updateColumnComment.fieldName());
+    assertNull(updateColumnComment.getNewComment());
+  }
+
+  @Test
+  public void testUpdateNestedColumnCommentToEmpty() {
+    String[] fieldName = {"Name", "Last Name"};
+    UpdateColumnComment updateColumnComment =
+        (UpdateColumnComment) TableChange.updateColumnComment(fieldName, "");
+
+    assertArrayEquals(fieldName, updateColumnComment.fieldName());
+    assertEquals("", updateColumnComment.getNewComment());
   }
 
   @Test
@@ -293,6 +342,20 @@ public class TestTableChange {
     assertTrue(update1.equals(update2));
     assertTrue(update2.equals(update1));
     assertEquals(update1.hashCode(), update2.hashCode());
+
+    update1 = (UpdateComment) TableChange.updateComment(null);
+    update2 = (UpdateComment) TableChange.updateComment(null);
+
+    assertTrue(update1.equals(update2));
+    assertTrue(update2.equals(update1));
+    assertEquals(update1.hashCode(), update2.hashCode());
+
+    update1 = (UpdateComment) TableChange.updateComment("");
+    update2 = (UpdateComment) TableChange.updateComment("");
+
+    assertTrue(update1.equals(update2));
+    assertTrue(update2.equals(update1));
+    assertEquals(update1.hashCode(), update2.hashCode());
   }
 
   @Test
@@ -303,6 +366,40 @@ public class TestTableChange {
     UpdateComment update2 = (UpdateComment) TableChange.updateComment(commentB);
 
     assertFalse(update1.equals(null));
+    assertFalse(update1.equals(update2));
+    assertFalse(update2.equals(update1));
+    assertNotEquals(update1.hashCode(), update2.hashCode());
+
+    update1 = (UpdateComment) TableChange.updateComment(null);
+
+    assertFalse(update1.equals(update2));
+    assertFalse(update2.equals(update1));
+    assertNotEquals(update1.hashCode(), update2.hashCode());
+
+    update1 = (UpdateComment) TableChange.updateComment(commentA);
+    update2 = (UpdateComment) TableChange.updateComment(null);
+
+    assertFalse(update1.equals(update2));
+    assertFalse(update2.equals(update1));
+    assertNotEquals(update1.hashCode(), update2.hashCode());
+
+    update1 = (UpdateComment) TableChange.updateComment("");
+    update2 = (UpdateComment) TableChange.updateComment(commentB);
+
+    assertFalse(update1.equals(update2));
+    assertFalse(update2.equals(update1));
+    assertNotEquals(update1.hashCode(), update2.hashCode());
+
+    update1 = (UpdateComment) TableChange.updateComment(commentA);
+    update2 = (UpdateComment) TableChange.updateComment("");
+
+    assertFalse(update1.equals(update2));
+    assertFalse(update2.equals(update1));
+    assertNotEquals(update1.hashCode(), update2.hashCode());
+
+    update1 = (UpdateComment) TableChange.updateComment("");
+    update2 = (UpdateComment) TableChange.updateComment(null);
+
     assertFalse(update1.equals(update2));
     assertFalse(update2.equals(update1));
     assertNotEquals(update1.hashCode(), update2.hashCode());
@@ -458,6 +555,20 @@ public class TestTableChange {
     assertTrue(columnA.equals(columnB));
     assertTrue(columnB.equals(columnA));
     assertEquals(columnA.hashCode(), columnB.hashCode());
+
+    columnA = (UpdateColumnComment) TableChange.updateColumnComment(nameA, null);
+    columnB = (UpdateColumnComment) TableChange.updateColumnComment(nameB, null);
+
+    assertTrue(columnA.equals(columnB));
+    assertTrue(columnB.equals(columnA));
+    assertEquals(columnA.hashCode(), columnB.hashCode());
+
+    columnA = (UpdateColumnComment) TableChange.updateColumnComment(nameA, "");
+    columnB = (UpdateColumnComment) TableChange.updateColumnComment(nameB, "");
+
+    assertTrue(columnA.equals(columnB));
+    assertTrue(columnB.equals(columnA));
+    assertEquals(columnA.hashCode(), columnB.hashCode());
   }
 
   @Test
@@ -472,6 +583,42 @@ public class TestTableChange {
         (UpdateColumnComment) TableChange.updateColumnComment(nameB, commentB);
 
     assertFalse(columnA.equals(null));
+    assertFalse(columnA.equals(columnB));
+    assertFalse(columnB.equals(columnA));
+    assertNotEquals(columnA.hashCode(), columnB.hashCode());
+
+    columnA = (UpdateColumnComment) TableChange.updateColumnComment(nameA, null);
+    nameB = new String[] {"First Name"};
+    columnB = (UpdateColumnComment) TableChange.updateColumnComment(nameB, commentB);
+
+    assertFalse(columnA.equals(columnB));
+    assertFalse(columnB.equals(columnA));
+    assertNotEquals(columnA.hashCode(), columnB.hashCode());
+
+    columnA = (UpdateColumnComment) TableChange.updateColumnComment(nameA, commentA);
+    columnB = (UpdateColumnComment) TableChange.updateColumnComment(nameB, null);
+
+    assertFalse(columnA.equals(columnB));
+    assertFalse(columnB.equals(columnA));
+    assertNotEquals(columnA.hashCode(), columnB.hashCode());
+
+    columnA = (UpdateColumnComment) TableChange.updateColumnComment(nameA, "");
+    columnB = (UpdateColumnComment) TableChange.updateColumnComment(nameB, commentB);
+
+    assertFalse(columnA.equals(columnB));
+    assertFalse(columnB.equals(columnA));
+    assertNotEquals(columnA.hashCode(), columnB.hashCode());
+
+    columnA = (UpdateColumnComment) TableChange.updateColumnComment(nameA, commentA);
+    columnB = (UpdateColumnComment) TableChange.updateColumnComment(nameB, "");
+
+    assertFalse(columnA.equals(columnB));
+    assertFalse(columnB.equals(columnA));
+    assertNotEquals(columnA.hashCode(), columnB.hashCode());
+
+    columnA = (UpdateColumnComment) TableChange.updateColumnComment(nameA, "");
+    columnB = (UpdateColumnComment) TableChange.updateColumnComment(nameB, null);
+
     assertFalse(columnA.equals(columnB));
     assertFalse(columnB.equals(columnA));
     assertNotEquals(columnA.hashCode(), columnB.hashCode());

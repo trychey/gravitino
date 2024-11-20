@@ -746,6 +746,41 @@ public class TestRelationalCatalog extends TestBase {
   }
 
   @Test
+  public void testUpdateTableCommentToEmpty() throws JsonProcessingException {
+    NameIdentifier tableId = NameIdentifier.of(metalakeName, catalogName, "schema1", "table1");
+    ColumnDTO[] columns =
+        new ColumnDTO[] {createMockColumn("col1", Types.ByteType.get(), "comment1")};
+
+    DistributionDTO distributionDTO = createMockDistributionDTO("col1", 10);
+    SortOrderDTO[] sortOrderDTOs = createMockSortOrderDTO("col1", DESCENDING);
+
+    TableDTO expectedTable =
+        createMockTable(
+            "table1",
+            columns,
+            null,
+            Collections.emptyMap(),
+            EMPTY_PARTITIONING,
+            distributionDTO,
+            sortOrderDTOs);
+    TableUpdateRequest.UpdateTableCommentRequest req =
+        new TableUpdateRequest.UpdateTableCommentRequest(expectedTable.comment());
+    testAlterTable(tableId, req, expectedTable);
+
+    expectedTable =
+        createMockTable(
+            "table1",
+            columns,
+            "",
+            Collections.emptyMap(),
+            EMPTY_PARTITIONING,
+            distributionDTO,
+            sortOrderDTOs);
+    req = new TableUpdateRequest.UpdateTableCommentRequest(expectedTable.comment());
+    testAlterTable(tableId, req, expectedTable);
+  }
+
+  @Test
   public void testSetTableProperty() throws JsonProcessingException {
     NameIdentifier tableId = NameIdentifier.of(metalakeName, catalogName, "schema1", "table1");
     ColumnDTO[] columns =
@@ -878,6 +913,43 @@ public class TestRelationalCatalog extends TestBase {
         new TableUpdateRequest.UpdateTableColumnCommentRequest(new String[] {"col1"}, "comment2");
 
     testAlterTable(tableId, req, expectedTable);
+  }
+
+  @Test
+  public void testUpdateTableColumnCommentToEmpty() throws JsonProcessingException {
+    NameIdentifier tableId = NameIdentifier.of(metalakeName, catalogName, "schema1", "table1");
+    ColumnDTO[] columnsWithNullComment =
+        new ColumnDTO[] {createMockColumn("col1", Types.ByteType.get(), null)};
+    ColumnDTO[] columnsWithEmptyComment =
+        new ColumnDTO[] {createMockColumn("col1", Types.ByteType.get(), "")};
+
+    DistributionDTO distributionDTO = createMockDistributionDTO("col1", 10);
+    SortOrderDTO[] sortOrderDTOs = createMockSortOrderDTO("col1", DESCENDING);
+
+    TableDTO expectedTable =
+        createMockTable(
+            "table1",
+            columnsWithNullComment,
+            "comment",
+            Collections.emptyMap(),
+            EMPTY_PARTITIONING,
+            distributionDTO,
+            sortOrderDTOs);
+    TableUpdateRequest.UpdateTableColumnCommentRequest req1 =
+        new TableUpdateRequest.UpdateTableColumnCommentRequest(new String[] {"col1"}, null);
+    testAlterTable(tableId, req1, expectedTable);
+
+    expectedTable =
+        createMockTable(
+            "table1",
+            columnsWithEmptyComment,
+            "comment",
+            Collections.emptyMap(),
+            EMPTY_PARTITIONING,
+            distributionDTO,
+            sortOrderDTOs);
+    req1 = new TableUpdateRequest.UpdateTableColumnCommentRequest(new String[] {"col1"}, "");
+    testAlterTable(tableId, req1, expectedTable);
   }
 
   @Test

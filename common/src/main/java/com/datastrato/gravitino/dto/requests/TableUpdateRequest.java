@@ -157,9 +157,7 @@ public interface TableUpdateRequest extends RESTRequest {
      */
     @Override
     public void validate() throws IllegalArgumentException {
-      Preconditions.checkArgument(
-          StringUtils.isNotBlank(newComment),
-          "\"newComment\" field is required and cannot be empty");
+      // Support for empty table comment.
     }
 
     /**
@@ -592,9 +590,7 @@ public interface TableUpdateRequest extends RESTRequest {
               && fieldName.length > 0
               && Arrays.stream(fieldName).allMatch(StringUtils::isNotBlank),
           "\"fieldName\" field is required and cannot be empty");
-      Preconditions.checkArgument(
-          StringUtils.isNotBlank(newComment),
-          "\"newComment\" field is required and cannot be empty");
+      // Support for empty table column comment.
     }
 
     /** @return An instance of TableChange. */

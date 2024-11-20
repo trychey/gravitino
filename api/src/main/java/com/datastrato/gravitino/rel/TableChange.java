@@ -547,7 +547,7 @@ public interface TableChange {
       if (this == o) return true;
       if (o == null || getClass() != o.getClass()) return false;
       UpdateComment that = (UpdateComment) o;
-      return newComment.equals(that.newComment);
+      return Objects.equals(newComment, that.newComment);
     }
 
     /**
@@ -558,7 +558,7 @@ public interface TableChange {
      */
     @Override
     public int hashCode() {
-      return newComment.hashCode();
+      return newComment == null ? 0 : Objects.hash(newComment);
     }
 
     /**
@@ -1330,7 +1330,7 @@ public interface TableChange {
      */
     @Override
     public int hashCode() {
-      int result = Objects.hash(newComment);
+      int result = newComment == null ? 0 : Objects.hash(newComment);
       result = 31 * result + Arrays.hashCode(fieldName);
       return result;
     }
