@@ -44,6 +44,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -993,10 +994,12 @@ public class GravitinoVirtualFileSystemIT extends AbstractIT {
   }
 
   @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  public void testListStatusWithMultipleLocs(boolean isTestPrimaryLocation) throws IOException {
+  @CsvSource({"true, true", "true, false", "false, true", "false, false"})
+  public void testListStatusWithMultipleLocs(
+      boolean isTestPrimaryLocation, boolean isWritePrimaryOnly) throws IOException {
     // create fileset
-    String filesetName = "test_fileset_list_status_multiple_locs";
+    String filesetName =
+        String.format("%s_%s", "test_fileset_list_status_multiple_locs", isWritePrimaryOnly);
     NameIdentifier filesetIdent =
         NameIdentifier.ofFileset(metalakeName, catalogName, schemaName, filesetName);
     Catalog catalog = metalake.loadCatalog(NameIdentifier.ofCatalog(metalakeName, catalogName));
@@ -1029,13 +1032,16 @@ public class GravitinoVirtualFileSystemIT extends AbstractIT {
     }
     Assertions.assertTrue(catalog.asFilesetCatalog().filesetExists(filesetIdent));
 
+    Configuration newConf = new Configuration(conf);
+    newConf.setBoolean(FS_GRAVITINO_FILESET_WRITE_PRIMARY_ONLY, isWritePrimaryOnly);
+
     // test gvfs list status
     Path primaryPath = new Path(storageLocation);
     Path backupPath = new Path(backupStorageLocation);
     Path gvfsPath = genGvfsPath(filesetName);
-    try (FileSystem primaryFs = primaryPath.getFileSystem(conf);
-        FileSystem backupFs = backupPath.getFileSystem(conf);
-        FileSystem gvfs = gvfsPath.getFileSystem(conf)) {
+    try (FileSystem primaryFs = primaryPath.getFileSystem(newConf);
+        FileSystem backupFs = backupPath.getFileSystem(newConf);
+        FileSystem gvfs = gvfsPath.getFileSystem(newConf)) {
       Assertions.assertTrue(primaryFs.exists(primaryPath));
       Assertions.assertTrue(backupFs.exists(backupPath));
       for (int i = 0; i < 10; i++) {
@@ -1049,10 +1055,18 @@ public class GravitinoVirtualFileSystemIT extends AbstractIT {
           Assertions.assertTrue(primaryFs.exists(new Path(storageLocation + "/" + fileName)));
           Assertions.assertFalse(backupFs.exists(new Path(backupStorageLocation + "/" + fileName)));
         } else {
-          Assertions.assertFalse(primaryFs.exists(new Path(storageLocation + "/" + fileName)));
-          primaryFs.create(new Path(storageLocation + "/" + fileName));
-          Assertions.assertTrue(primaryFs.exists(new Path(storageLocation + "/" + fileName)));
-          Assertions.assertTrue(backupFs.exists(new Path(backupStorageLocation + "/" + fileName)));
+          if (isWritePrimaryOnly) {
+            Assertions.assertTrue(primaryFs.exists(new Path(storageLocation + "/" + fileName)));
+            Assertions.assertTrue(primaryFs.exists(new Path(storageLocation + "/" + fileName)));
+            Assertions.assertTrue(
+                backupFs.exists(new Path(backupStorageLocation + "/" + fileName)));
+          } else {
+            Assertions.assertFalse(primaryFs.exists(new Path(storageLocation + "/" + fileName)));
+            primaryFs.create(new Path(storageLocation + "/" + fileName));
+            Assertions.assertTrue(primaryFs.exists(new Path(storageLocation + "/" + fileName)));
+            Assertions.assertTrue(
+                backupFs.exists(new Path(backupStorageLocation + "/" + fileName)));
+          }
         }
       }
 

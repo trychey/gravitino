@@ -40,8 +40,10 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -702,16 +704,43 @@ public class GravitinoVirtualFileSystem extends FileSystem {
     String[] actualPaths = pair.getContext().actualPaths();
 
     List<Integer> validateActualPathsForList = validateActualPathsForList(fileSystems, actualPaths);
-    int index = validateActualPathsForList.get(0);
-    FileStatus[] fileStatuses = fileSystems[index].listStatus(new Path(actualPaths[index]));
-    return Arrays.stream(fileStatuses)
-        .map(
-            fileStatus ->
-                convertFileStatusPathPrefix(
-                    fileStatus,
-                    getStorageLocation(pair.getContext().fileset(), index),
-                    getVirtualLocation(identifier, true)))
-        .toArray(FileStatus[]::new);
+    if (isFsGravitinoFilesetWritePrimaryOnly) {
+      int index = validateActualPathsForList.get(0);
+      FileStatus[] fileStatuses = fileSystems[index].listStatus(new Path(actualPaths[index]));
+      return Arrays.stream(fileStatuses)
+          .map(
+              fileStatus ->
+                  convertFileStatusPathPrefix(
+                      fileStatus,
+                      getStorageLocation(pair.getContext().fileset(), index),
+                      getVirtualLocation(identifier, true)))
+          .toArray(FileStatus[]::new);
+    } else {
+      List<FileStatus> gvfsFileStatus = new ArrayList<>();
+      Set<String> distinctFileStatus = new HashSet<>();
+      for (int i = 0; i < validateActualPathsForList.size(); i++) {
+        int index = validateActualPathsForList.get(i);
+        try {
+          FileStatus[] fileStatuses = fileSystems[index].listStatus(new Path(actualPaths[index]));
+          Arrays.stream(fileStatuses)
+              .map(
+                  fileStatus ->
+                      convertFileStatusPathPrefix(
+                          fileStatus,
+                          getStorageLocation(pair.getContext().fileset(), index),
+                          getVirtualLocation(identifier, true)))
+              .forEach(
+                  fileStatus -> {
+                    if (distinctFileStatus.add(fileStatus.getPath().toString())) {
+                      gvfsFileStatus.add(fileStatus);
+                    }
+                  });
+        } catch (FileNotFoundException e) {
+          // Skipping log to avoid print to many logs
+        }
+      }
+      return gvfsFileStatus.toArray(new FileStatus[0]);
+    }
   }
 
   @Override

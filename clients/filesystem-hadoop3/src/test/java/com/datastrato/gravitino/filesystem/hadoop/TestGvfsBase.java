@@ -50,6 +50,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
@@ -1386,9 +1387,10 @@ public class TestGvfsBase extends GravitinoMockServerBase {
   }
 
   @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  public void testListStatusWithMultipleLocs(boolean isTestPrimaryLocation) throws IOException {
-    String filesetName = "testListStatus_with_multi_locs_" + isTestPrimaryLocation;
+  @CsvSource({"true, true", "true, false", "false, true", "false, false"})
+  public void testListStatusWithMultipleLocs(
+      boolean isTestPrimaryLocation, boolean isWritePrimaryOnly) throws IOException {
+    String filesetName = "testListStatus_with_multi_locs_" + isWritePrimaryOnly;
     Path managedFilesetPath =
         FileSystemTestUtils.createFilesetPath(catalogName, schemaName, filesetName, true);
 
@@ -1411,9 +1413,14 @@ public class TestGvfsBase extends GravitinoMockServerBase {
             "/api/metalakes/%s/catalogs/%s/schemas/%s/filesets/%s/context",
             metalakeName, catalogName, schemaName, filesetName);
 
-    try (FileSystem gravitinoFileSystem = managedFilesetPath.getFileSystem(conf);
-        FileSystem primaryFs = primaryPath.getFileSystem(conf);
-        FileSystem backupFs = backupPath.getFileSystem(conf)) {
+    Configuration newConf = new Configuration(conf);
+    newConf.setBoolean(
+        GravitinoVirtualFileSystemConfiguration.FS_GRAVITINO_FILESET_WRITE_PRIMARY_ONLY,
+        isWritePrimaryOnly);
+
+    try (FileSystem gravitinoFileSystem = managedFilesetPath.getFileSystem(newConf);
+        FileSystem primaryFs = primaryPath.getFileSystem(newConf);
+        FileSystem backupFs = backupPath.getFileSystem(newConf)) {
 
       FileSystemTestUtils.mkdirs(primaryPath, primaryFs);
       FileSystemTestUtils.mkdirs(backupPath, backupFs);
