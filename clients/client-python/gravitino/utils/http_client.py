@@ -32,7 +32,7 @@ from gravitino.auth.auth_constants import AuthConstants
 from gravitino.auth.auth_data_provider import AuthDataProvider
 from gravitino.typing import JSONType
 from gravitino.utils.exceptions import handle_error
-from gravitino.constants.timeout import TIMEOUT
+from scripts.constants.timeout import TIMEOUT
 
 logger = logging.getLogger(__name__)
 

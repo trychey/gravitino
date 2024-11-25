@@ -23,6 +23,7 @@ class HadoopEnvironment:
         if HadoopEnvironment.init_flag:
             return
 
+        self._init_java_env()
         self._init_hadoop_env()
 
         HadoopEnvironment.init_flag = True
@@ -34,9 +35,45 @@ class HadoopEnvironment:
         return cls.instance
 
     @staticmethod
+    def _init_java_env():
+        java_home = os.environ.get("JAVA_HOME")
+        default_java_home = os.path.join(
+            os.path.expanduser("~"), ".config", "gravitino", "java"
+        )
+        if java_home is not None:
+            logger.info("JAVA_HOME is set to %s", java_home)
+        elif os.path.exists(default_java_home):
+            os.environ["JAVA_HOME"] = default_java_home
+            os.environ["CLASSPATH"] = os.path.join(default_java_home, "lib", "*")
+            os.environ["PATH"] = (
+                os.path.join(default_java_home, "bin")
+                + os.pathsep
+                + os.environ.get("PATH", "")
+            )
+            logger.info("JAVA_HOME is set to %s", os.environ["JAVA_HOME"])
+            logger.info("CLASSPATH is set to %s", os.environ["CLASSPATH"])
+            logger.info("PATH is set to %s", os.environ["PATH"])
+        else:
+            raise GravitinoRuntimeException(
+                "The JAVA_HOME is not set, you can set it manually or run `init-java-env` to set it."
+            )
+
+    # pylint: disable=too-many-branches
+    @staticmethod
     def _init_hadoop_env():
         hadoop_home = os.environ.get("HADOOP_HOME")
         hadoop_conf_dir = os.environ.get("HADOOP_CONF_DIR")
+
+        if hadoop_home is None or hadoop_conf_dir is None:
+            default_hadoop_home = os.path.join(
+                os.path.expanduser("~"), ".config", "gravitino", "hadoop"
+            )
+            if os.path.exists(default_hadoop_home):
+                hadoop_home = default_hadoop_home
+                hadoop_conf_dir = os.path.join(hadoop_home, "etc", "hadoop")
+                os.environ["HADOOP_HOME"] = hadoop_home
+                os.environ["HADOOP_CONF_DIR"] = hadoop_conf_dir
+
         if hadoop_home is not None and len(hadoop_home) > 0:
             hadoop_shell = f"{hadoop_home}/bin/hadoop"
             if not os.path.exists(hadoop_shell):

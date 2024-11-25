@@ -8,8 +8,7 @@ import configparser
 import subprocess
 from datetime import datetime
 
-from gravitino.constants.version import Version, VERSION_INI, SETUP_FILE
-from gravitino.exceptions.gravitino_runtime_exception import GravitinoRuntimeException
+from scripts.constants.version import Version, VERSION_INI, SETUP_FILE
 
 VERSION_PATTERN = r"version\s*=\s*['\"]([^'\"]+)['\"]"
 
@@ -21,7 +20,7 @@ def main():
         if m is not None:
             version = m.group(1)
         else:
-            raise GravitinoRuntimeException("Can't find valid version info in setup.py")
+            raise ValueError("Can't find valid version info in setup.py")
 
     git_commit = (
         subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("ascii").strip()

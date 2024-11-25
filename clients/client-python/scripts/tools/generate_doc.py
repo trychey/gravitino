@@ -7,8 +7,8 @@ import pydoc
 import os
 import shutil
 
-from gravitino.constants.doc import DOC_DIR
-from gravitino.constants.root import GRAVITINO_DIR, MODULE_NAME
+from scripts.constants.doc import DOC_DIR
+from scripts.constants.root import GRAVITINO_DIR, MODULE_NAME
 
 if __name__ == "__main__":
 

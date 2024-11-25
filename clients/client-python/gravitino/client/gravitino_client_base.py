@@ -17,7 +17,7 @@ from gravitino.dto.responses.version_response import VersionResponse
 from gravitino.name_identifier import NameIdentifier
 from gravitino.utils import HTTPClient
 from gravitino.exceptions.gravitino_runtime_exception import GravitinoRuntimeException
-from gravitino.constants.version import VERSION_INI, Version
+from scripts.constants.version import VERSION_INI, Version
 
 logger = logging.getLogger(__name__)
 

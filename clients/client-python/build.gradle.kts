@@ -229,12 +229,12 @@ tasks {
   val build by registering(VenvTask::class) {
     dependsOn(pylint)
     venvExec = "python"
-    args = listOf("scripts/generate_version.py")
+    args = listOf("scripts/tools/generate_version.py")
   }
 
   val pydoc by registering(VenvTask::class) {
     venvExec = "python"
-    args = listOf("scripts/generate_doc.py")
+    args = listOf("scripts/tools/generate_doc.py")
   }
 
   val distribution by registering(VenvTask::class) {
