@@ -70,7 +70,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 public class CatalogPostgreSqlIT extends AbstractIT {
   public static final String DEFAULT_POSTGRES_IMAGE = "postgres:13";
   public static final String DOWNLOAD_JDBC_DRIVER_URL =
-      "https://jdbc.postgresql.org/download/postgresql-42.7.0.jar";
+      "https://cnbj1-fds.api.xiaomi.net/gravitino/postgresql-42.7.0.jar";
 
   public String metalakeName = GravitinoITUtils.genRandomName("postgresql_it_metalake");
   public String catalogName = GravitinoITUtils.genRandomName("postgresql_it_catalog");
