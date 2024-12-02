@@ -89,3 +89,6 @@ gravitino.secret.kerberos.format = s_workspace_%s_krb@XIAOMI.HADOOP
 
 # THE CONFIGURATION FOR Gravitino SERVER CACHE
 gravitino.server.cache.enable = false
+
+# other region will use `compute-infra-meta` by default
+gravitino.keycenter.sid = compute-infra-meta-tjv1

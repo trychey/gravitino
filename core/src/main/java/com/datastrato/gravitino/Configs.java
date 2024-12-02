@@ -85,6 +85,9 @@ public interface Configs {
   String ROCKETMQ_ASYNC_PROCESSOR_GROUP_KEY =
       "gravitino.server.cache.asyncProcessor.rocketmq.group";
 
+  String KEY_CENTER_SID_KEY = "gravitino.keycenter.sid";
+  String DEFAULT_KEY_CENTER_SID = "compute-infra-meta";
+
   ConfigEntry<String> ENTITY_STORE =
       new ConfigBuilder(ENTITY_STORE_KEY)
           .doc("Which storage implementation to use")
@@ -394,4 +397,11 @@ public interface Configs {
           .version(ConfigConstants.VERSION_0_5_0)
           .stringConf()
           .createWithDefault(null);
+
+  ConfigEntry<String> KEY_CENTER_SID =
+      new ConfigBuilder(KEY_CENTER_SID_KEY)
+          .doc("The sid of the keycenter")
+          .version(ConfigConstants.VERSION_0_5_0)
+          .stringConf()
+          .createWithDefault(DEFAULT_KEY_CENTER_SID);
 }
