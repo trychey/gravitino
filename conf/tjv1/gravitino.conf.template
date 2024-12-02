@@ -1,0 +1,91 @@
+#
+# Copyright 2023 Datastrato Pvt Ltd.
+# This software is licensed under the Apache License version 2.
+#
+
+# THE CONFIGURATION FOR Gravitino SERVER
+gravitino.server.shutdown.timeout = 3000
+
+# THE CONFIGURATION FOR Gravitino WEB SERVER
+# The host name of the built-in web server
+gravitino.server.webserver.host = 0.0.0.0
+# The http port number of the built-in web server
+gravitino.server.webserver.httpPort = 8090
+# The min thread size of the built-in web server
+gravitino.server.webserver.minThreads = 24
+# The max thread size of the built-in web server
+gravitino.server.webserver.maxThreads = 200
+# The stop timeout of the built-in web server
+gravitino.server.webserver.stopTimeout = 60000
+# The timeout of idle connections
+gravitino.server.webserver.idleTimeout = 60000
+# The executor thread pool work queue size of the built-in web server
+gravitino.server.webserver.threadPoolWorkQueueSize = 100
+# The request header size of the built-in web server
+gravitino.server.webserver.requestHeaderSize = 131072
+# The response header size of the built-in web server
+gravitino.server.webserver.responseHeaderSize = 131072
+
+# THE CONFIGURATION FOR Gravitino ENTITY STORE
+# The entity store to use, kv or relational
+gravitino.entity.store = relational
+
+# The RocksDB entity store
+# gravitino.entity.store.kv = RocksDBKvBackend
+# The storage path for RocksDB storage implementation, it supports both absolute and relative path,
+# If the value is a relative path, the final path is "${GRAVITINO_HOME}/${PATH_YOU_HAVA_SET}", default value
+# is "${GRAVITINO_HOME}/data/rocksdb", please uncomment and change it in your production environment.
+# gravitino.entity.store.kv.rocksdbPath = data/rocksdb
+
+# The JDBC entity store
+gravitino.entity.store.relational = JDBCBackend
+gravitino.entity.store.relational.jdbcUrl = jdbc:mysql://tjv1.ad.mysql02.car.srv:3308/gravitino_meta_tjv1?useUnicode=true&characterEncoding=utf-8&useSSL=false
+gravitino.entity.store.relational.jdbcDriver = com.mysql.jdbc.Driver
+# Encrypt by keycenter, sid = `compute-infra-meta-tjv1`
+gravitino.entity.store.relational.jdbcUser = GCApvEVfqKzdcdHmiSRmKxkcb3BWqpEU/2U5YYZJbz3iNRgSeGz64mI0S/KQobC5gbCU83YBGBDRl0nCveJAiIPsy5wZwYUkGBQhT+rv4zaEMmdD5fB3F1mMsw51tAA=
+gravitino.entity.store.relational.jdbcPassword = GDDpQexE4yoEt+kDU8fPXoSIvY0EWLTgmDXW7XieC2t9yY4d6s1Rc0zamOY+mT5hC8wYEu8DSn7RlUmBuntjGH+lxLNaARgQuyh2ZzfPRPy9ZmC9Y0hqvBgU/A0TZUIBn4KI2XcOXrmj3OeVUa8A
+
+# THE CONFIGURATION FOR Gravitino CATALOG
+# The interval in milliseconds to evict the catalog cache
+gravitino.catalog.cache.evictionIntervalMs = 3600000
+
+# THE CONFIGURATION FOR AUXILIARY SERVICE
+# Auxiliary service names, separate by ','
+gravitino.auxService.names = iceberg-rest
+# Iceberg REST service classpath
+gravitino.auxService.iceberg-rest.classpath = catalogs/lakehouse-iceberg/libs, catalogs/lakehouse-iceberg/conf
+# Iceberg REST service host
+gravitino.auxService.iceberg-rest.host = 0.0.0.0
+# Iceberg REST service http port
+gravitino.auxService.iceberg-rest.httpPort = 9001
+# Enable the authorization
+gravitino.authorization.enable = true
+
+gravitino.authenticators = simple,token
+gravitino.authenticator.token.serverUri = http://workspace-token.dp.pt.xiaomi.com/api/users
+
+# Gravitino super users authenticated by Simple Authenticator. Will encrypted by KeyCenter.
+gravitino.authenticator.simple.superUsers=GIABLF+8lpnUi594RyXFsS193kQkbAEzjDy2u+3YYaef7SGZkAsGxDQUVTS1KZFBbMd757auGjdUPiDmznvbP9X1dyWNzJPfxTJcnAjfMYigzYNwt+HDXTzYIjk9qhcVU6Ic8J7tY0Mc79I1ML90nKvPZbKUOdNfiG1AIBnIUE8ZiVwYEp5ZDjPYtkT8nT7hcNmzakAiARgQVAu9COhaQeevHBqbbOZdQBgUfTdNh7sdZVTZApptAR6WA5GVw2QA
+gravitino.authenticator.simple.readOnly.superUsers=GFADx1MGYzTaS8f3Fu/I24NB7SKIFCC0CXNI4tFwNDhlkFPd94UqcPj9xgMQoB6JoC7ZGIgLuHrFZ90yjUSX8oXWJROKtmxZ4Bc612oB0hgMLRgSX70mhkmQSb+Jsi3MNQbN+mMBGBCfIxrxgehCqIoY29n+39RsGBRGGjFb71i57nlxH4vOvovRXYuYXgA=
+# Disable local environment for Simple Authenticator.
+gravitino.authenticator.simple.localEnv=false
+
+#  gravitino audit config
+gravitino.audit.enable = true
+gravitino.audit.writer.class = com.datastrato.gravitino.audit.MqAuditLogWriter
+gravitino.audit.formatter.class = com.datastrato.gravitino.audit.AuditLogFormatter
+gravitino.audit.writer.rocketmq.producer.topic = gravitino_audit_log
+gravitino.audit.writer.rocketmq.producer.address = autopilot-tjv1-rocketmq.namesrv.api.xiaomi.net:9876
+gravitino.audit.writer.rocketmq.producer.access-key = GCBEtmi08vZ7IuIPmdDw3uGhbEaEWrsK9ZykMPq/f97echgS7wNKftGVSYG6e2MYf6XEs1oBGBAgN5OoqddKioQe2FnDeFZiGBQy1PetA6Rn+BOqodfNgRx3AVLXygA=
+gravitino.audit.writer.rocketmq.producer.secret-key = GDBOSQzDOQw/mTeqfG8kXpxv+UMB1hiP889Bvz89zUWtWSoAC4XUJsJELXOY0exUVJoYEnggqQCuSUpqnhovwgzbz6E0ARgQdA2MJmOLT7OFZiaz0jlLUxgUotaG5xnd0LDHhPbzdtOMF/QwlFYA
+gravitino.audit.writer.rocketmq.producer.group = gravitino_producer
+gravitino.audit.writer.rocketmq.producer.enable-msg-trace = true
+
+#secret config
+gravitino.secret.kerberos.host = http://workspace-whitelist-proxy.dp.pt.xiaomi.com
+gravitino.secret.kerberos.user = yangliwei
+gravitino.secret.kerberos.password = GDDeWAgGjGNOkohPRjSEZ/CHoZhuF8K9/b/I8Y0BKsYXgIqnZBmxlmi6uq2SG5vfic0YEu8DSn7RlUmBuntjGH+lxLNaARgQWzQQ3oa8Tum+E5sYdexbxhgUu8XN0RKbkyfBSwek5ugFL6vhNDkA
+gravitino.secret.kerberos.format = s_workspace_%s_krb@XIAOMI.HADOOP
+
+# THE CONFIGURATION FOR Gravitino SERVER CACHE
+gravitino.server.cache.enable = false

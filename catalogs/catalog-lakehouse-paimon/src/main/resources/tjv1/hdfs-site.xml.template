@@ -1,0 +1,121 @@
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing,
+  software distributed under the License is distributed on an
+  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+  KIND, either express or implied.  See the License for the
+  specific language governing permissions and limitations
+  under the License.
+  -->
+<configuration>
+
+  <property>
+    <name>configuration.service</name>
+    <value>org.apache.hadoop.fs.NameServiceConfigurationService</value>
+  </property>
+
+  <property>
+    <name>configuration.service.name.team.id</name>
+    <value>CL7202</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.tjv1autopilotprc-hadoop</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.read.shortcircuit</name>
+    <value>true</value>
+  </property>
+
+  <property>
+    <name>dfs.client.read.shortcircuit.skip.auth</name>
+    <value>true</value>
+  </property>
+
+  <property>
+    <name>dfs.client.slow.log.threshold.ms</name>
+    <value>10000</value>
+  </property>
+
+  <property>
+    <name>dfs.datanode.kerberos.principal</name>
+    <value>hdfs_prc/hadoop@XIAOMI.HADOOP</value>
+  </property>
+
+  <property>
+    <name>dfs.datanode.keytab.file</name>
+    <value>/etc/hadoop/conf/hdfs_prc.keytab</value>
+  </property>
+
+  <property>
+    <name>dfs.domain.socket.path</name>
+    <value>/home/work/app/hdfs/tjv1autopilotprc-hadoop/datanode/dn_socket</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.tjv1autopilotprc-hadoop</name>
+    <value>host0,host1</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.kerberos.internal.spnego.principal</name>
+    <value>HTTP/hadoop@XIAOMI.HADOOP</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.kerberos.principal</name>
+    <value>hdfs_prc/hadoop@XIAOMI.HADOOP</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.kerberos.principal.pattern</name>
+    <value>hdfs_{prc,srv,tst}/hadoop@XIAOMI.HADOOP</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.keytab.file</name>
+    <value>/etc/hadoop/conf/hdfs_prc.keytab</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.tjv1autopilotprc-hadoop.host0</name>
+    <value>tjv1-hadoop-prc-autopilot-ct04.kscn.idc.xiaomi.com:12200</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.tjv1autopilotprc-hadoop.host1</name>
+    <value>tjv1-hadoop-prc-autopilot-ct06.kscn.idc.xiaomi.com:12200</value>
+  </property>
+
+  <property>
+    <name>dfs.nameservices</name>
+    <value>tjv1autopilotprc-hadoop</value>
+  </property>
+
+  <property>
+    <name>dfs.secondary.namenode.kerberos.internal.spnego.principal</name>
+    <value>HTTP/hadoop@XIAOMI.HADOOP</value>
+  </property>
+
+  <property>
+    <name>dfs.secondary.namenode.kerberos.principal</name>
+    <value>hdfs_prc/hadoop@XIAOMI.HADOOP</value>
+  </property>
+
+  <property>
+    <name>dfs.secondary.namenode.keytab.file</name>
+    <value>/etc/hadoop/conf/hdfs_prc.keytab</value>
+  </property>
+
+</configuration>

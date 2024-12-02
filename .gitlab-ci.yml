@@ -411,3 +411,24 @@ build-sgp-docker:
     - /^prod-v.*/
   tags:
     - grav-build
+
+# Build tjv1 env docker image
+build-tjv1-docker:
+  stage: online_deploy
+  variables:
+    GIT_STRATEGY: clone
+    REGISTRY_SERVER: micr.cloud.mioffice.cn
+    IMAGE: micr.cloud.mioffice.cn/meta-sh/gravitino:tjv1-$CI_COMMIT_TAG
+  <<: *clean_up_running_environment
+  script:
+    - chmod 777 build-gravitino-image.sh && ./build-gravitino-image.sh tjv1 $IMAGE
+    - docker login $REGISTRY_SERVER -u $REGISTRY_USER -p $REGISTRY_PASS
+    - docker push $IMAGE
+    - docker rmi $IMAGE
+    - docker logout
+  interruptible: true
+  allow_failure: false
+  only:
+    - /^prod-v.*/
+  tags:
+    - grav-build
