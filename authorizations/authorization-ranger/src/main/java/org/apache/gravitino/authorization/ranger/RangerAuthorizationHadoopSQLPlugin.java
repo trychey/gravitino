@@ -32,14 +32,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.gravitino.MetadataObject;
-import org.apache.gravitino.authorization.AuthorizationMetadataObject;
-import org.apache.gravitino.authorization.AuthorizationPrivilege;
-import org.apache.gravitino.authorization.AuthorizationSecurableObject;
 import org.apache.gravitino.authorization.Privilege;
 import org.apache.gravitino.authorization.SecurableObject;
 import org.apache.gravitino.authorization.SecurableObjects;
 import org.apache.gravitino.authorization.ranger.RangerPrivileges.RangerHadoopSQLPrivilege;
 import org.apache.gravitino.authorization.ranger.reference.RangerDefines.PolicyResource;
+import org.apache.gravitino.connector.authorization.AuthorizationMetadataObject;
+import org.apache.gravitino.connector.authorization.AuthorizationPrivilege;
+import org.apache.gravitino.connector.authorization.AuthorizationSecurableObject;
 import org.apache.gravitino.exceptions.AuthorizationPluginException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,16 +49,16 @@ public class RangerAuthorizationHadoopSQLPlugin extends RangerAuthorizationPlugi
       LoggerFactory.getLogger(RangerAuthorizationHadoopSQLPlugin.class);
   private static volatile RangerAuthorizationHadoopSQLPlugin instance = null;
 
-  private RangerAuthorizationHadoopSQLPlugin(Map<String, String> config) {
-    super(config);
+  private RangerAuthorizationHadoopSQLPlugin(String catalogProvider, Map<String, String> config) {
+    super(catalogProvider, config);
   }
 
   public static synchronized RangerAuthorizationHadoopSQLPlugin getInstance(
-      Map<String, String> config) {
+      String catalogProvider, Map<String, String> config) {
     if (instance == null) {
       synchronized (RangerAuthorizationHadoopSQLPlugin.class) {
         if (instance == null) {
-          instance = new RangerAuthorizationHadoopSQLPlugin(config);
+          instance = new RangerAuthorizationHadoopSQLPlugin(catalogProvider, config);
         }
       }
     }
@@ -229,7 +229,7 @@ public class RangerAuthorizationHadoopSQLPlugin extends RangerAuthorizationPlugi
                   .forEach(
                       rangerPrivilege ->
                           rangerPrivileges.add(
-                              new RangerPrivileges.RangerHivePrivilegeImpl(
+                              new RangerPrivileges.RangerHadoopSQLPrivilegeImpl(
                                   rangerPrivilege, gravitinoPrivilege.condition())));
 
               switch (gravitinoPrivilege.name()) {

@@ -20,13 +20,14 @@ package org.apache.gravitino.authorization.ranger;
 
 import java.util.Map;
 import org.apache.gravitino.connector.authorization.AuthorizationPlugin;
+import org.apache.gravitino.connector.authorization.AuthorizationPluginProvider;
 import org.apache.gravitino.connector.authorization.BaseAuthorization;
 
 /** Implementation of a Ranger authorization in Gravitino. */
 public class RangerAuthorization extends BaseAuthorization<RangerAuthorization> {
   @Override
   public String shortName() {
-    return "ranger";
+    return AuthorizationPluginProvider.Type.Ranger.getName();
   }
 
   @Override
@@ -35,7 +36,7 @@ public class RangerAuthorization extends BaseAuthorization<RangerAuthorization> 
       case "hive":
       case "lakehouse-iceberg":
       case "lakehouse-paimon":
-        return RangerAuthorizationHadoopSQLPlugin.getInstance(config);
+        return RangerAuthorizationHadoopSQLPlugin.getInstance(catalogProvider, config);
       default:
         throw new IllegalArgumentException("Unknown catalog provider: " + catalogProvider);
     }

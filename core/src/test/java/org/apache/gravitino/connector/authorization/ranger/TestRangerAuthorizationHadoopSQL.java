@@ -16,13 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.gravitino.authorization;
+package org.apache.gravitino.connector.authorization.ranger;
 
-/** AuthorizationPrivilege interface is used to define the underlying data source privileges. */
-public interface AuthorizationPrivilege {
-  String getName();
+import java.util.Map;
+import org.apache.gravitino.connector.authorization.AuthorizationPlugin;
+import org.apache.gravitino.connector.authorization.BaseAuthorization;
 
-  Privilege.Condition condition();
+public class TestRangerAuthorizationHadoopSQL
+    extends BaseAuthorization<TestRangerAuthorizationHadoopSQL> {
 
-  boolean equalsTo(String value);
+  public TestRangerAuthorizationHadoopSQL() {}
+
+  @Override
+  public String shortName() {
+    return "test_ranger_hadoop_sql";
+  }
+
+  @Override
+  protected AuthorizationPlugin newPlugin(String catalogProvider, Map<String, String> config) {
+    return new TestRangerAuthorizationHadoopSQLPlugin();
+  }
 }

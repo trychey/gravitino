@@ -21,8 +21,8 @@ package org.apache.gravitino.authorization.ranger;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import java.util.List;
-import org.apache.gravitino.authorization.AuthorizationPrivilege;
 import org.apache.gravitino.authorization.Privilege;
+import org.apache.gravitino.connector.authorization.AuthorizationPrivilege;
 
 public class RangerPrivileges {
   /** Ranger Hive privileges enumeration. */
@@ -62,11 +62,11 @@ public class RangerPrivileges {
     }
   }
 
-  public static class RangerHivePrivilegeImpl implements AuthorizationPrivilege {
+  public static class RangerHadoopSQLPrivilegeImpl implements AuthorizationPrivilege {
     private AuthorizationPrivilege rangerHivePrivilege;
     private Privilege.Condition condition;
 
-    public RangerHivePrivilegeImpl(
+    public RangerHadoopSQLPrivilegeImpl(
         AuthorizationPrivilege rangerHivePrivilege, Privilege.Condition condition) {
       this.rangerHivePrivilege = rangerHivePrivilege;
       this.condition = condition;
@@ -117,8 +117,7 @@ public class RangerPrivileges {
   }
 
   static List<Class<? extends Enum<? extends AuthorizationPrivilege>>> allRangerPrivileges =
-      Lists.newArrayList(
-          RangerHadoopSQLPrivilege.class, RangerPrivileges.RangerHdfsPrivilege.class);
+      Lists.newArrayList(RangerHadoopSQLPrivilege.class, RangerHdfsPrivilege.class);
 
   public static AuthorizationPrivilege valueOf(String name) {
     Preconditions.checkArgument(name != null, "Privilege name string cannot be null!");

@@ -16,23 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.gravitino.connector.authorization.mysql;
+package org.apache.gravitino.connector.authorization;
 
-import java.util.Map;
-import org.apache.gravitino.connector.authorization.AuthorizationPlugin;
-import org.apache.gravitino.connector.authorization.BaseAuthorization;
+import java.util.List;
 
-public class TestMySQLAuthorization extends BaseAuthorization<TestMySQLAuthorization> {
-
-  public TestMySQLAuthorization() {}
-
-  @Override
-  public String shortName() {
-    return "mysql";
-  }
-
-  @Override
-  protected AuthorizationPlugin newPlugin(String catalogProvider, Map<String, String> config) {
-    return new TestMySQLAuthorizationPlugin();
-  }
+/**
+ * The authorization securable object is the entity which access can be granted. Unless allowed by a
+ * grant, access is denied. <br>
+ * There is a clear difference between underlying datasource's Securable Object and Gravitino's
+ * Securable Object, authorization's Securable Object does not have the concept of `METALAKE`, so it
+ * needs to be defined specifically.
+ */
+public interface AuthorizationSecurableObject extends AuthorizationMetadataObject {
+  /**
+   * The privileges of the authorization securable object.
+   *
+   * @return The privileges of the securable object.
+   */
+  List<AuthorizationPrivilege> privileges();
 }

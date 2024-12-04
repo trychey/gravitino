@@ -38,7 +38,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.apache.gravitino.MetadataObject;
 import org.apache.gravitino.MetadataObjects;
-import org.apache.gravitino.authorization.AuthorizationSecurableObject;
 import org.apache.gravitino.authorization.MetadataObjectChange;
 import org.apache.gravitino.authorization.Owner;
 import org.apache.gravitino.authorization.Privilege;
@@ -53,6 +52,7 @@ import org.apache.gravitino.authorization.ranger.RangerMetadataObject;
 import org.apache.gravitino.authorization.ranger.RangerPrivileges;
 import org.apache.gravitino.authorization.ranger.RangerSecurableObject;
 import org.apache.gravitino.authorization.ranger.reference.RangerDefines;
+import org.apache.gravitino.connector.authorization.AuthorizationSecurableObject;
 import org.apache.gravitino.integration.test.util.GravitinoITUtils;
 import org.apache.gravitino.meta.AuditInfo;
 import org.apache.gravitino.meta.GroupEntity;
@@ -345,7 +345,7 @@ public class RangerHiveIT {
             ImmutableList.of(String.format("%s3", dbName), "tab1"),
             RangerMetadataObject.Type.TABLE,
             ImmutableSet.of(
-                new RangerPrivileges.RangerHivePrivilegeImpl(
+                new RangerPrivileges.RangerHadoopSQLPrivilegeImpl(
                     RangerPrivileges.RangerHadoopSQLPrivilege.ALL, Privilege.Condition.ALLOW)));
     Assertions.assertNull(rangerHelper.findManagedPolicy(rangerSecurableObject));
 

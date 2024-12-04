@@ -22,17 +22,17 @@ import java.util.Map;
 import org.apache.gravitino.connector.authorization.AuthorizationPlugin;
 import org.apache.gravitino.connector.authorization.BaseAuthorization;
 
-public class TestRangerAuthorization extends BaseAuthorization<TestRangerAuthorization> {
+public class TestRangerAuthorizationHDFS extends BaseAuthorization<TestRangerAuthorizationHDFS> {
 
-  public TestRangerAuthorization() {}
+  public TestRangerAuthorizationHDFS() {}
 
   @Override
   public String shortName() {
-    return "ranger";
+    return "test_ranger_hdfs";
   }
 
   @Override
   protected AuthorizationPlugin newPlugin(String catalogProvider, Map<String, String> config) {
-    return new TestRangerAuthorizationPlugin();
+    return new TestRangerAuthorizationHDFSPlugin();
   }
 }

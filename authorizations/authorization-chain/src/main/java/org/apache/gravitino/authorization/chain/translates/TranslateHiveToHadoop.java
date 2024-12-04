@@ -16,22 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.gravitino.authorization;
+package org.apache.gravitino.authorization.chain.translates;
 
 import java.util.List;
+import org.apache.gravitino.CatalogProvider;
+import org.apache.gravitino.authorization.SecurableObject;
 
 /**
- * The authorization securable object is the entity which access can be granted. Unless allowed by a
- * grant, access is denied. <br>
- * There is a clear difference between underlying datasource's Securable Object and Gravitino's
- * Securable Object, authorization's Securable Object does not have the concept of `METALAKE`, so it
- * needs to be defined specifically.
- */
-public interface AuthorizationSecurableObject extends AuthorizationMetadataObject {
-  /**
-   * The privileges of the authorization securable object.
-   *
-   * @return The privileges of the securable object.
-   */
-  List<AuthorizationPrivilege> privileges();
+ * The TranslateHiveToHadoop class provides translation from Hive to Hadoop.
+ * */
+public class TranslateHiveToHadoop
+    implements ChainTranslateMappingProvider.ChainTranslate {
+  static {
+    ChainTranslateEntity chainTranslateEntity =
+        new ChainTranslateEntity(CatalogProvider.CatalogName.HIVE, CatalogProvider.CatalogName.HADOOP);
+    ChainTranslateMappingProvider.put(chainTranslateEntity, new TranslateHiveToHadoop());
+  }
+
+  @Override
+  public List<SecurableObject> translate(List<SecurableObject> securableObjects) {
+    return null;
+  }
 }
