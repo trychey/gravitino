@@ -106,13 +106,13 @@ public interface WildcardPropertiesMeta {
     if (wildcardProperties.size() > 0) {
       // Find the wildcard config key from the properties
       List<String> wildcardNodePropertyKeys =
-              wildcardProperties.stream()
-                      .filter(key -> !key.contains(WildcardPropertiesMeta.Constants.WILDCARD))
-                      .collect(Collectors.toList());
+          wildcardProperties.stream()
+              .filter(key -> !key.contains(WildcardPropertiesMeta.Constants.WILDCARD))
+              .collect(Collectors.toList());
       Preconditions.checkArgument(
-              wildcardNodePropertyKeys.size() == 1,
-              "Only one wildcard config key is allowed, found: %s",
-              wildcardNodePropertyKeys);
+          wildcardNodePropertyKeys.size() == 1,
+          "Only one wildcard config key is allowed, found: %s",
+          wildcardNodePropertyKeys);
       String wildcardNodePropertyKey = wildcardNodePropertyKeys.get(0);
       String wildcardValue = properties.get(wildcardNodePropertyKey);
       if (wildcardValue == null || wildcardValue.isEmpty()) {
@@ -121,9 +121,7 @@ public interface WildcardPropertiesMeta {
 
       // Get the wildcard values from the properties
       List<String> wildcardValues =
-          Arrays.stream(
-                  wildcardValue
-                      .split(Constants.WILDCARD_CONFIG_VALUES_SPLITTER))
+          Arrays.stream(wildcardValue.split(Constants.WILDCARD_CONFIG_VALUES_SPLITTER))
               .map(String::trim)
               .collect(Collectors.toList());
       wildcardValues.stream()
