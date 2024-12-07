@@ -104,19 +104,25 @@ public interface WildcardPropertiesMeta {
             .filter(propertiesMetadata::isWildcardProperty)
             .collect(Collectors.toList());
     if (wildcardProperties.size() > 0) {
-      String wildcardNodePropertyKey =
-          ((WildcardPropertiesMeta) propertiesMetadata).wildcardNodePropertyKey();
-      String wildcardNodePropertyValues = properties.get(wildcardNodePropertyKey);
+      // Find the wildcard config key from the properties
+      List<String> wildcardNodePropertyKeys =
+              wildcardProperties.stream()
+                      .filter(key -> !key.contains(WildcardPropertiesMeta.Constants.WILDCARD))
+                      .collect(Collectors.toList());
       Preconditions.checkArgument(
-          wildcardNodePropertyValues != null,
-          "Wildcard properties `%s` not found in the properties",
-          wildcardNodePropertyKey);
+              wildcardNodePropertyKeys.size() == 1,
+              "Only one wildcard config key is allowed, found: %s",
+              wildcardNodePropertyKeys);
+      String wildcardNodePropertyKey = wildcardNodePropertyKeys.get(0);
+      String wildcardValue = properties.get(wildcardNodePropertyKey);
+      if (wildcardValue == null || wildcardValue.isEmpty()) {
+        return;
+      }
 
       // Get the wildcard values from the properties
       List<String> wildcardValues =
           Arrays.stream(
-                  properties
-                      .get(wildcardNodePropertyKey)
+                  wildcardValue
                       .split(Constants.WILDCARD_CONFIG_VALUES_SPLITTER))
               .map(String::trim)
               .collect(Collectors.toList());
