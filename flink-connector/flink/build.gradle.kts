@@ -26,6 +26,7 @@ repositories {
   mavenCentral()
 }
 
+var paimonVersion: String = libs.versions.paimon.get()
 val flinkVersion: String = libs.versions.flink.get()
 val flinkMajorVersion: String = flinkVersion.substringBeforeLast(".")
 
@@ -38,7 +39,10 @@ val scalaVersion: String = "2.12"
 val artifactName = "${rootProject.name}-flink-${flinkMajorVersion}_$scalaVersion"
 
 dependencies {
+  implementation(project(":core"))
   implementation(project(":catalogs:catalog-common"))
+  implementation(project(":catalogs:catalog-lakehouse-paimon"))
+  implementation("org.apache.paimon:paimon-flink-1.18:$paimonVersion")
   implementation(libs.guava)
 
   compileOnly(project(":clients:client-java-runtime", configuration = "shadow"))
