@@ -12,24 +12,24 @@ import org.apache.gravitino.flink.connector.catalog.BaseCatalog;
  */
 public class GravitinoPaimonCatalog extends BaseCatalog {
 
-    private AbstractCatalog paimonCatalog;
+  private AbstractCatalog paimonCatalog;
 
-    protected GravitinoPaimonCatalog(String catalogName, AbstractCatalog paimonCatalog) {
-        super(catalogName, paimonCatalog.getDefaultDatabase());
-    }
+  protected GravitinoPaimonCatalog(String catalogName, AbstractCatalog paimonCatalog) {
+    super(catalogName, paimonCatalog.getDefaultDatabase());
+  }
 
-    @Override
-    protected AbstractCatalog realCatalog() {
-        return paimonCatalog;
-    }
+  @Override
+  protected AbstractCatalog realCatalog() {
+    return paimonCatalog;
+  }
 
-    @Override
-    protected PropertiesConverter getPropertiesConverter() {
-        return PaimonPropertiesConverter.INSTANCE;
-    }
+  @Override
+  protected PropertiesConverter getPropertiesConverter() {
+    return PaimonPropertiesConverter.INSTANCE;
+  }
 
-    @Override
-    protected PartitionConverter getPartitionConverter() {
-        return DefaultPartitionConverter.INSTANCE;
-    }
+  @Override
+  protected PartitionConverter getPartitionConverter() {
+    return DefaultPartitionConverter.INSTANCE;
+  }
 }

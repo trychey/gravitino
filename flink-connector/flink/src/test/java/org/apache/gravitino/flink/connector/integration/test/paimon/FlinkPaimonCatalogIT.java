@@ -10,35 +10,35 @@ import org.junit.jupiter.api.BeforeAll;
 
 public class FlinkPaimonCatalogIT extends FlinkCommonIT {
 
-    private static final String DEFAULT_PAIMON_CATALOG = "test_flink_paimon_filesystem_schema_catalog";
+  private static final String DEFAULT_PAIMON_CATALOG =
+      "test_flink_paimon_filesystem_schema_catalog";
 
-    private static org.apache.gravitino.Catalog catalog;
+  private static org.apache.gravitino.Catalog catalog;
 
-    @BeforeAll
-    static void setup() {
-        initPaimonCatalog();
-    }
+  @BeforeAll
+  static void setup() {
+    initPaimonCatalog();
+  }
 
-    @AfterAll
-    static void stop(){
-        Preconditions.checkNotNull(metalake);
-        metalake.dropCatalog(DEFAULT_PAIMON_CATALOG, true);
-    }
+  @AfterAll
+  static void stop() {
+    Preconditions.checkNotNull(metalake);
+    metalake.dropCatalog(DEFAULT_PAIMON_CATALOG, true);
+  }
 
-    private static void initPaimonCatalog() {
-        Preconditions.checkNotNull(metalake);
-        catalog =
-                metalake.createCatalog(
-                        DEFAULT_PAIMON_CATALOG,
-                        org.apache.gravitino.Catalog.Type.RELATIONAL,
-                        "paimon",
-                        null,
-                        ImmutableMap.of(GravitinoPaimonCatalogFactoryOptions.backendType.key(), "jdbc"));
-    }
+  private static void initPaimonCatalog() {
+    Preconditions.checkNotNull(metalake);
+    catalog =
+        metalake.createCatalog(
+            DEFAULT_PAIMON_CATALOG,
+            org.apache.gravitino.Catalog.Type.RELATIONAL,
+            "paimon",
+            null,
+            ImmutableMap.of(GravitinoPaimonCatalogFactoryOptions.backendType.key(), "jdbc"));
+  }
 
-
-    @Override
-    protected Catalog currentCatalog() {
-        return catalog;
-    }
+  @Override
+  protected Catalog currentCatalog() {
+    return catalog;
+  }
 }
