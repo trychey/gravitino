@@ -38,15 +38,19 @@ val flinkMajorVersion: String = flinkVersion.substringBeforeLast(".")
 val scalaVersion: String = "2.12"
 val artifactName = "${rootProject.name}-flink-${flinkMajorVersion}_$scalaVersion"
 
+tasks.compileJava {
+  dependsOn(":catalogs:catalog-lakehouse-paimon:runtimeJars")
+}
+
 dependencies {
   implementation(project(":core"))
   implementation(project(":catalogs:catalog-common"))
-  implementation(project(":catalogs:catalog-lakehouse-paimon"))
+
 
   implementation(libs.guava)
 
   compileOnly(project(":clients:client-java-runtime", configuration = "shadow"))
-
+  compileOnly(project(":catalogs:catalog-lakehouse-paimon"))
   compileOnly("org.apache.flink:flink-connector-hive_$scalaVersion:$flinkVersion")
   compileOnly("org.apache.flink:flink-table-common:$flinkVersion")
   compileOnly("org.apache.flink:flink-table-api-java:$flinkVersion")
@@ -80,6 +84,7 @@ dependencies {
   testImplementation(project(":clients:client-java"))
   testImplementation(project(":core"))
   testImplementation(project(":common"))
+  testImplementation(project(":catalogs:catalog-lakehouse-paimon"))
   testImplementation(project(":integration-test-common", "testArtifacts"))
   testImplementation(project(":server"))
   testImplementation(project(":server-common"))
@@ -91,6 +96,7 @@ dependencies {
   testImplementation(libs.testcontainers)
   testImplementation(libs.testcontainers.junit.jupiter)
   testImplementation(libs.testcontainers.mysql)
+
 
   testImplementation("org.apache.flink:flink-connector-hive_$scalaVersion:$flinkVersion")
   testImplementation("org.apache.flink:flink-table-common:$flinkVersion")
@@ -176,6 +182,7 @@ tasks.test {
   } else {
     dependsOn(tasks.jar)
     dependsOn(":catalogs:catalog-hive:jar")
+    dependsOn(":catalogs:catalog-lakehouse-paimon:jar")
   }
 }
 
