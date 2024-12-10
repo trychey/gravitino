@@ -42,7 +42,7 @@ dependencies {
   implementation(project(":core"))
   implementation(project(":catalogs:catalog-common"))
   implementation(project(":catalogs:catalog-lakehouse-paimon"))
-  implementation("org.apache.paimon:paimon-flink-1.18:$paimonVersion")
+
   implementation(libs.guava)
 
   compileOnly(project(":clients:client-java-runtime", configuration = "shadow"))
@@ -50,6 +50,7 @@ dependencies {
   compileOnly("org.apache.flink:flink-connector-hive_$scalaVersion:$flinkVersion")
   compileOnly("org.apache.flink:flink-table-common:$flinkVersion")
   compileOnly("org.apache.flink:flink-table-api-java:$flinkVersion")
+  compileOnly("org.apache.paimon:paimon-flink-1.18:$paimonVersion")
 
   compileOnly(libs.hive2.exec) {
     artifact {
@@ -94,6 +95,7 @@ dependencies {
   testImplementation("org.apache.flink:flink-connector-hive_$scalaVersion:$flinkVersion")
   testImplementation("org.apache.flink:flink-table-common:$flinkVersion")
   testImplementation("org.apache.flink:flink-table-api-java:$flinkVersion")
+  testImplementation("org.apache.paimon:paimon-flink-$flinkMajorVersion:$paimonVersion")
 
   testImplementation(libs.hive2.exec) {
     artifact {
