@@ -21,8 +21,11 @@ package org.apache.gravitino.flink.connector.paimon;
 
 import com.google.common.collect.Maps;
 import java.util.Map;
+import org.apache.flink.configuration.ConfigOptions;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.catalog.CommonCatalogOptions;
 import org.apache.gravitino.catalog.lakehouse.paimon.PaimonCatalogBackend;
+import org.apache.gravitino.catalog.lakehouse.paimon.PaimonCatalogPropertiesMetadata;
 import org.apache.gravitino.catalog.lakehouse.paimon.PaimonConfig;
 import org.apache.gravitino.flink.connector.PropertiesConverter;
 import org.apache.paimon.options.CatalogOptions;
@@ -34,11 +37,34 @@ public class PaimonPropertiesConverter implements PropertiesConverter {
   private PaimonPropertiesConverter() {}
 
   @Override
+  public Map<String, String> toGravitinoCatalogProperties(Configuration flinkConf) {
+    Map<String, String> gravitinoCatalogProperties = flinkConf.toMap();
+    String warehouse = flinkConf.get(ConfigOptions.key("warehouse").stringType().noDefaultValue());
+    gravitinoCatalogProperties.put("warehouse", warehouse);
+    String backendType = flinkConf.get(GravitinoPaimonCatalogFactoryOptions.backendType);
+    gravitinoCatalogProperties.put(
+        PaimonCatalogPropertiesMetadata.GRAVITINO_CATALOG_BACKEND, backendType);
+    if (PaimonCatalogBackend.JDBC.name().equalsIgnoreCase(backendType)) {
+      gravitinoCatalogProperties.put(
+          "uri", flinkConf.get(ConfigOptions.key("uri").stringType().noDefaultValue()));
+      gravitinoCatalogProperties.put(
+          "jdbc-user", flinkConf.get(ConfigOptions.key("jdbc.user").stringType().noDefaultValue()));
+      gravitinoCatalogProperties.put(
+          "jdbc-password",
+          flinkConf.get(ConfigOptions.key("jdbc.password").stringType().noDefaultValue()));
+    } else if (PaimonCatalogBackend.HIVE.name().equalsIgnoreCase(backendType)) {
+      throw new UnsupportedOperationException(
+          "The Gravitino Connector does not currently support creating a Paimon Catalog that uses Hive Metastore.");
+    }
+    return gravitinoCatalogProperties;
+  }
+
+  @Override
   public Map<String, String> toFlinkCatalogProperties(Map<String, String> gravitinoProperties) {
     Map<String, String> flinkCatalogProperties = Maps.newHashMap();
     flinkCatalogProperties.putAll(gravitinoProperties);
     String backendType =
-        flinkCatalogProperties.get(GravitinoPaimonCatalogFactoryOptions.backendType.key());
+        flinkCatalogProperties.get(PaimonCatalogPropertiesMetadata.GRAVITINO_CATALOG_BACKEND);
     if (PaimonCatalogBackend.JDBC.name().equalsIgnoreCase(backendType)) {
       flinkCatalogProperties.put(CatalogOptions.METASTORE.key(), backendType);
       flinkCatalogProperties.put(
@@ -51,6 +77,7 @@ public class PaimonPropertiesConverter implements PropertiesConverter {
       throw new UnsupportedOperationException(
           "The Gravitino Connector does not currently support creating a Paimon Catalog that uses Hive Metastore.");
     }
+    flinkCatalogProperties.put("backend.type", backendType);
     flinkCatalogProperties.put(
         CommonCatalogOptions.CATALOG_TYPE.key(), GravitinoPaimonCatalogFactoryOptions.IDENTIFIER);
     return flinkCatalogProperties;

@@ -21,14 +21,15 @@ package org.apache.gravitino.flink.connector.integration.test.paimon;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import java.util.Arrays;
+import java.util.Map;
 import org.apache.flink.table.api.ResultKind;
 import org.apache.flink.table.api.TableResult;
 import org.apache.flink.types.Row;
 import org.apache.gravitino.Catalog;
 import org.apache.gravitino.Schema;
+import org.apache.gravitino.catalog.lakehouse.paimon.PaimonCatalogPropertiesMetadata;
 import org.apache.gravitino.flink.connector.integration.test.FlinkEnvIT;
 import org.apache.gravitino.flink.connector.integration.test.utils.TestUtils;
-import org.apache.gravitino.flink.connector.paimon.GravitinoPaimonCatalogFactoryOptions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -65,7 +66,7 @@ public class FlinkPaimonCatalogIT extends FlinkEnvIT {
             "lakehouse-paimon",
             null,
             ImmutableMap.of(
-                GravitinoPaimonCatalogFactoryOptions.backendType.key(),
+                PaimonCatalogPropertiesMetadata.GRAVITINO_CATALOG_BACKEND,
                 "filesystem",
                 "warehouse",
                 "/tmp/gravitino/paimon"));
@@ -147,5 +148,27 @@ public class FlinkPaimonCatalogIT extends FlinkEnvIT {
             Assertions.assertEquals(1, catalog.asSchemas().listSchemas().length);
           }
         });
+  }
+
+  @Test
+  public void testCreateGravitinoPaimonCatalogUsingSQL() {
+    tableEnv.useCatalog(DEFAULT_CATALOG);
+    int numCatalogs = tableEnv.listCatalogs().length;
+    String catalogName = "gravitino_hive_sql";
+    String warehouse = "/tmp/gravitino/paimon";
+    tableEnv.executeSql(
+        String.format(
+            "create catalog %s with ("
+                + "'type'='gravitino-paimon', "
+                + "'warehouse'='%s',"
+                + "'catalog.backend'='filesystem'"
+                + ")",
+            catalogName, warehouse));
+    String[] catalogs = tableEnv.listCatalogs();
+    Assertions.assertEquals(numCatalogs + 1, catalogs.length, "Should create a new catalog");
+    Assertions.assertTrue(metalake.catalogExists(catalogName));
+    org.apache.gravitino.Catalog gravitinoCatalog = metalake.loadCatalog(catalogName);
+    Map<String, String> properties = gravitinoCatalog.properties();
+    Assertions.assertEquals(warehouse, properties.get("warehouse"));
   }
 }

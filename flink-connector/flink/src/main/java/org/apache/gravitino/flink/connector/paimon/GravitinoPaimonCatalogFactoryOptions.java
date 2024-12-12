@@ -25,10 +25,10 @@ import org.apache.flink.configuration.ConfigOptions;
 public class GravitinoPaimonCatalogFactoryOptions {
 
   /** Identifier for the {@link GravitinoPaimonCatalog}. */
-  public static final String IDENTIFIER = "lakehouse-paimon";
+  public static final String IDENTIFIER = "gravitino-paimon";
 
   public static ConfigOption<String> backendType =
-      ConfigOptions.key("catalog-backend")
+      ConfigOptions.key("catalog.backend")
           .stringType()
           .defaultValue("fileSystem")
           .withDescription("");
