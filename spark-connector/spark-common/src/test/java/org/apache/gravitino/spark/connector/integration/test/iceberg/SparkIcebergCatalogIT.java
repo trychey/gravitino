@@ -105,6 +105,11 @@ public abstract class SparkIcebergCatalogIT extends SparkCommonIT {
   }
 
   @Override
+  protected boolean supportsReplaceColumns() {
+    return true;
+  }
+
+  @Override
   protected String getTableLocation(SparkTableInfo table) {
     return String.join(File.separator, table.getTableLocation(), "data");
   }
@@ -1217,14 +1222,6 @@ public abstract class SparkIcebergCatalogIT extends SparkCommonIT {
   private long getCurrentSnapshotId(String tableName) throws NoSuchTableException {
     SparkIcebergTable sparkIcebergTable = getSparkIcebergTableInstance(tableName);
     return sparkIcebergTable.table().currentSnapshot().snapshotId();
-  }
-
-  private long waitUntilAfter(Long timestampMillis) {
-    long current = System.currentTimeMillis();
-    while (current <= timestampMillis) {
-      current = System.currentTimeMillis();
-    }
-    return current;
   }
 
   @Data

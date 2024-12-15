@@ -76,11 +76,11 @@ public abstract class BaseCatalog implements TableCatalog, SupportsNamespaces {
   protected TableCatalog sparkCatalog;
   protected PropertiesConverter propertiesConverter;
   protected SparkTransformConverter sparkTransformConverter;
+  // The Gravitino catalog client to do schema operations.
+  protected Catalog gravitinoCatalogClient;
   private SparkTypeConverter sparkTypeConverter;
   private SparkTableChangeConverter sparkTableChangeConverter;
 
-  // The Gravitino catalog client to do schema operations.
-  private Catalog gravitinoCatalogClient;
   private String catalogName;
   private final GravitinoCatalogManager gravitinoCatalogManager;
 
@@ -408,6 +408,32 @@ public abstract class BaseCatalog implements TableCatalog, SupportsNamespaces {
           .loadTable(NameIdentifier.of(database, ident.name()));
     } catch (org.apache.gravitino.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
+    }
+  }
+
+  protected org.apache.spark.sql.connector.catalog.Table loadSparkTable(
+      Identifier ident, String version) {
+    try {
+      return sparkCatalog.loadTable(ident, version);
+    } catch (NoSuchTableException e) {
+      throw new RuntimeException(
+          String.format(
+              "Failed to load the real sparkTable: %s",
+              String.join(".", getDatabase(ident), ident.name())),
+          e);
+    }
+  }
+
+  protected org.apache.spark.sql.connector.catalog.Table loadSparkTable(
+      Identifier ident, long timestamp) {
+    try {
+      return sparkCatalog.loadTable(ident, timestamp);
+    } catch (NoSuchTableException e) {
+      throw new RuntimeException(
+          String.format(
+              "Failed to load the real sparkTable: %s",
+              String.join(".", getDatabase(ident), ident.name())),
+          e);
     }
   }
 
