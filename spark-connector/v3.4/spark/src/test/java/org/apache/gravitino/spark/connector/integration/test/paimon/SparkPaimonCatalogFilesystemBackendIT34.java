@@ -16,20 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.gravitino.spark.connector.integration.test.paimon;
 
-package org.apache.gravitino.spark.connector;
+import org.apache.gravitino.spark.connector.paimon.GravitinoPaimonCatalogSpark34;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
-import org.apache.gravitino.rel.expressions.sorts.SortDirection;
+public class SparkPaimonCatalogFilesystemBackendIT34 extends SparkPaimonCatalogFilesystemBackendIT {
 
-public class ConnectorConstants {
-  public static final String COMMENT = "comment";
-
-  public static final SortDirection SPARK_DEFAULT_SORT_DIRECTION = SortDirection.ASCENDING;
-  public static final String LOCATION = "location";
-  public static final String PRIMARY_KEY_IDENTIFIER = "primary-key";
-
-  public static final String DOT = ".";
-  public static final String COMMA = ",";
-
-  private ConnectorConstants() {}
+  @Test
+  void testCatalogClassName() {
+    String catalogClass =
+        getSparkSession()
+            .sessionState()
+            .conf()
+            .getConfString("spark.sql.catalog." + getCatalogName());
+    Assertions.assertEquals(GravitinoPaimonCatalogSpark34.class.getName(), catalogClass);
+  }
 }

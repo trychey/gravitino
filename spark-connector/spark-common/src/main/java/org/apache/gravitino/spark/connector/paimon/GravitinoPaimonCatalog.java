@@ -17,69 +17,53 @@
  * under the License.
  */
 
-package org.apache.gravitino.spark.connector.iceberg;
+package org.apache.gravitino.spark.connector.paimon;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.Map;
-import org.apache.gravitino.catalog.lakehouse.iceberg.IcebergPropertiesUtils;
-import org.apache.gravitino.rel.Table;
+import org.apache.gravitino.NameIdentifier;
+import org.apache.gravitino.catalog.lakehouse.paimon.PaimonPropertiesUtils;
 import org.apache.gravitino.spark.connector.PropertiesConverter;
 import org.apache.gravitino.spark.connector.SparkTransformConverter;
 import org.apache.gravitino.spark.connector.SparkTypeConverter;
 import org.apache.gravitino.spark.connector.catalog.BaseCatalog;
-import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.spark.SparkCatalog;
-import org.apache.iceberg.spark.procedures.SparkProcedures;
-import org.apache.iceberg.spark.source.HasIcebergCatalog;
-import org.apache.iceberg.spark.source.SparkTable;
+import org.apache.paimon.spark.SparkCatalog;
+import org.apache.paimon.spark.SparkTable;
 import org.apache.spark.sql.catalyst.analysis.NoSuchFunctionException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
-import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
-import org.apache.spark.sql.connector.iceberg.catalog.ProcedureCatalog;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-/**
- * The GravitinoIcebergCatalog class extends the BaseCatalog to integrate with the Apache Iceberg
- * table format, providing specialized support for Iceberg-specific functionalities within Apache
- * Spark's ecosystem. This implementation can further adapt to specific interfaces such as
- * StagingTableCatalog and FunctionCatalog, allowing for advanced operations like table staging and
- * function management tailored to the needs of Iceberg tables.
- */
-public class GravitinoIcebergCatalog extends BaseCatalog
-    implements FunctionCatalog, ProcedureCatalog, HasIcebergCatalog {
+public class GravitinoPaimonCatalog extends BaseCatalog implements FunctionCatalog {
 
   @Override
   protected TableCatalog createAndInitSparkCatalog(
       String name, CaseInsensitiveStringMap options, Map<String, String> properties) {
-    String catalogBackendName = IcebergPropertiesUtils.getCatalogBackendName(properties);
+    String catalogBackendName = PaimonPropertiesUtils.getCatalogBackendName(properties);
+    TableCatalog paimonCatalog = new SparkCatalog();
     Map<String, String> all =
         getPropertiesConverter().toSparkCatalogProperties(options, properties);
-    TableCatalog icebergCatalog = new SparkCatalog();
-    icebergCatalog.initialize(catalogBackendName, new CaseInsensitiveStringMap(all));
-    return icebergCatalog;
+    paimonCatalog.initialize(catalogBackendName, new CaseInsensitiveStringMap(all));
+    return paimonCatalog;
   }
 
   @Override
-  protected org.apache.spark.sql.connector.catalog.Table createSparkTable(
+  protected Table createSparkTable(
       Identifier identifier,
-      Table gravitinoTable,
-      org.apache.spark.sql.connector.catalog.Table sparkTable,
-      TableCatalog sparkIcebergCatalog,
+      org.apache.gravitino.rel.Table gravitinoTable,
+      Table sparkTable,
+      TableCatalog sparkCatalog,
       PropertiesConverter propertiesConverter,
       SparkTransformConverter sparkTransformConverter,
       SparkTypeConverter sparkTypeConverter) {
-    return new SparkIcebergTable(
+    return new SparkPaimonTable(
         identifier,
         gravitinoTable,
         (SparkTable) sparkTable,
-        (SparkCatalog) sparkIcebergCatalog,
         propertiesConverter,
         sparkTransformConverter,
         sparkTypeConverter);
@@ -87,12 +71,20 @@ public class GravitinoIcebergCatalog extends BaseCatalog
 
   @Override
   protected PropertiesConverter getPropertiesConverter() {
-    return IcebergPropertiesConverter.getInstance();
+    return PaimonPropertiesConverter.getInstance();
   }
 
   @Override
   protected SparkTransformConverter getSparkTransformConverter() {
     return new SparkTransformConverter(true);
+  }
+
+  @Override
+  public boolean dropTable(Identifier ident) {
+    sparkCatalog.invalidateTable(ident);
+    return gravitinoCatalogClient
+        .asTableCatalog()
+        .purgeTable(NameIdentifier.of(getDatabase(ident), ident.name()));
   }
 
   @Override
@@ -103,39 +95,6 @@ public class GravitinoIcebergCatalog extends BaseCatalog
   @Override
   public UnboundFunction loadFunction(Identifier ident) throws NoSuchFunctionException {
     return ((SparkCatalog) sparkCatalog).loadFunction(ident);
-  }
-
-  /**
-   * Procedures will validate the equality of the catalog registered to Spark catalogManager and the
-   * catalog passed to `ProcedureBuilder` which invokes loadProcedure(). To meet the requirement ,
-   * override the method to pass `GravitinoIcebergCatalog` to the `ProcedureBuilder` instead of the
-   * internal spark catalog.
-   */
-  @Override
-  public Procedure loadProcedure(Identifier identifier) throws NoSuchProcedureException {
-    String[] namespace = identifier.namespace();
-    String name = identifier.name();
-
-    try {
-      if (isSystemNamespace(namespace)) {
-        SparkProcedures.ProcedureBuilder builder = SparkProcedures.newBuilder(name);
-        if (builder != null) {
-          return builder.withTableCatalog(this).build();
-        }
-      }
-    } catch (NoSuchMethodException
-        | IllegalAccessException
-        | InvocationTargetException
-        | ClassNotFoundException e) {
-      throw new RuntimeException("Failed to load Iceberg Procedure " + identifier, e);
-    }
-
-    throw new NoSuchProcedureException(identifier);
-  }
-
-  @Override
-  public Catalog icebergCatalog() {
-    return ((SparkCatalog) sparkCatalog).icebergCatalog();
   }
 
   @Override
@@ -176,14 +135,5 @@ public class GravitinoIcebergCatalog extends BaseCatalog
     } catch (org.apache.gravitino.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
     }
-  }
-
-  private boolean isSystemNamespace(String[] namespace)
-      throws NoSuchMethodException, InvocationTargetException, IllegalAccessException,
-          ClassNotFoundException {
-    Class<?> baseCatalog = Class.forName("org.apache.iceberg.spark.BaseCatalog");
-    Method isSystemNamespace = baseCatalog.getDeclaredMethod("isSystemNamespace", String[].class);
-    isSystemNamespace.setAccessible(true);
-    return (Boolean) isSystemNamespace.invoke(baseCatalog, (Object) namespace);
   }
 }

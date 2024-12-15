@@ -16,20 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.gravitino.spark.connector.paimon;
 
-package org.apache.gravitino.spark.connector;
+import org.apache.gravitino.spark.connector.SparkTableChangeConverter;
+import org.apache.gravitino.spark.connector.SparkTableChangeConverter34;
+import org.apache.gravitino.spark.connector.SparkTypeConverter;
+import org.apache.gravitino.spark.connector.SparkTypeConverter34;
 
-import org.apache.gravitino.rel.expressions.sorts.SortDirection;
+public class GravitinoPaimonCatalogSpark34 extends GravitinoPaimonCatalog {
+  @Override
+  protected SparkTypeConverter getSparkTypeConverter() {
+    return new SparkTypeConverter34();
+  }
 
-public class ConnectorConstants {
-  public static final String COMMENT = "comment";
-
-  public static final SortDirection SPARK_DEFAULT_SORT_DIRECTION = SortDirection.ASCENDING;
-  public static final String LOCATION = "location";
-  public static final String PRIMARY_KEY_IDENTIFIER = "primary-key";
-
-  public static final String DOT = ".";
-  public static final String COMMA = ",";
-
-  private ConnectorConstants() {}
+  @Override
+  protected SparkTableChangeConverter getSparkTableChangeConverter(
+      SparkTypeConverter sparkTypeConverter) {
+    return new SparkTableChangeConverter34(sparkTypeConverter);
+  }
 }

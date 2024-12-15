@@ -19,11 +19,17 @@
 
 package org.apache.gravitino.spark.connector.catalog;
 
+import static org.apache.gravitino.rel.indexes.Indexes.primary;
+import static org.apache.gravitino.spark.connector.ConnectorConstants.PRIMARY_KEY_IDENTIFIER;
+
 import com.google.common.base.Preconditions;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.gravitino.Catalog;
 import org.apache.gravitino.NameIdentifier;
@@ -33,6 +39,7 @@ import org.apache.gravitino.SchemaChange;
 import org.apache.gravitino.exceptions.NoSuchSchemaException;
 import org.apache.gravitino.exceptions.NonEmptySchemaException;
 import org.apache.gravitino.exceptions.SchemaAlreadyExistsException;
+import org.apache.gravitino.rel.indexes.Index;
 import org.apache.gravitino.spark.connector.ConnectorConstants;
 import org.apache.gravitino.spark.connector.PropertiesConverter;
 import org.apache.gravitino.spark.connector.SparkTableChangeConverter;
@@ -76,11 +83,11 @@ public abstract class BaseCatalog implements TableCatalog, SupportsNamespaces {
   protected TableCatalog sparkCatalog;
   protected PropertiesConverter propertiesConverter;
   protected SparkTransformConverter sparkTransformConverter;
+  // The Gravitino catalog client to do schema operations.
+  protected Catalog gravitinoCatalogClient;
   private SparkTypeConverter sparkTypeConverter;
   private SparkTableChangeConverter sparkTableChangeConverter;
 
-  // The Gravitino catalog client to do schema operations.
-  private Catalog gravitinoCatalogClient;
   private String catalogName;
   private final GravitinoCatalogManager gravitinoCatalogManager;
 
@@ -206,6 +213,8 @@ public abstract class BaseCatalog implements TableCatalog, SupportsNamespaces {
         sparkTransformConverter.toGravitinoDistributionAndSortOrders(transforms);
     org.apache.gravitino.rel.expressions.transforms.Transform[] partitionings =
         sparkTransformConverter.toGravitinoPartitionings(transforms);
+    List<String> primaryKeysString = extractPrimaryKeyString(properties);
+    Index[] indexes = constructIndexesFromPrimaryKeys(primaryKeysString);
 
     try {
       org.apache.gravitino.rel.Table gravitinoTable =
@@ -218,7 +227,8 @@ public abstract class BaseCatalog implements TableCatalog, SupportsNamespaces {
                   gravitinoProperties,
                   partitionings,
                   distributionAndSortOrdersInfo.getDistribution(),
-                  distributionAndSortOrdersInfo.getSortOrders());
+                  distributionAndSortOrdersInfo.getSortOrders(),
+                  indexes);
       org.apache.spark.sql.connector.catalog.Table sparkTable = loadSparkTable(ident);
       return createSparkTable(
           ident,
@@ -411,6 +421,32 @@ public abstract class BaseCatalog implements TableCatalog, SupportsNamespaces {
     }
   }
 
+  protected org.apache.spark.sql.connector.catalog.Table loadSparkTable(
+      Identifier ident, String version) {
+    try {
+      return sparkCatalog.loadTable(ident, version);
+    } catch (NoSuchTableException e) {
+      throw new RuntimeException(
+          String.format(
+              "Failed to load the real sparkTable: %s",
+              String.join(".", getDatabase(ident), ident.name())),
+          e);
+    }
+  }
+
+  protected org.apache.spark.sql.connector.catalog.Table loadSparkTable(
+      Identifier ident, long timestamp) {
+    try {
+      return sparkCatalog.loadTable(ident, timestamp);
+    } catch (NoSuchTableException e) {
+      throw new RuntimeException(
+          String.format(
+              "Failed to load the real sparkTable: %s",
+              String.join(".", getDatabase(ident), ident.name())),
+          e);
+    }
+  }
+
   protected String getDatabase(Identifier sparkIdentifier) {
     if (sparkIdentifier.namespace().length > 0) {
       return sparkIdentifier.namespace()[0];
@@ -461,5 +497,30 @@ public abstract class BaseCatalog implements TableCatalog, SupportsNamespaces {
               String.join(".", getDatabase(ident), ident.name())),
           e);
     }
+  }
+
+  private static List<String> extractPrimaryKeyString(Map<String, String> properties) {
+    String pkAsString = properties.get(PRIMARY_KEY_IDENTIFIER);
+    return pkAsString == null
+        ? Collections.emptyList()
+        : Arrays.stream(pkAsString.split(",")).map(String::trim).collect(Collectors.toList());
+  }
+
+  private static Index[] constructIndexesFromPrimaryKeys(List<String> pks) {
+    Index[] indexes = new Index[0];
+    if (pks != null && !pks.isEmpty()) {
+      String[][] filedNames = constructIndexFiledNames(pks);
+      indexes =
+          Collections.singletonList(primary(PRIMARY_KEY_IDENTIFIER, filedNames))
+              .toArray(new Index[0]);
+    }
+    return indexes;
+  }
+
+  private static String[][] constructIndexFiledNames(List<String> primaryKeys) {
+    return primaryKeys.stream()
+        .map(pk -> new String[] {pk})
+        .collect(Collectors.toList())
+        .toArray(new String[0][0]);
   }
 }
