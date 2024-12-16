@@ -62,9 +62,9 @@ public class TestPaimonPropertiesConverter {
     Assertions.assertEquals(
         GravitinoPaimonCatalogFactoryOptions.IDENTIFIER, flinkCatalogProperties.get("type"));
     Assertions.assertEquals(localWarehouse, flinkCatalogProperties.get("warehouse"));
-    Assertions.assertEquals(testUser, flinkCatalogProperties.get("jdbc.user"));
-    Assertions.assertEquals(testPassword, flinkCatalogProperties.get("jdbc.password"));
-    Assertions.assertEquals("jdbc", flinkCatalogProperties.get("metastore"));
+    Assertions.assertEquals(testUser, flinkCatalogProperties.get("jdbc-user"));
+    Assertions.assertEquals(testPassword, flinkCatalogProperties.get("jdbc-password"));
+    Assertions.assertEquals("jdbc", flinkCatalogProperties.get("catalog.backend"));
     Assertions.assertEquals(testUri, flinkCatalogProperties.get("uri"));
   }
 }
