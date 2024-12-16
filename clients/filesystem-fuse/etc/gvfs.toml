@@ -15,6 +15,26 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[build]
-#target-dir = "build"
+# fuse settings
+[fuse]
+mount_to = "gvfs"
+mount_from = "gvfs://fileset/schema/catalog1/schema1/fileset1"
+default_mask = 755
 
+[fuse.properties]
+key1 = "value1"
+key2 = "value2"
+
+# filesystem settings
+[filesystem]
+block_size = 8192
+
+# Gravitino settings
+[gravitino]
+gravitino_url = "http://example.com:9000"
+metalake = "test"
+
+# extent settings
+[extent_config]
+access_key = "mybucket"
+secret_key = "jdfw"

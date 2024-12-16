@@ -22,7 +22,7 @@ mod error;
 mod filesystem;
 mod filesystem_metadata;
 mod fuse_api_handle;
-mod fuse_server;
+pub mod fuse_server;
 mod gravitino_client;
 mod gravitino_compose_filesystem;
 mod gravitino_filesystem;
@@ -31,28 +31,3 @@ mod memory_filesystem;
 mod opened_file_manager;
 mod storage_filesystem;
 mod utils;
-use crate::config::Config;
-use crate::fuse_server::FuseServer;
-use fuse3::Result;
-use log::{debug, info};
-use std::sync::Arc;
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter("info,gvfs_fuse=debug,fuse3=warn")
-        .init();
-
-    debug!("Starting gvfs-fuse server...");
-    let server = Arc::new(FuseServer::new("gvfs"));
-    let clone_server = server.clone();
-
-    let config = Config::default();
-    let v = tokio::spawn(async move { clone_server.start(&config).await });
-
-    tokio::signal::ctrl_c().await?;
-    info!("Received Ctrl+C, stopping server...");
-    server.stop().await?;
-    v.await.ok();
-    Ok(())
-}

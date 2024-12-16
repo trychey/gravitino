@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[build]
-#target-dir = "build"
+with open('gvfs/a5.txt', 'w') as file:
+    file.write('Hello, world!\n')
+
+print("File written successfully!")
 
