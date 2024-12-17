@@ -28,19 +28,34 @@ import org.apache.flink.types.Row;
 import org.apache.gravitino.Catalog;
 import org.apache.gravitino.Schema;
 import org.apache.gravitino.catalog.lakehouse.paimon.PaimonCatalogPropertiesMetadata;
-import org.apache.gravitino.flink.connector.integration.test.FlinkEnvIT;
+import org.apache.gravitino.flink.connector.integration.test.FlinkCommonIT;
 import org.apache.gravitino.flink.connector.integration.test.utils.TestUtils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-public class FlinkPaimonCatalogIT extends FlinkEnvIT {
+public class FlinkPaimonCatalogIT extends FlinkCommonIT {
 
   private static final String DEFAULT_PAIMON_CATALOG =
       "test_flink_paimon_filesystem_schema_catalog";
 
   private static org.apache.gravitino.Catalog catalog;
+
+  @Override
+  protected boolean supportColumnOperation() {
+    return false;
+  }
+
+  @Override
+  protected boolean supportTableOperation() {
+    return false;
+  }
+
+  @Override
+  protected boolean supportSchemaOperation() {
+    return false;
+  }
 
   protected Catalog currentCatalog() {
     return catalog;

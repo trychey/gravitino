@@ -47,7 +47,7 @@ public class GravitinoPaimonCatalogFactory implements CatalogFactory {
 
   @Override
   public Set<ConfigOption<?>> requiredOptions() {
-    return ImmutableSet.of(GravitinoPaimonCatalogFactoryOptions.backendType);
+    return ImmutableSet.of(GravitinoPaimonCatalogFactoryOptions.CATALOG_BACKEND);
   }
 
   @Override
