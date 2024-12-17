@@ -22,9 +22,13 @@ def main():
         else:
             raise ValueError("Can't find valid version info in setup.py")
 
-    git_commit = (
-        subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("ascii").strip()
-    )
+    try:
+        git_commit = (
+            subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("ascii").strip()
+        )
+    except Exception as e:
+        print(f"Failed to get the git reference: {e}")
+        return
 
     compile_date = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
