@@ -28,7 +28,7 @@ def main():
         )
     except Exception as e:
         print(f"Failed to get the git reference: {e}")
-        return
+        git_commit = "unknown"
 
     compile_date = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
