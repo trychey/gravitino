@@ -76,18 +76,4 @@ public class CredentialUtils {
         .splitToStream(providers)
         .collect(Collectors.toSet());
   }
-
-  /*
-  private static String getCredentialProviderType(Map<String, String> properties) {
-    if (properties == null) {
-      return null;
-    }
-
-    String provider = properties.get(CredentialConstants.CREDENTIAL_PROVIDER_TYPE);
-    if (StringUtils.isNotBlank(provider)) {
-      return provider;
-    }
-    return null;
-  }
-   */
 }
