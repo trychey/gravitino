@@ -265,6 +265,20 @@ public class SecureHadoopCatalogOperations
     hadoopCatalogOperations.testConnection(catalogIdent, type, provider, comment, properties);
   }
 
+  @Override
+  public Map<String, CredentialContext> getCredentialContexts(
+      NameIdentifier nameIdentifier, CredentialPrivilege privilege) {
+    if (nameIdentifier.equals(NameIdentifierUtil.getCatalogIdentifier(nameIdentifier))) {
+      return getCatalogCredentialContexts();
+    }
+    return getFilesetCredentialContexts(nameIdentifier, privilege);
+  }
+
+  @Override
+  public CatalogCredentialManager getCatalogCredentialManager() {
+    return catalogCredentialManager;
+  }
+
   /**
    * Add the user to the subject so that we can get the last user in the subject. Hadoop catalog
    * uses this method to pass api user from the client side, so that we can get the user in the
@@ -312,19 +326,5 @@ public class SecureHadoopCatalogOperations
 
     return providers.stream()
         .collect(Collectors.toMap(provider -> provider, provider -> credentialContext));
-  }
-
-  @Override
-  public Map<String, CredentialContext> getCredentialContexts(
-      NameIdentifier nameIdentifier, CredentialPrivilege privilege) {
-    if (nameIdentifier.equals(NameIdentifierUtil.getCatalogIdentifier(nameIdentifier))) {
-      return getCatalogCredentialContexts();
-    }
-    return getFilesetCredentialContexts(nameIdentifier, privilege);
-  }
-
-  @Override
-  public CatalogCredentialManager getCatalogCredentialManager() {
-    return catalogCredentialManager;
   }
 }
