@@ -502,7 +502,7 @@ public class GravitinoCommandLine extends TestableCommandLine {
         newSetTagProperty(url, ignore, metalake, getOneTag(tags), property, value).handle();
       } else if (property == null && value == null) {
         if (!hasEntity(name)) {
-          showEntityUndefinedMessage();
+          System.err.println(ErrorMessages.MALFORMED_NAME);
           return;
         }
         newTagEntity(url, ignore, metalake, name, tags).handle();
@@ -515,7 +515,7 @@ public class GravitinoCommandLine extends TestableCommandLine {
       if (!isTag) {
         boolean force = line.hasOption(GravitinoOptions.FORCE);
         if (!hasEntity(name)) {
-          showEntityUndefinedMessage();
+          System.err.println(ErrorMessages.MALFORMED_NAME);
           return;
         }
         newRemoveAllTags(url, ignore, metalake, name, force).handle();
@@ -525,7 +525,7 @@ public class GravitinoCommandLine extends TestableCommandLine {
           newRemoveTagProperty(url, ignore, metalake, getOneTag(tags), property).handle();
         } else {
           if (!hasEntity(name)) {
-            showEntityUndefinedMessage();
+            System.err.println(ErrorMessages.MALFORMED_NAME);
             return;
           }
           newUntagEntity(url, ignore, metalake, name, tags).handle();
@@ -833,9 +833,6 @@ public class GravitinoCommandLine extends TestableCommandLine {
         && Objects.isNull(name.getTableName()));
   }
 
-  private void showEntityUndefinedMessage() {
-    System.err.println(ErrorMessages.MISSING_ENTITY);
-  }
   /**
    * Retrieves the Gravitinno URL from the command line options or the GRAVITINO_URL environment
    * variable or the Gravitio config file.
