@@ -27,20 +27,24 @@ use fuse3::raw::reply::{DirectoryEntry, DirectoryEntryPlus};
 use fuse3::raw::Filesystem;
 use fuse3::FileType::{Directory, RegularFile};
 use fuse3::{Errno, FileType, Inode, SetAttr, Timestamp};
-use futures_util::stream;
+use futures_util::{stream, Stream};
 use futures_util::stream::BoxStream;
 use futures_util::StreamExt;
 use std::ffi::{OsStr, OsString};
+use std::fmt;
+use std::fmt::{Debug, Formatter};
 use std::num::NonZeroU32;
 use std::time::{Duration, SystemTime};
+use tracing::{instrument};
 
+#[derive(Debug)]
 pub(crate) struct FuseApiHandle<T: RawFileSystem> {
     fs: T,
     default_ttl: Duration,
     fs_context: FileSystemContext,
 }
 
-impl<T: RawFileSystem> FuseApiHandle<T> {
+impl<T: RawFileSystem + Debug> FuseApiHandle<T> {
     const DEFAULT_ATTR_TTL: Duration = Duration::from_secs(1);
     const DEFAULT_MAX_WRITE_SIZE: u32 = 16 * 1024;
 
@@ -52,10 +56,12 @@ impl<T: RawFileSystem> FuseApiHandle<T> {
         }
     }
 
+    #[instrument(level = "debug", ret)]
     pub async fn get_file_path(&self, file_id: u64) -> String {
         self.fs.get_file_path(file_id).await
     }
 
+    #[instrument(level = "debug", ret, err)]
     async fn get_modified_file_stat(
         &self,
         file_id: u64,
@@ -81,7 +87,8 @@ impl<T: RawFileSystem> FuseApiHandle<T> {
     }
 }
 
-impl<T: RawFileSystem> Filesystem for FuseApiHandle<T> {
+impl<T: RawFileSystem + std::fmt::Debug> Filesystem for FuseApiHandle<T> {
+    #[instrument(level = "debug", ret, err)]
     async fn init(&self, _req: Request) -> fuse3::Result<ReplyInit> {
         self.fs.init().await?;
         Ok(ReplyInit {
@@ -89,10 +96,12 @@ impl<T: RawFileSystem> Filesystem for FuseApiHandle<T> {
         })
     }
 
+    #[instrument(level = "debug")]
     async fn destroy(&self, _req: Request) {
         //TODO need to call the destroy method of the local_fs
     }
 
+    #[instrument(level = "debug", ret, err)]
     async fn lookup(
         &self,
         _req: Request,
@@ -108,6 +117,7 @@ impl<T: RawFileSystem> Filesystem for FuseApiHandle<T> {
         })
     }
 
+    #[instrument(level = "debug", ret, err)]
     async fn getattr(
         &self,
         _req: Request,
@@ -127,6 +137,7 @@ impl<T: RawFileSystem> Filesystem for FuseApiHandle<T> {
         })
     }
 
+    #[instrument(level = "debug", ret, err)]
     async fn setattr(
         &self,
         _req: Request,
@@ -150,6 +161,7 @@ impl<T: RawFileSystem> Filesystem for FuseApiHandle<T> {
         })
     }
 
+    #[instrument(level = "debug", ret, err)]
     async fn mkdir(
         &self,
         _req: Request,
@@ -172,18 +184,21 @@ impl<T: RawFileSystem> Filesystem for FuseApiHandle<T> {
         })
     }
 
+    #[instrument(level = "debug", ret, err)]
     async fn unlink(&self, _req: Request, parent: Inode, name: &OsStr) -> fuse3::Result<()> {
         let name = name.to_string_lossy();
         self.fs.remove_file(parent, &name).await?;
         Ok(())
     }
 
+    #[instrument(level = "debug", ret, err)]
     async fn rmdir(&self, _req: Request, parent: Inode, name: &OsStr) -> fuse3::Result<()> {
         let name = name.to_string_lossy();
         self.fs.remove_dir(parent, &name).await?;
         Ok(())
     }
 
+    #[instrument(level = "debug", ret, err)]
     async fn open(&self, _req: Request, inode: Inode, flags: u32) -> fuse3::Result<ReplyOpen> {
         let file_handle = self.fs.open_file(inode, flags).await?;
         Ok(ReplyOpen {
@@ -192,6 +207,7 @@ impl<T: RawFileSystem> Filesystem for FuseApiHandle<T> {
         })
     }
 
+    #[instrument(level = "debug", ret, err)]
     async fn read(
         &self,
         _req: Request,
@@ -204,6 +220,7 @@ impl<T: RawFileSystem> Filesystem for FuseApiHandle<T> {
         Ok(ReplyData { data: data })
     }
 
+    #[instrument(level = "debug", ret, err)]
     async fn write(
         &self,
         _req: Request,
@@ -218,6 +235,7 @@ impl<T: RawFileSystem> Filesystem for FuseApiHandle<T> {
         Ok(ReplyWrite { written: written })
     }
 
+    #[instrument(level = "debug", ret, err)]
     async fn statfs(&self, _req: Request, _inode: Inode) -> fuse3::Result<ReplyStatFs> {
         //TODO: Implement statfs for the filesystem
         Ok(ReplyStatFs {
@@ -232,6 +250,7 @@ impl<T: RawFileSystem> Filesystem for FuseApiHandle<T> {
         })
     }
 
+    #[instrument(level = "debug", ret)]
     async fn release(
         &self,
         _eq: Request,
@@ -244,6 +263,7 @@ impl<T: RawFileSystem> Filesystem for FuseApiHandle<T> {
         self.fs.close_file(inode, fh).await
     }
 
+    #[instrument(level = "debug", ret, err)]
     async fn opendir(&self, _req: Request, inode: Inode, flags: u32) -> fuse3::Result<ReplyOpen> {
         let file_handle = self.fs.open_dir(inode, flags).await?;
         Ok(ReplyOpen {
@@ -258,6 +278,7 @@ impl<T: RawFileSystem> Filesystem for FuseApiHandle<T> {
         T: 'a;
 
     #[allow(clippy::needless_lifetimes)]
+    #[instrument(level = "debug", ret, err)]
     async fn readdir<'a>(
         &'a self,
         _req: Request,
@@ -299,6 +320,7 @@ impl<T: RawFileSystem> Filesystem for FuseApiHandle<T> {
         })
     }
 
+    #[instrument(level = "debug", ret, err)]
     async fn releasedir(
         &self,
         _req: Request,
@@ -309,6 +331,7 @@ impl<T: RawFileSystem> Filesystem for FuseApiHandle<T> {
         self.fs.close_file(inode, fh).await
     }
 
+    #[instrument(level = "debug", ret, err)]
     async fn create(
         &self,
         _req: Request,
@@ -339,6 +362,7 @@ impl<T: RawFileSystem> Filesystem for FuseApiHandle<T> {
         T: 'a;
 
     #[allow(clippy::needless_lifetimes)]
+    #[instrument(level = "debug", ret, err)]
     async fn readdirplus<'a>(
         &'a self,
         _req: Request,
@@ -399,7 +423,8 @@ impl<T: RawFileSystem> Filesystem for FuseApiHandle<T> {
     }
 }
 
-const fn fstat_to_file_attr(file_st: &FileStat, context: &FileSystemContext) -> FileAttr {
+#[instrument(level = "debug", ret)]
+fn fstat_to_file_attr(file_st: &FileStat, context: &FileSystemContext) -> FileAttr {
     debug_assert!(file_st.file_id != 0 && file_st.parent_file_id != 0);
     FileAttr {
         ino: file_st.file_id,
@@ -422,7 +447,8 @@ const fn fstat_to_file_attr(file_st: &FileStat, context: &FileSystemContext) -> 
     }
 }
 
-const fn dummy_file_attr(
+#[instrument(level = "debug", ret)]
+fn dummy_file_attr(
     file_id: u64,
     kind: FileType,
     now: Timestamp,

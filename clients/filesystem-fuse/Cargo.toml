@@ -40,4 +40,5 @@ fuse3 = { version = "0.8.1", "features" = ["tokio-runtime", "unprivileged"] }
 log = "0.4.22"
 tokio = { version = "1.38.0", features = ["full"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing = "0.1.41"
 
