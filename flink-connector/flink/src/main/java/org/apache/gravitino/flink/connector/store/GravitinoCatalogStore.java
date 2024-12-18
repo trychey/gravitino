@@ -33,6 +33,8 @@ import org.apache.gravitino.flink.connector.PropertiesConverter;
 import org.apache.gravitino.flink.connector.catalog.GravitinoCatalogManager;
 import org.apache.gravitino.flink.connector.hive.GravitinoHiveCatalogFactoryOptions;
 import org.apache.gravitino.flink.connector.hive.HivePropertiesConverter;
+import org.apache.gravitino.flink.connector.paimon.GravitinoPaimonCatalogFactoryOptions;
+import org.apache.gravitino.flink.connector.paimon.PaimonPropertiesConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -106,6 +108,8 @@ public class GravitinoCatalogStore extends AbstractCatalogStore {
     switch (catalogType) {
       case GravitinoHiveCatalogFactoryOptions.IDENTIFIER:
         return "hive";
+      case GravitinoPaimonCatalogFactoryOptions.IDENTIFIER:
+        return "lakehouse-paimon";
       default:
         throw new IllegalArgumentException(
             String.format("The catalog type is not supported:%s", catalogType));
@@ -121,6 +125,7 @@ public class GravitinoCatalogStore extends AbstractCatalogStore {
 
     switch (catalogType) {
       case GravitinoHiveCatalogFactoryOptions.IDENTIFIER:
+      case GravitinoPaimonCatalogFactoryOptions.IDENTIFIER:
         return Catalog.Type.RELATIONAL;
       default:
         throw new IllegalArgumentException(
@@ -132,6 +137,8 @@ public class GravitinoCatalogStore extends AbstractCatalogStore {
     switch (provider) {
       case "hive":
         return HivePropertiesConverter.INSTANCE;
+      case "lakehouse-paimon":
+        return PaimonPropertiesConverter.INSTANCE;
     }
     throw new IllegalArgumentException("The provider is not supported:" + provider);
   }
