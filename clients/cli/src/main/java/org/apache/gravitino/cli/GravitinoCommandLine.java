@@ -501,18 +501,33 @@ public class GravitinoCommandLine extends TestableCommandLine {
       if (property != null && value != null) {
         newSetTagProperty(url, ignore, metalake, getOneTag(tags), property, value).handle();
       } else if (property == null && value == null) {
+        if (!hasEntity(name)) {
+          showEntityUndefinedMessage();
+          return;
+        }
         newTagEntity(url, ignore, metalake, name, tags).handle();
+      } else {
+        System.err.println(
+            "This command cannot be executed. The tag set command only supports configuring tag properties or attaching tags to entities.");
       }
     } else if (CommandActions.REMOVE.equals(command)) {
       boolean isTag = line.hasOption(GravitinoOptions.TAG);
       if (!isTag) {
         boolean force = line.hasOption(GravitinoOptions.FORCE);
+        if (!hasEntity(name)) {
+          showEntityUndefinedMessage();
+          return;
+        }
         newRemoveAllTags(url, ignore, metalake, name, force).handle();
       } else {
         String property = line.getOptionValue(GravitinoOptions.PROPERTY);
         if (property != null) {
           newRemoveTagProperty(url, ignore, metalake, getOneTag(tags), property).handle();
         } else {
+          if (!hasEntity(name)) {
+            showEntityUndefinedMessage();
+            return;
+          }
           newUntagEntity(url, ignore, metalake, name, tags).handle();
         }
       }
@@ -811,6 +826,16 @@ public class GravitinoCommandLine extends TestableCommandLine {
     }
   }
 
+  private boolean hasEntity(FullName name) {
+    // TODO fileset and topic
+    return !(Objects.isNull(name.getCatalogName())
+        && Objects.isNull(name.getSchemaName())
+        && Objects.isNull(name.getTableName()));
+  }
+
+  private void showEntityUndefinedMessage() {
+    System.err.println(ErrorMessages.MISSING_ENTITY);
+  }
   /**
    * Retrieves the Gravitinno URL from the command line options or the GRAVITINO_URL environment
    * variable or the Gravitio config file.
