@@ -501,18 +501,33 @@ public class GravitinoCommandLine extends TestableCommandLine {
       if (property != null && value != null) {
         newSetTagProperty(url, ignore, metalake, getOneTag(tags), property, value).handle();
       } else if (property == null && value == null) {
+        if (!hasEntity(name)) {
+          System.err.println(ErrorMessages.MALFORMED_NAME);
+          return;
+        }
         newTagEntity(url, ignore, metalake, name, tags).handle();
+      } else {
+        System.err.println(
+            "This command cannot be executed. The tag set command only supports configuring tag properties or attaching tags to entities.");
       }
     } else if (CommandActions.REMOVE.equals(command)) {
       boolean isTag = line.hasOption(GravitinoOptions.TAG);
       if (!isTag) {
         boolean force = line.hasOption(GravitinoOptions.FORCE);
+        if (!hasEntity(name)) {
+          System.err.println(ErrorMessages.MALFORMED_NAME);
+          return;
+        }
         newRemoveAllTags(url, ignore, metalake, name, force).handle();
       } else {
         String property = line.getOptionValue(GravitinoOptions.PROPERTY);
         if (property != null) {
           newRemoveTagProperty(url, ignore, metalake, getOneTag(tags), property).handle();
         } else {
+          if (!hasEntity(name)) {
+            System.err.println(ErrorMessages.MALFORMED_NAME);
+            return;
+          }
           newUntagEntity(url, ignore, metalake, name, tags).handle();
         }
       }
@@ -809,6 +824,13 @@ public class GravitinoCommandLine extends TestableCommandLine {
         newUpdateFilesetName(url, ignore, metalake, catalog, schema, fileset, newName).handle();
       }
     }
+  }
+
+  private boolean hasEntity(FullName name) {
+    // TODO fileset and topic
+    return !(Objects.isNull(name.getCatalogName())
+        && Objects.isNull(name.getSchemaName())
+        && Objects.isNull(name.getTableName()));
   }
 
   /**
